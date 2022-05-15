@@ -1,0 +1,54 @@
+<table width="300" height="100" cellpadding="0" cellspacing="2" class="deal" border="0">
+    <tbody>
+        <tr>
+            <td width="8%">&nbsp;</td>
+            <th width="8%">Nt</th>
+            <th width="8%"><img src="../spade.gif"></th>
+            <th width="8%"><img src="../heart.gif"></th>
+            <th width="8%"><img src="../diamond.gif"></th>
+            <th width="8%"><img src="../club.gif"></th>
+            <td rowspan="3" width="3%">&nbsp;</td>
+            <td width="8%">&nbsp;</td>
+            <th width="8%">Nt</th>
+            <th width="8%"><img src="../spade.gif"></th>
+            <th width="8%"><img src="../heart.gif"></th>
+            <th width="8%"><img src="../diamond.gif"></th>
+            <th width="8%"><img src="../club.gif"></th>
+        </tr>
+        <tr>
+            <th>N</th>
+			<td align="center">${n_par_n}</td>
+			<td align="center">${n_par_s}</td>
+			<td align="center">${n_par_h}</td>
+			<td align="center">${n_par_d}</td>
+			<td align="center">${n_par_c}</td>
+            <th>E</th>
+			<td align="center">${e_par_n}</td>
+			<td align="center">${e_par_s}</td>
+			<td align="center">${e_par_h}</td>
+			<td align="center">${e_par_d}</td>
+			<td align="center">${e_par_c}</td>
+        </tr>
+        <tr>
+            <th>S</th>
+			<td align="center">${s_par_n}</td>
+			<td align="center">${s_par_s}</td>
+			<td align="center">${s_par_h}</td>
+			<td align="center">${s_par_d}</td>
+			<td align="center">${s_par_c}</td>
+			<th>W</th>
+			<td align="center">${w_par_n}</td>
+			<td align="center">${w_par_s}</td>
+			<td align="center">${w_par_h}</td>
+			<td align="center">${w_par_d}</td>
+			<td align="center">${w_par_c}</td>
+		</tr>
+		<!--
+		<tr>
+		    <td colspan="13" align="center">
+		        <b>minimax = <a href="${minimax_url}">${level}${denomination}${result}</a> ${declarer}, ${score}</b>
+		    </td>
+		</tr>
+		-->
+    </tbody>
+</table>
