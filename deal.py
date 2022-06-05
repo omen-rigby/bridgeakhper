@@ -1,18 +1,59 @@
+import sqlite3
 from ddstable import ddstable
+from constants import *
 
-
+bbo_url_template = "https://www.bridgebase.com/tools/handviewer.html?n={n}&e={e}&s={s}&w={w}&d={d}&v={v}&b={b}&a=ppp"
 board_template = open("board_template").read()
 analysis_template = open("analysis_template").read()
 
 
 class Deal:
-    def __init__(self, url):
-        self.url = url.lower()
+    def __init__(self, url=None, number=0, raw_hands=None, no_data=False):
         self.data = {}
-        for q in self.url.split("?")[1].split("&"):
-            self.data[q.split("=")[0]] = q.split("=")[1]
-        self.parse_hands_to_suits()
+        if url:
+            self.url = url.lower()
+            for q in self.url.split("?")[1].split("&"):
+                self.data[q.split("=")[0]] = q.split("=")[1]
+            self.parse_hands_to_suits()
+        elif number and not no_data:
+            try:
+                self.get_board_from_db(number)
+            except:
+                pass
+        elif raw_hands:
+            for i, h in enumerate(hands):
+                self.data[h] = ""
+                for j, s in enumerate(SUITS):
+                    self.data[f"{h}{s}"] = raw_hands[4 * i + j + 1]
+                    self.data[h] += s + raw_hands[4 * i + j + 1]
+            self.data["b"] = raw_hands[0]
+            self.data["d"] = "wnes"[raw_hands[0] % 4]
+            self.data["v"] = VULNERABILITY[raw_hands[0] % 16]
+            self.url = bbo_url_template.format(n=self.data["n"], s=self.data["s"], e=self.data["e"], w=self.data["w"],
+                                               v=self.data["v"], d=self.data["d"], b=self.data["b"])
+            print(self.url)
         self.get_html()
+
+    def get_board_from_db(self, number):
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(f"Select * from boards where number={number}")
+        board = cursor.fetchone()
+        conn.close()
+        fields = ["ns", "nh", "nd", "nc", "es", "eh", "ed", "ec", "ss", "sh", "sd", "sc", "ws", "wh", "wd", "wc"]
+        for i, field in enumerate(fields):
+            self.data[field] = board[i + 1]
+        for seat in "nesw":
+            self.data[seat] = ""
+            for suit in "shdc":
+                self.data[seat] += suit + self.data[f"{seat}{suit}"]
+        self.data["b"] = number
+        self.data["d"] = "wnes"[number % 4]
+        self.data["v"] = VULNERABILITY[number % 16]
+        print(self.data)
+        self.url = bbo_url_template.format(n=self.data["n"], s=self.data["s"], e=self.data["e"], w=self.data["w"],
+                                           v=self.data["v"], d=self.data["d"], b=self.data["b"])
+
 
     def parse_hands_to_suits(self):
         for k in "nsew":
@@ -35,21 +76,36 @@ class Deal:
         pre_passes = "p" * (("NESW".index(declarer.upper()) - "NESW".index(dealer.upper())) % 4)
         return self.url.replace("ppp", f'{pre_passes}{level}{denomination}ppp')
 
-    def get_total_points(self, declarer, denomination, tricks, result=None):
+    def get_total_points(self, declarer, denomination, tricks, result=None, multiplier=""):
+        """
+        Gets total points
+        :param declarer: nsew
+        :param denomination: cdhsn
+        :param tricks: 7..13
+        :param result: 7..13
+        :param multiplier: "" or "x" or "xx"
+        :return: total points
+        """
+        multiplier = 2 ** multiplier.count("x")
+        vul = self.is_vul(declarer)
         if result is None:
             result = tricks
         level = tricks - 6
         if result < tricks:
-            return (50 + 50 * self.is_vul(declarer)) * (result - tricks)
+            if not multiplier:
+                return (50 + 50 * vul) * (result - tricks)
+            return self.sac_score(declarer, result - tricks) * 2 ** (multiplier - 1)
         trick_value = 20 if denomination in "cd" else 30
         base_cost = level * trick_value + 10 * (denomination == "n")
-        if level > 4 or (level == 4 and denomination in "shn") or (level == 3 and denomination == 'n'):
+        bonus = 50 * multiplier
+        if base_cost * multiplier >= 100:
+            bonus += [250, 450][vul]
             if level == 7:
-                return (2000 if self.is_vul(declarer) else 1300) + base_cost + trick_value * (result - tricks)
+                bonus += [500, 750][vul]
             elif level == 6:
-                return (1250 if self.is_vul(declarer) else 800) + base_cost + trick_value * (result - tricks)
-            return (500 if self.is_vul(declarer) else 300) + base_cost + trick_value * (result - tricks)
-        return 50 + base_cost + trick_value * (result - tricks)
+                bonus += [1000, 1500][vul]
+        overtrick_value = [50, 100] * vul * multiplier if multiplier > 1 else trick_value
+        return bonus + base_cost + overtrick_value * (result - tricks)
 
     def sac_score(self, declarer, undertricks):
         if undertricks == 1:

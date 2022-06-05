@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta content="text/html; charset='UTF-8'">
+    <title>Scorecards</title>
+    <style type="Text/css">@media print {
+    @page { margin: 0mm 0mm 0mm 0mm; size: landscape; }
+    @bottom-right-corner { ... }
+
+    tr.page-break  { display: block; page-break-before: always; }
+}H1 {
+	FONT-SIZE: 20pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #000000; TEXT-ALIGN: center
+}
+H2 {
+	FONT-SIZE: 16pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #0000a0; TEXT-ALIGN: center
+}
+H3 {
+	FONT-SIZE: 10pt; FONT-FAMILY: Arial,sans-serif; FONT-WEIGHT: bold; COLOR: #0000a0; TEXT-ALIGN: center
+}
+H4 {
+	FONT-SIZE: 12pt; FONT-FAMILY: Arial,sans-serif; FONT-WEIGHT: bold; TEXT-ALIGN: center
+}
+TABLE {
+	BORDER-TOP: 4px ridge; BORDER-RIGHT: 4px ridge; WIDTH: 90%; BORDER-COLLAPSE: collapse; BORDER-BOTTOM: 4px ridge; FONT-WEIGHT: normal; PADDING-BOTTOM: 2px; TEXT-ALIGN: center; PADDING-TOP: 2px; PADDING-LEFT: 2px; BORDER-LEFT: 4px ridge; PADDING-RIGHT: 2px; BACKGROUND-COLOR: #fdf0d9; cellpadding: 2
+}
+TH {
+	BORDER-TOP: #aaa 1px solid; BORDER-RIGHT: #aaa 1px solid; BORDER-BOTTOM: #aaa 1px solid; BORDER-LEFT: #aaa 1px solid
+}
+TD {
+	BORDER-TOP: #aaa 1px solid; BORDER-RIGHT: #aaa 1px solid; BORDER-BOTTOM: #aaa 1px solid; BORDER-LEFT: #aaa 1px solid
+}
+CAPTION {
+
+}
+</style>
+</head>
+<body>
+<h1>Scorecards</h1>
+<table style="FONT-SIZE: 10pt; FONT-FAMILY: Arial;page-break-after: always;">
+  <tbody>
+  <tr bgcolor="#ffb0b0">
+    <th colspan="10" align="left">PAIR ${pair} ${name}</th></tr>
+  <tr bgcolor="#ffb0b0">
+    <th colspan="10" align="left">MPs ${mp_total} MaxMPs ${max_mp} Score ${percent_total}% Rank ${rank}</th>
+  </tr>
+  <tr bgcolor="#cfcfcf">
+    <th align="center">Bd</th>
+    <th align="center">Vul</th>
+    <th align="center">Dir</th>
+    <th align="center">Contract</th>
+    <th align="center">By</th>
+    <th align="center">Lead</th>
+    <th align="center">Score</th>
+    <th align="center">Percent</th>
+    <th align="center">MPs</th>
+    <th align="center">MPs per round</th>
+    <th align="center">Opps</th></tr>
+  <tr bgcolor="#efefef">
+    <td align="center">${board_number}</td>
+    <td align="center">${vul}</td>
+    <td align="center">${dir}</td>
+    <td align="center">${contract}</td>
+    <td align="center">${declarer}</td>
+    <td align="center">${lead}</td>
+    <td align="center">${score}</td>
+    <td align="center">${percent}</td>
+    <td align="center">${mp}</td>
+    <td rowspan="${boards_per_round}">${mp_per_round}</td>
+    <td rowspan="${boards_per_round}" align="left">${opp_names}</td>
+  </tr>
+  </tbody></table>
+</body>
+</html>
