@@ -6,8 +6,6 @@
     <style type="Text/css">@media print {
     @page { margin: 0mm 0mm 0mm 0mm; size: landscape; }
     @bottom-right-corner { ... }
-
-    tr.page-break  { display: block; page-break-before: always; }
 }H1 {
 	FONT-SIZE: 20pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #000000; TEXT-ALIGN: center
 }
@@ -38,8 +36,15 @@ CAPTION {
 <h1>Scorecards</h1>
 <table style="FONT-SIZE: 10pt; FONT-FAMILY: Arial;page-break-after: always;">
   <tbody>
+  <tr bgcolor="#ffffff" style="BORDER-TOP: none; BORDER-RIGHT: none; BORDER-BOTTOM: none; BORDER-LEFT: none">
+    <th colspan="11" align="left">
+      <div></div>
+      <div style="page-break-before:always"/>
+    </th>
+  </tr>
   <tr bgcolor="#ffb0b0">
-    <th colspan="10" align="left">PAIR ${pair} ${name}</th></tr>
+    <th colspan="10" align="left">
+      PAIR ${pair} ${name}</th></tr>
   <tr bgcolor="#ffb0b0">
     <th colspan="10" align="left">MPs ${mp_total} MaxMPs ${max_mp} Score ${percent_total}% Rank ${rank}</th>
   </tr>

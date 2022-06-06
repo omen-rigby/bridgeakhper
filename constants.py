@@ -2,8 +2,8 @@ import time
 import re
 
 
-DEBUG = False
-date = "2022-06-04" if DEBUG else time.strftime("%Y-%m-%d")
+DEBUG = True
+date = "2022-06-05" if DEBUG else time.strftime("%Y-%m-%d")
 db_path = f"{date}/boards.db"
 protocols_path = db_path.replace("boards", "protocols")
 VULNERABILITY = ["e",

@@ -17,7 +17,6 @@ def print_to_pdf(arg, pdf_path=None):
     elif type(arg) == BeautifulSoup:
         with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".htm", dir=date) as f:
             f.write(arg.prettify())
-            remove = False
         print(f.name)
         htm_path = os.path.abspath(f.name)
         pdf_path = os.path.abspath(pdf_path or (arg.h1.string + ".pdf"))

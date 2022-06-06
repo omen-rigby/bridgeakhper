@@ -207,6 +207,7 @@ def number(update: Update, context: CallbackContext):
         cursor = conn.cursor()
         cursor.execute(f"Select number from boards where number={update.message.text}")
         if cursor.fetchall():
+            # TODO: seems no longer needed
             context.user_data["board"] = Board(number=update.message.text)
             conn.close()
             return result(update, context)

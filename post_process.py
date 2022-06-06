@@ -2,15 +2,16 @@ import os
 import re
 import sys
 import subprocess
+import sqlite3
 from deal import Deal
+from tg_input import db_path
+from print import *
+
 
 def collect(folder):
     for root, _, files in os.walk(folder):
         yield from [f"{root}/{f}" for f in files]
 
-
-CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
-#[f for f in collect("C:/Program Files") if f.endswith("chrome.exe")][0]
 
 
 global boards
@@ -48,9 +49,15 @@ def get_board_html(url, template):
 
 
 def get_boards(folder):
-    for url in open(f"{folder}/boards").read().split("\n"):
-        if url:
-            boards.append(Deal(url))
+    # for url in open(f"{folder}/boards").read().split("\n"):
+    #     if url:
+    #         boards.append(Deal(url))
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute(f"Select * from boards")
+    for i in range(len(cursor.fetchall())):
+        boards.append(Deal(number=i + 1))
+    conn.close()
 
 
 def replace(file):
@@ -143,14 +150,6 @@ border-collapse: collapse;
     return_value = old_string.replace('<TABLE style="FONT-SIZE: 10pt; FONT-FAMILY: Arial',
                                       '<TABLE style="FONT-SIZE: 10pt; FONT-FAMILY: Arial;page-break-after: always;')
     return return_value
-
-
-def print_to_pdf(htm_path):
-    pdf_path = os.path.abspath(htm_path.replace('_processed.htm', '.pdf'))
-    htm_path = os.path.abspath(htm_path)
-    cmd = f'"{CHROME_PATH}" --headless --disable-gpu --print-to-pdf="{pdf_path}" --no-margins "{htm_path}"'
-    print(cmd)
-    subprocess.check_output(cmd, shell=True)
 
 
 if __name__ == "__main__":
