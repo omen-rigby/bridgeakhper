@@ -3,8 +3,11 @@ import subprocess
 import tempfile
 from bs4 import BeautifulSoup
 from constants import date
-CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
-# TODO: registry lookup
+if os.name == "nt":
+    CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
+    # TODO: registry lookup
+elif os.name == "posix":
+    CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]
 #[f for f in collect("C:/Program Files") if f.endswith("chrome.exe")][0]
 
 

@@ -75,13 +75,19 @@ class ResultGetter:
         cur = self.cursor
         cur.execute("select * from names order by number")
         raw = cur.fetchall()
-        conn2 = sqlite3.connect("players.db")
-        cursor2 = conn2.cursor()
-        cursor2.execute("select first_name,last_name,full_name,gender from players")
-        players = cursor2.fetchall()
-        for raw_pair in raw:
-            self.names.append(self.lookup(raw_pair[1], players))
-        conn2.close()
+        try:
+            conn2 = sqlite3.connect("players.db")
+            cursor2 = conn2.cursor()
+            cursor2.execute("select first_name,last_name,full_name,gender from players")
+            players = cursor2.fetchall()
+            for raw_pair in raw:
+                self.names.append(self.lookup(raw_pair[1], players))
+            conn2.close()
+        except:
+            for raw_pair in raw:
+                self.names.append(raw_pair[1].split(" "))
+        if not raw:
+            self.names = [(f"{i}_1", f"{i}_2") for i in range(1, self.pairs + 1)]
         self._conn = self.conn.close()
 
     def get_hands(self):
@@ -102,23 +108,36 @@ class ResultGetter:
             if len(filtered) != self.pairs // 2:
                 print(f"Missing results for board #{board}")
             sorted_results = list(filtered.values())
-            sorted_results.sort(key=lambda x: x[7])
-            scores = [s[7] for s in sorted_results]
+            adjusted_scores = [s for s in sorted_results if s[7] == 1]
+            scores = [s for s in sorted_results if s[7] != 1]
+            for s in adjusted_scores:
+                mp_ns = round(max_mp / 100 * int(s[3].split("/")[0]), 1)
+                mp_ew = max_mp - mp_ns
+                statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+                cur.execute(statement)
+            print([s[7] for s in scores])
+            scores.sort(key=lambda x: x[7])
             current = 0
             cluster_index = 0
-            for s in sorted_results:
-                repeats = scores.count(s[7])
-                mp_ns = current + (repeats - 1)
+            for s in scores:
+
+                repeats = [s2[7] for s2 in scores].count(s[7])
+                if adjusted_scores and CONFIG["neuberg"]:
+                    mp_ew = (self.max_mp - 2 * len(adjusted_scores) - current - (repeats - 1) + 1) \
+                            * len(sorted_results) / len(scores) - 1
+                    mp_ns = max_mp - mp_ew
+                else:
+                    mp_ns = current + (repeats - 1)
+                    mp_ew = max_mp - mp_ns
                 if cluster_index == repeats - 1:
                     current += 2 * repeats
                     cluster_index = 0
                 else:
                     cluster_index += 1
-                mp_ew = max_mp - mp_ns
                 statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
                 cur.execute(statement)
             self.travellers.append([[s[1], s[2], escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]), s[7] if s[7] >= 0 else "",
-                                    -s[7] if s[7] <= 0 else "", s[8], s[9]] for s in sorted_results])
+                                    -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in sorted_results])
         self.conn.commit()
 
     def get_standings(self):
@@ -127,9 +146,8 @@ class ResultGetter:
         for pair in range(1, self.pairs + 1):
             cur.execute(f"select * from protocols where ns={pair} or ew={pair} order by number")
             history = cur.fetchall()
-            self.totals.append(
-                (pair, sum(record[-2] if pair == record[1] else record[-1] for record in history))
-            )
+            result_in_mp = sum(record[-2] if pair == record[1] else record[-1] for record in history)
+            self.totals.append((pair, result_in_mp))
 
             vul = {'-': "-", "n": "NS", "e": "EW", "b": "ALL"}
             self.personals.append([])
@@ -172,7 +190,7 @@ class ResultGetter:
         html = BeautifulSoup(open("rankings_template.html"), features="lxml")
         template = html.find_all("tr")[1].extract()
         for text in html.h1.find_all(text=re.compile('\$\{[^\}]+\}')):
-            fixed_text = self._replace(text, {"tournament_title": "Koghbatsi Sunday",
+            fixed_text = self._replace(text, {"tournament_title": CONFIG["tournament_title"],
                                               "date": date})
             text.replace_with(fixed_text)
         for text in html.h2.find_all(text=re.compile('\$\{[^\}]+\}')):
@@ -269,7 +287,6 @@ class ResultGetter:
             # One per page
             html.tbody.append(new_trs[0])
             html.tbody.append(new_trs[1])
-
 
             for text in new_trs[2].find_all(text=re.compile('\$\{[^\}]+\}')):
                 fixed_text = self._replace(text, {"mp_total": pair_rank[1], "max_mp": max_mp,

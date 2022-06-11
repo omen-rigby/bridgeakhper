@@ -28,3 +28,9 @@ def escape_suits(string):
     for bad, good in zip(SUITS_UNICODE, SUITS):
         string = string.replace(bad, good)
     return string
+
+
+def remove_suits(string):
+    for bad in SUITS_UNICODE:
+        string = string.replace(bad, "")
+    return string
