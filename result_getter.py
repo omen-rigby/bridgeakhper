@@ -93,7 +93,7 @@ class ResultGetter:
     def get_hands(self):
         self.hands = []
         cur = self.cursor
-        cur.execute(f"select * from boards order by number")
+        cur.execute(f"select distinct * from boards order by number")
         self.hands = cur.fetchall()
 
     def get_results(self):
@@ -107,18 +107,20 @@ class ResultGetter:
                 filtered[f"{protocol[0]}{protocol[1]}"] = protocol
             if len(filtered) != self.pairs // 2:
                 print(f"Missing results for board #{board}")
-            sorted_results = list(filtered.values())
+            sorted_results = [list(f) for f in filtered.values()]
             adjusted_scores = [s for s in sorted_results if s[7] == 1]
             scores = [s for s in sorted_results if s[7] != 1]
             for s in adjusted_scores:
                 mp_ns = round(max_mp / 100 * int(s[3].split("/")[0]), 1)
                 mp_ew = max_mp - mp_ns
+                s[8] = mp_ns
+                s[9] = mp_ew
                 statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
                 cur.execute(statement)
-            print([s[7] for s in scores])
             scores.sort(key=lambda x: x[7])
             current = 0
             cluster_index = 0
+            scores = [list(s) for s in scores]
             for s in scores:
 
                 repeats = [s2[7] for s2 in scores].count(s[7])
@@ -135,9 +137,11 @@ class ResultGetter:
                 else:
                     cluster_index += 1
                 statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+                s[8] = mp_ns
+                s[9] = mp_ew
                 cur.execute(statement)
             self.travellers.append([[s[1], s[2], escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]), s[7] if s[7] >= 0 else "",
-                                    -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in sorted_results])
+                                    -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in scores + adjusted_scores])
         self.conn.commit()
 
     def get_standings(self):
@@ -170,10 +174,9 @@ class ResultGetter:
                 self.personals[-1].append([board[0], vul[VULNERABILITY[board[0] % 16]], position,
                                           escape_suits(board[3] + board[6]), board[4], escape_suits(board[5]),
                                           board[7] * (-1) ** (pair == board[1]),
-                                          board[8 + (pair != board[1])], round(board[8 + (pair != board[1])] * 100 / max_mp),
+                                          board[8 + (pair != board[1])],
+                                          round(board[8 + (pair != board[1])] * 100 / max_mp, 2),
                                           board[1 + (pair == board[1])]])
-            print(pair)
-            [print(p) for p in self.personals[-1]]
         self.totals.sort(key=lambda x: -x[1])
 
     @staticmethod
@@ -200,14 +203,14 @@ class ResultGetter:
         for i, rank in enumerate(self.totals):
             new_tr = deepcopy(template)
             repl_dict = {"rank": i + 1, "pair": rank[0], "names": self.names[int(rank[0]) - 1],
-                         "mp": rank[1], "percent": round(100 * rank[1]/max_mp)
+                         "mp": rank[1], "percent": round(100 * rank[1]/max_mp, 2)
                          }
             for text in new_tr.find_all(text=re.compile('\$\{[^\}]+\}')):
                 new_text = self._replace(text.string, repl_dict)
                 text.string.replace_with(new_text)
 
             html.tbody.append(new_tr)
-        print_to_pdf(html, f"{date}/Ranks.pdf")
+        return print_to_pdf(html, f"{date}/Ranks.pdf")
 
     def pdf_travellers(self):
         file = open("travellers_template.html").read()
@@ -265,7 +268,7 @@ class ResultGetter:
                 protocol_table.a["href"] = bbo_url
                 new_parent.tbody.append(protocol_table)
             html.tbody.append(new_tr)
-        print_to_pdf(html, f"{date}/Travellers.pdf")
+        return print_to_pdf(html, f"{date}/Travellers.pdf")
 
     def pdf_scorecards(self):
         file = open("scorecards_template.html").read()
@@ -290,13 +293,12 @@ class ResultGetter:
 
             for text in new_trs[2].find_all(text=re.compile('\$\{[^\}]+\}')):
                 fixed_text = self._replace(text, {"mp_total": pair_rank[1], "max_mp": max_mp,
-                                                  "percent_total": round(100 * pair_rank[1] / max_mp),
+                                                  "percent_total": round(100 * pair_rank[1] / max_mp, 2),
                                                   "rank": totals.index(pair_rank) + 1})
                 text.replace_with(fixed_text)
             html.tbody.append(new_trs[2])
             html.tbody.append(new_trs[3])
             for r in range(num_of_rounds):
-                new_trs[3].extract()
                 mp_for_round = sum(results[r * boards_per_round + b][7] for b in range(boards_per_round))
                 for i in range(boards_per_round):
                     board_data = results[r * boards_per_round + i]
@@ -337,18 +339,20 @@ class ResultGetter:
                     html.tbody.append(board_tr)
         html.tbody.tr.extract()
 
-        print_to_pdf(html, f"{date}/Scorecards.pdf")
+        return print_to_pdf(html, f"{date}/Scorecards.pdf")
 
     def process(self):
+        paths = []
+        self.get_results()
         self.get_names()
         self.get_hands()
-        self.get_results()
         self.get_standings()
-        self.pdf_rankings()
-        self.pdf_travellers()
-        self.pdf_scorecards()
+        paths.append(self.pdf_rankings())
+        paths.append(self.pdf_travellers())
+        paths.append(self.pdf_scorecards())
         self.conn.close()
+        return paths
 
 
 if __name__ == "__main__":
-    ResultGetter(27, 9).process()
+    ResultGetter(28, 7).process()

@@ -53,7 +53,7 @@ class Board:
         if not self._initial_layout:
             for i, s in enumerate(SUITS_UNICODE):
                 self._initial_layout.append([InlineKeyboardButton(text, callback_data="shdc"[i] + text)
-                            for text in SUITS_UNICODE[i] + "AKQJT98765432"])
+                            for text in [SUITS_UNICODE[i]] + CARDS_WITH_DIGIT_TEN])
         return self._initial_layout
 
     def get_remaining_cards(self, lead=False):
@@ -63,10 +63,10 @@ class Board:
                 break
             for i, suit in enumerate("shdc"):
                 try:
-                    holding = self.__getattribute__(f"{seat}{suit}").upper()
+                    holding = self.__getattribute__(f"{seat}{suit}").upper().replace("T", "10")
                 except AttributeError:
                     holding = ""
-                for card in CARDS:
+                for card in CARDS_WITH_DIGIT_TEN:
                     if card in holding:
                         cards[i].pop([c.text for c in cards[i]].index(card))
         rows = []
@@ -125,14 +125,13 @@ class Board:
         if multiplier > 1:
             bonus += 25 * multiplier
         overtrick_value = [50, 100][vul] * multiplier if multiplier > 1 else trick_value
-        print(bonus, base_cost, overtrick_value, result, tricks)
         return int((bonus + base_cost * multiplier + overtrick_value * (result - tricks)) * sign)
 
     def save(self):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         statement = f"""
-        INSERT INTO boards (number, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc)
+        REPLACE INTO boards (number, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc)
         VALUES({self.number}, '{self.ns}', '{self.nh}', '{self.nd}', '{self.nc}', '{self.es}', '{self.eh}', '{self.ed}', '{self.ec}', '{self.ss}', '{self.sh}', '{self.sd}', '{self.sc}', '{self.ws}', '{self.wh}', '{self.wd}', '{self.wc}');"""
         print(statement)
         cursor.execute(statement)

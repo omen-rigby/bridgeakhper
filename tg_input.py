@@ -1,7 +1,8 @@
 import logging
 from inline_key import *
 from board import Board
-
+from result_getter import ResultGetter
+from generate import generate
 
 TOKEN = CONFIG["token"]
 DIRECTORS = CONFIG["directors"]
@@ -36,34 +37,8 @@ def board(update: Update, context: CallbackContext):
 
 
 def start_session(update: Update, context: CallbackContext):
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
     if update.effective_chat.username in DIRECTORS:
-        statement = """CREATE TABLE "boards" (
-        "number"	INTEGER,
-        "ns"	TEXT,
-        "nh"	TEXT,
-        "nd"	TEXT,
-        "nc"	TEXT,
-        "es"	TEXT,
-        "eh"	TEXT,
-        "ed"	TEXT,
-        "ec"	TEXT,
-        "ss"	TEXT,
-        "sh"	TEXT,
-        "sd"	TEXT,
-        "sc"	TEXT,
-        "ws"	TEXT,
-        "wh"	TEXT,
-        "wd"	TEXT,
-        "wc"	TEXT
-    )"""
-        try:
-            cursor.execute(statement)
-        except:
-            pass
-        conn.commit()
-
+        generate()
         context.bot_data["maxboard"] = 0
         context.bot_data["maxpair"] = 0
         context.user_data["currentHand"] = None
@@ -73,27 +48,33 @@ def start_session(update: Update, context: CallbackContext):
              reply_buttons=[],
              context=context)
     else:
-        cursor.execute('select * from boards')
-        boards = len(cursor.fetchall())
-        cursor.execute('select * from protocols')
-        protocols = len(cursor.fetchall())
-        cursor.execute('select * from names')
-        names = len(cursor.fetchall())
-        boards_num = context.bot_data.get("maxboard")
-        pairs_num = context.bot_data.get("maxpair")
-        if boards_num and pairs_num:
-            send(chat_id=update.effective_chat.id,
-                 text=f"""Active session: {pairs_num} pairs
+        return missing(update, context)
+
+
+def missing(update, context):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute('select * from boards')
+    boards = len(cursor.fetchall())
+    cursor.execute('select * from protocols')
+    protocols = len(cursor.fetchall())
+    cursor.execute('select * from names')
+    names = len(cursor.fetchall())
+    boards_num = context.bot_data.get("maxboard")
+    pairs_num = context.bot_data.get("maxpair")
+    if boards_num and pairs_num:
+        send(chat_id=update.effective_chat.id,
+             text=f"""Active session: {pairs_num} pairs
 Submitted {boards} of {boards_num} boards
 Submitted {protocols} results
 Submitted {names} names""",
-                 reply_buttons=[],
-                 context=context)
-        else:
-            send(chat_id=update.effective_chat.id,
-                 text=f"""Session not started yet""",
-                 reply_buttons=[],
-                 context=context)
+             reply_buttons=[],
+             context=context)
+    else:
+        send(chat_id=update.effective_chat.id,
+             text=f"""Session not started yet""",
+             reply_buttons=[],
+             context=context)
     conn.close()
 
 
@@ -115,7 +96,7 @@ def names(update: Update, context: CallbackContext):
 def names_text(update: Update, context: CallbackContext):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    statement = f"""INSERT INTO names (number, partnership)
+    statement = f"""REPLACE INTO names (number, partnership)
                     VALUES({context.user_data["names"]}, '{update.message.text}');"""
     cursor.execute(statement)
     conn.commit()
@@ -191,7 +172,7 @@ def ok(update: Update, context: CallbackContext):
              reply_buttons=("/board",),
              context=context)
     elif board.current_hand == "w":
-        w = board.get_w_hand()
+        w = board.get_w_hand().replace("T", "10")
         send(chat_id=update.effective_chat.id,
              text=f"W hand should be: {w}",
              reply_buttons=("Save", "Restart"),
@@ -240,6 +221,17 @@ def restart(update: Update, context: CallbackContext):
          context=context)
 
 
+def end(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    if update.effective_chat.username not in DIRECTORS:
+        send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
+        return
+    paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
+
+    for path in paths:
+        context.bot.send_document(chat_id, open(path, 'rb'))
+
+
 if __name__ == '__main__':
     updater = Updater(token=TOKEN)
     updater.dispatcher.add_handler(CommandHandler('start', start))
@@ -254,8 +246,11 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), cancel))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(" .* "), names_text))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+-\w+"), names_text))
+    updater.dispatcher.add_handler(CommandHandler("missing", missing))
 
     updater.dispatcher.add_handler(CommandHandler("result", result))
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
+    updater.dispatcher.add_handler(CommandHandler("end", end))
+
 
     updater.start_polling()

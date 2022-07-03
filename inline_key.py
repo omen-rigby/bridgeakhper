@@ -48,8 +48,8 @@ def inline_key(update: Update, context: CallbackContext):
                 reply_markup = pairs_keyboard(context, exclude=key)
                 context.user_data["markups"].append(reply_markup)
             else:
-                reply_markup = CONTRACTS_KEYBOARD
-                if context.user_data["markups"][-1 ] != CONTRACTS_KEYBOARD:
+                reply_markup = contracts_keyboard(update)
+                if context.user_data["markups"][-1] != reply_markup:
                     context.user_data["markups"].append(reply_markup)
 
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
@@ -58,16 +58,26 @@ def inline_key(update: Update, context: CallbackContext):
                                                                            text=new_text,
                                                                            parse_mode=ParseMode.HTML)
         elif key in SUITS_UNICODE or key == "NT" or key.lower() in hands:
-            old_string = result_data.text.split(CARET)[0].split("\n")[1]
-            new_string = remove_suits(old_string.replace("NT", ""))
-            new_text = result_data.text.replace(old_string, new_string)
+            old_string = result_data.text.split(CARET)[0].split("\n")[-1]
             if key.lower() in hands:
-                new_text = re.sub(f"{CARET}\n([^:]+): ", f" {key.upper()}\n\g<1>: {CARET}", new_text, flags=re.MULTILINE)
-                reply_markup = lead_keyboard()
-                context.user_data["markups"].append(reply_markup)
+                new_string = re.sub(f'[{hands}]$', "", old_string, flags=re.IGNORECASE)
+                new_text = result_data.text.replace(old_string, new_string)
+                if not CONTRACT_RE.match(new_string.split(": ")[1] + key):
+                    # bad contract submitted
+                    new_text = re.sub(f"\n([^:]+): .*{CARET}", f"\n\g<1>: {CARET}", result_data.text,
+                                      flags=re.MULTILINE)
+                    new_text = f"Incorrect contract, try again\n{new_text}"
+                    reply_markup = contracts_keyboard(update)
+                else:
+                    new_text = re.sub(f"{CARET}\n([^:]+): ", f" {key.upper()}\n\g<1>: {CARET}", new_text,
+                                      flags=re.MULTILINE)
+                    reply_markup = lead_keyboard()
+                    context.user_data["markups"].append(reply_markup)
             else:
-                new_text = result_data.text.replace(CARET, key.upper() + CARET)
-                reply_markup = CONTRACTS_KEYBOARD
+                new_string = remove_suits(old_string.replace("NT", ""))
+                new_text = result_data.text.replace(old_string, new_string)
+                new_text = new_text.replace(CARET, key.upper() + CARET)
+                reply_markup = contracts_keyboard(update)
 
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
                                                                       message_id=result_data.message_id,
@@ -77,7 +87,7 @@ def inline_key(update: Update, context: CallbackContext):
         elif key in ("x", "xx"):
             new_text = result_data.text.replace("x", "")
             new_text = re.sub(CARET, key + CARET, new_text, flags=re.MULTILINE)
-            reply_markup = CONTRACTS_KEYBOARD
+            reply_markup = contracts_keyboard(update)
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
                                                                            message_id=result_data.message_id,
                                                                            reply_markup=reply_markup,
@@ -180,7 +190,6 @@ def inline_key(update: Update, context: CallbackContext):
                 new_text = re.sub(f"\n([^:]+): .*{CARET}", f"\n\g<1>: {CARET}", result_data.text,
                               flags=re.MULTILINE)
             reply_markup = context.user_data["markups"][-1]
-            print(new_text)
             context.user_data["result"] = context.bot \
                 .editMessageText(chat_id=result_data["chat"]["id"],
                                  message_id=result_data.message_id,
@@ -191,22 +200,22 @@ def inline_key(update: Update, context: CallbackContext):
 
     elif CARD_RE.match(key):
         suit = key[0]
-        card = key[1]
+        card = key[1:].replace("10", "T")
         board = context.user_data["board"]
         hand = context.user_data["currentHand"]
-        suit_before = hand.text.split("\n")["shdc".index(suit)]
+        suit_before = hand.text.split("\n")["shdc".index(suit)].replace("10", "T")
         if card in suit_before:
             suit = suit_before.replace(card, "")
         else:
             suit = suit_before[0] + "".join(sorted(suit_before[1:] + card, key=lambda c: CARDS.index(c)))
-        text = hand.text.replace(suit_before, suit)
+        text = hand.text.replace(suit_before.replace("T", "10"), suit.replace("T", "10"))
         context.user_data["currentHand"] = context.bot.editMessageText(chat_id=hand["chat"]["id"],
                                                                        message_id=hand.message_id,
                                                                        text=text,
                                                                        reply_markup=board.get_remaining_cards(),
                                                                        parse_mode=ParseMode.HTML)
 
-        if len(text) == 20:
+        if len(text.replace("10", "T")) == 20:
             send(chat_id=update.effective_chat.id,
                  text=f"Next hand?",
                  reply_buttons=("OK", "Cancel"),

@@ -28,3 +28,4 @@ def print_to_pdf(arg, pdf_path=None):
     subprocess.check_output(cmd, shell=True)
     if remove:
         os.remove(htm_path)
+    return pdf_path

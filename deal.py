@@ -50,16 +50,14 @@ class Deal:
         self.data["b"] = number
         self.data["d"] = "wnes"[number % 4]
         self.data["v"] = VULNERABILITY[number % 16]
-        print(self.data)
         self.url = bbo_url_template.format(n=self.data["n"], s=self.data["s"], e=self.data["e"], w=self.data["w"],
                                            v=self.data["v"], d=self.data["d"], b=self.data["b"])
-
 
     def parse_hands_to_suits(self):
         for k in "nsew":
             v = self.data[k]
             for suit in "cdhs":
-                self.data[f"{k}{suit}"] = v.split(suit)[1]#.replace("10", "10")
+                self.data[f"{k}{suit}"] = v.split(suit)[1]
                 v = v.split(suit)[0]
 
     @property
@@ -100,9 +98,9 @@ class Deal:
         bonus = 50 * multiplier
         if base_cost * multiplier >= 100:
             bonus += [250, 450][vul]
-            if level == 7:
+            if level == 6:
                 bonus += [500, 750][vul]
-            elif level == 6:
+            elif level == 7:
                 bonus += [1000, 1500][vul]
         overtrick_value = [50, 100] * vul * multiplier if multiplier > 1 else trick_value
         return bonus + base_cost + overtrick_value * (result - tricks)

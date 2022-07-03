@@ -1,7 +1,10 @@
 {
   "tournament_title": "Elite Plaza Sunday",
   "directors": ["omen_rigby"],
-  "token": "TOKEN",
+  "token": "5331474971:AAEwZedGPr-ELZ0QU2RsjrtLw4pJIazPakY",
+  "movement": "howell",
+  "full": true,
   "score": "mp",
-  "neuberg": true
+  "neuberg": true,
+  "validate_lead": false
 }
