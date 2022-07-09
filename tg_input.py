@@ -1,12 +1,12 @@
+import os
 import logging
 from inline_key import *
 from board import Board
 from result_getter import ResultGetter
 from generate import generate
-import os
 
 
-PORT = int(os.environ.get('PORT', 5000))
+PORT = int(os.environ.get('PORT', 8443))
 TOKEN = CONFIG["token"]
 DIRECTORS = CONFIG["directors"]
 URL = f"https://api.telegram.org/bot{TOKEN}"
