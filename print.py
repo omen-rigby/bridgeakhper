@@ -27,6 +27,8 @@ def print_to_pdf(arg, pdf_path=None):
         pdf_path = os.path.abspath(pdf_path or (arg.h1.string + ".pdf"))
 
     cmd = f'"{CHROME_PATH}" --headless --disable-gpu --print-to-pdf="{pdf_path}" --no-margins "{htm_path}"'
+    res = subprocess.check_output(f'{CHROME_PATH} --version', shell=True)
+    logging.debug(f"Chrome version: {res}")
     try:
         subprocess.check_output(cmd, shell=True)
         if remove:
