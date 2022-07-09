@@ -229,8 +229,9 @@ def end(update: Update, context: CallbackContext):
     if update.effective_chat.username not in DIRECTORS:
         send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
         return
+    if 'DYNO' in os.environ:
+        context.bot.send_document(chat_id, open(db_path, 'rb'))
     paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
-
     for path in paths:
         context.bot.send_document(chat_id, open(path, 'rb'))
 
