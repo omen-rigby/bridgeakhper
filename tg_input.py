@@ -254,10 +254,12 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("result", result))
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
     updater.dispatcher.add_handler(CommandHandler("end", end))
+    if 'DYNO' in os.environ:
+        updater.start_webhook(listen="0.0.0.0",
+                                  port=int(PORT),
+                                  url_path=TOKEN)
+        updater.bot.setWebhook('https://bridgeakhper.herokuapp.com/' + TOKEN)
+    else:
+        updater.start_polling()
 
-    updater.start_polling()
-    updater.start_webhook(listen="0.0.0.0",
-                              port=int(PORT),
-                              url_path=TOKEN)
-    updater.bot.setWebhook('https://bridgeakhper.herokuapp.com/' + TOKEN)
     updater.idle()
