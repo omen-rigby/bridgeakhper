@@ -8,7 +8,7 @@ if os.name == "nt":
     CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
     # TODO: registry lookup
 elif 'DYNO' in os.environ:
-    CHROME_PATH = "google-chrome"
+    CHROME_PATH = os.environ.get('GOOGLE_CHROME_BIN')
 elif os.name == "posix":
     CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]
 
@@ -27,8 +27,6 @@ def print_to_pdf(arg, pdf_path=None):
         pdf_path = os.path.abspath(pdf_path or (arg.h1.string + ".pdf"))
 
     cmd = f'"{CHROME_PATH}" --headless --disable-gpu --print-to-pdf="{pdf_path}" --no-margins "{htm_path}"'
-    res = subprocess.check_output(f'{CHROME_PATH} --version', shell=True)
-    logging.debug(f"Chrome version: {res}")
     try:
         subprocess.check_output(cmd, shell=True)
         if remove:
