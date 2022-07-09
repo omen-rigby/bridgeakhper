@@ -29,9 +29,8 @@ def print_to_pdf(arg, pdf_path=None):
     cmd = f'"{CHROME_PATH}" --headless --disable-gpu --print-to-pdf="{pdf_path}" --no-margins "{htm_path}"'
     try:
         subprocess.check_output(cmd, shell=True)
-    except:
-        pdf_path = htm_path
-    finally:
         if remove:
             os.remove(htm_path)
+    except:
+        pdf_path = htm_path
     return pdf_path
