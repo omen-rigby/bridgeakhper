@@ -1,6 +1,7 @@
 import os
 import subprocess
 import tempfile
+import logging
 from bs4 import BeautifulSoup
 from constants import date
 if os.name == "nt":
@@ -26,7 +27,11 @@ def print_to_pdf(arg, pdf_path=None):
         pdf_path = os.path.abspath(pdf_path or (arg.h1.string + ".pdf"))
 
     cmd = f'"{CHROME_PATH}" --headless --disable-gpu --print-to-pdf="{pdf_path}" --no-margins "{htm_path}"'
-    subprocess.check_output(cmd, shell=True)
-    if remove:
-        os.remove(htm_path)
+    try:
+        subprocess.check_output(cmd, shell=True)
+    except:
+        pdf_path = htm_path
+    finally:
+        if remove:
+            os.remove(htm_path)
     return pdf_path
