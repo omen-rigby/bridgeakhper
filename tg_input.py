@@ -3,7 +3,10 @@ from inline_key import *
 from board import Board
 from result_getter import ResultGetter
 from generate import generate
+import os
 
+
+PORT = int(os.environ.get('PORT', 5000))
 TOKEN = CONFIG["token"]
 DIRECTORS = CONFIG["directors"]
 URL = f"https://api.telegram.org/bot{TOKEN}"
@@ -252,5 +255,9 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
     updater.dispatcher.add_handler(CommandHandler("end", end))
 
-
     updater.start_polling()
+    updater.start_webhook(listen="0.0.0.0",
+                              port=int(PORT),
+                              url_path=TOKEN)
+    updater.bot.setWebhook('https://bridgeakhper.herokuapp.com/' + TOKEN)
+    updater.idle()

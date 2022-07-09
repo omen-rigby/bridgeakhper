@@ -1,0 +1,1 @@
+web: python3 tg_input.py
