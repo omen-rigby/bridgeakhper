@@ -7,7 +7,7 @@ if os.name == "nt":
     CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
     # TODO: registry lookup
 elif 'DYNO' in os.environ:
-    CHROME_PATH = "google-chrome"
+    CHROME_PATH = "$GOOGLE_CHROME_BIN"
 elif os.name == "posix":
     CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]
 
