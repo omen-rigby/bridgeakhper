@@ -256,9 +256,10 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("end", end))
     if 'DYNO' in os.environ:
         updater.start_webhook(listen="0.0.0.0",
-                                  port=int(PORT),
-                                  url_path=TOKEN)
-        updater.bot.setWebhook('https://bridgeakhper.herokuapp.com/' + TOKEN)
+                              port=int(PORT),
+                              url_path=TOKEN,
+                              webhook_url=f"https://bridgeakhper.herokuapp.com/{TOKEN}"
+                              )
     else:
         updater.start_polling()
 
