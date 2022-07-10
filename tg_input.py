@@ -7,7 +7,10 @@ from generate import generate
 
 
 PORT = int(os.environ.get('PORT', 8443))
-TOKEN = CONFIG["token"]
+if "DYNO" in os.environ:
+    TOKEN = os.environ["BOT_TOKEN"]
+else:
+    TOKEN = CONFIG["token"]
 DIRECTORS = CONFIG["directors"]
 URL = f"https://api.telegram.org/bot{TOKEN}"
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
