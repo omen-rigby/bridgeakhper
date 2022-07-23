@@ -26,7 +26,7 @@ def send(chat_id, text, reply_buttons=None, context=None):
 def result(update: Update, context: CallbackContext):
     context.user_data["result"] = send(chat_id=update.effective_chat.id,
                                        text=f"Enter result:\nNS: {CARET}\nEW: \nContract: \nLead: \nResult: \nScore: ",
-                                       reply_buttons=pairs_keyboard(context),
+                                       reply_buttons=pairs_keyboard(update, context),
                                        context=context)
 
 
@@ -45,7 +45,7 @@ def inline_key(update: Update, context: CallbackContext):
                                   flags=re.MULTILINE)
             if next_field.startswith("EW: "):
                 context.user_data["markups"] = [pairs_keyboard(context)]
-                reply_markup = pairs_keyboard(context, exclude=key)
+                reply_markup = pairs_keyboard(update, context, exclude=key)
                 context.user_data["markups"].append(reply_markup)
             else:
                 reply_markup = contracts_keyboard(update)
@@ -172,6 +172,19 @@ def inline_key(update: Update, context: CallbackContext):
                  context=context)
         elif key == "restart":
             return result(update, context)
+        elif key == "rmall":
+            number = context.user_data["board"].number
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            statement = f"""remove from protocols where number={number}"""
+            cursor.execute(statement)
+            conn.commit()
+            conn.close()
+            context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
+                                                                      message_id=result_data.message_id,
+                                                                      text=update.message.text,
+                                                                      reply_markup=pairs_keyboard(update, context),
+                                                                      parse_mode=ParseMode.HTML)
         elif key == "back":
             if f": {CARET}" in result_data.text:
                 new_text = re.sub(f"\n([^:]+): {CARET}", f"{CARET}\n\g<1>: ", result_data.text,

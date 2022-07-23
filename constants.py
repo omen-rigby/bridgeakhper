@@ -1,6 +1,7 @@
 import time
 import re
 import json
+import os
 
 DEBUG = False
 
@@ -24,4 +25,7 @@ result_re = re.compile("=|([+-]\d\d?)")
 ADJ_RE = re.compile("\d\d/\d\d")
 CARET = "_"  # □
 CONFIG = json.load(open("config.json"))
+DIRECTORS = CONFIG["directors"]
+if 'DYNO' in os.environ and os.environ.get("DIRECTOR"):
+    DIRECTORS.append(os.environ.get("DIRECTOR"))
 

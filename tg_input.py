@@ -11,7 +11,6 @@ if "DYNO" in os.environ:
     TOKEN = os.environ["BOT_TOKEN"]
 else:
     TOKEN = CONFIG["token"]
-DIRECTORS = CONFIG["directors"]
 URL = f"https://api.telegram.org/bot{TOKEN}"
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
@@ -211,7 +210,6 @@ def cancel(update: Update, context: CallbackContext):
 
 def restart(update: Update, context: CallbackContext):
     board = context.user_data["board"]
-    # if board.current_hand is None:
     number = board.number
     context.user_data["board"] = Board()
     context.user_data["board"].number = number

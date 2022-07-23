@@ -3,7 +3,6 @@ from copy import deepcopy
 from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
 from constants import *
 from itertools import chain
-DIRECTORS = CONFIG["directors"]
 
 NAVIGATION_KEYBOARD = [InlineKeyboardButton("back",  callback_data="bm:back"),
                        InlineKeyboardButton("restart",  callback_data="bm:restart")]
@@ -36,12 +35,10 @@ def lead_keyboard():
         half = (len(suit_cards) + 1) // 2
         rows.extend([suit_cards[:half], suit_cards[half:]])
     rows.append(NAVIGATION_KEYBOARD)
-    print(rows)
     return InlineKeyboardMarkup(rows)
 
 
-def pairs_keyboard(context, exclude=0):
-
+def pairs_keyboard(update, context, exclude=0):
     pairs = context.bot_data["maxpair"]
     board = context.user_data["board"].number
     conn = sqlite3.connect(db_path)
@@ -56,6 +53,9 @@ def pairs_keyboard(context, exclude=0):
     if len(allowed) % 7:
         rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[len(allowed) // 7 * 7:]])
     rows.append(NAVIGATION_KEYBOARD)
+    if update.effective_chat.username in DIRECTORS:
+        rows[-1].append(InlineKeyboardButton("Remove all records", callback_data=f"bm:rmall"))
+
     return InlineKeyboardMarkup(rows)
 
 
