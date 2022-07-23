@@ -176,13 +176,13 @@ def inline_key(update: Update, context: CallbackContext):
             number = context.user_data["board"].number
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            statement = f"""remove from protocols where number={number}"""
+            statement = f"""delete from protocols where number={number}"""
             cursor.execute(statement)
             conn.commit()
             conn.close()
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
                                                                       message_id=result_data.message_id,
-                                                                      text=update.message.text,
+                                                                      text=result_data.text,
                                                                       reply_markup=pairs_keyboard(update, context),
                                                                       parse_mode=ParseMode.HTML)
         elif key == "back":

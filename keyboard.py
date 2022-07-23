@@ -54,7 +54,7 @@ def pairs_keyboard(update, context, exclude=0):
         rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[len(allowed) // 7 * 7:]])
     rows.append(NAVIGATION_KEYBOARD)
     if update.effective_chat.username in DIRECTORS:
-        rows[-1].append(InlineKeyboardButton("Remove all records", callback_data=f"bm:rmall"))
+        rows.append([InlineKeyboardButton("Remove all records", callback_data=f"bm:rmall")])
 
     return InlineKeyboardMarkup(rows)
 
