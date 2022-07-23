@@ -44,7 +44,7 @@ def inline_key(update: Update, context: CallbackContext):
                 new_text = re.sub(f"{CARET}\n([^:]+): ", f"{key.upper()}\n\g<1>: {CARET}", result_data.text,
                                   flags=re.MULTILINE)
             if next_field.startswith("EW: "):
-                context.user_data["markups"] = [pairs_keyboard(context)]
+                context.user_data["markups"] = [pairs_keyboard(update, context)]
                 reply_markup = pairs_keyboard(update, context, exclude=key)
                 context.user_data["markups"].append(reply_markup)
             else:
