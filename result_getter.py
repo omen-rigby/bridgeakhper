@@ -212,7 +212,7 @@ class ResultGetter:
             html.tbody.append(new_tr)
         return print_to_pdf(html, f"{date}/Ranks.pdf")
 
-    def pdf_travellers(self):
+    def pdf_travellers(self, boards_only=False):
         file = open("travellers_template.html").read()
         html = BeautifulSoup(file, features="lxml")
         html.table.tr.extract()
@@ -223,7 +223,8 @@ class ResultGetter:
             for c in new_tr.find_all(text=lambda t: isinstance(t, Comment)):
                 c.extract()
             hand = self.hands[board_number - 1]
-            res = self.travellers[board_number - 1]
+            if not boards_only:
+                res = self.travellers[board_number - 1]
             deal = Deal(raw_hands=hand)
             repl_dict = {"d": deal.data["d"].upper(), "b": board_number,
                          "v": deal.data["v"],
@@ -255,6 +256,8 @@ class ResultGetter:
             new_tr = soup_copy.table.tr
             new_parent = soup_copy.table.table
             template = new_parent.find_all('tr')[1].extract()
+            if boards_only:
+                continue
             for r in res:
                 protocol_table = deepcopy(template)
                 repl_dict = {k: str(v).upper() for k, v in zip(
@@ -268,7 +271,8 @@ class ResultGetter:
                 protocol_table.a["href"] = bbo_url
                 new_parent.tbody.append(protocol_table)
             html.tbody.append(new_tr)
-        return print_to_pdf(html, f"{date}/Travellers.pdf")
+        out_filename = 'Boards' if boards_only else 'Travellers'
+        return print_to_pdf(html, f"{date}/{out_filename}.pdf")
 
     def pdf_scorecards(self):
         file = open("scorecards_template.html").read()
@@ -340,6 +344,10 @@ class ResultGetter:
         html.tbody.tr.extract()
 
         return print_to_pdf(html, f"{date}/Scorecards.pdf")
+
+    def boards_only(self):
+        self.get_hands()
+        return self.pdf_travellers(boards_only=True)
 
     def process(self):
         paths = []

@@ -237,6 +237,15 @@ def end(update: Update, context: CallbackContext):
         context.bot.send_document(chat_id, open(path, 'rb'))
 
 
+def get_boards_only(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    if update.effective_chat.username not in DIRECTORS:
+        send(chat_id=chat_id, text="You don't have enough rights to see tourney boards", context=context)
+        return
+    path = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).boards_only()
+    context.bot.send_document(chat_id, open(path, 'rb'))
+
+
 if __name__ == '__main__':
     updater = Updater(token=TOKEN)
     updater.dispatcher.add_handler(CommandHandler('start', start))
@@ -255,6 +264,7 @@ if __name__ == '__main__':
 
     updater.dispatcher.add_handler(CommandHandler("result", result))
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
+    updater.dispatcher.add_handler(CommandHandler("boards", get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", end))
     if 'DYNO' in os.environ:
         updater.start_webhook(listen="0.0.0.0",
