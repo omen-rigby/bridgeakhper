@@ -225,7 +225,7 @@ class ResultGetter:
             hand = self.hands[board_number - 1]
             if not boards_only:
                 res = self.travellers[board_number - 1]
-            deal = Deal(raw_hands=hand)
+            deal = Deal(raw_hands=hand) if not isinstance(hand, Deal) else hand
             repl_dict = {"d": deal.data["d"].upper(), "b": board_number,
                          "v": deal.data["v"],
                          }
@@ -343,7 +343,7 @@ class ResultGetter:
                     html.tbody.append(board_tr)
         html.tbody.tr.extract()
 
-        return print_to_pdf(html, f"{date}/Scorecards.pdf")
+        return print_to_pdf(html, f"./{date}/Scorecards.pdf")
 
     def boards_only(self):
         self.get_hands()
