@@ -104,7 +104,8 @@ class ResultGetter:
             cur.execute(f"select * from protocols where number={board}")
             filtered = {}
             for protocol in cur.fetchall():
-                filtered[f"{protocol[0]}{protocol[1]}"] = protocol
+                unique_id = protocol[1] * (self.pairs + 1) + protocol[2]
+                filtered[f"{unique_id}"] = protocol
             if len(filtered) != self.pairs // 2:
                 print(f"Missing results for board #{board}")
             sorted_results = [list(f) for f in filtered.values()]
@@ -149,7 +150,8 @@ class ResultGetter:
         cur = self.cursor
         for pair in range(1, self.pairs + 1):
             cur.execute(f"select * from protocols where ns={pair} or ew={pair} order by number")
-            history = cur.fetchall()
+            # records are duplicated sometimes
+            history = list(set(cur.fetchall()))
             result_in_mp = sum(record[-2] if pair == record[1] else record[-1] for record in history)
             self.totals.append((pair, result_in_mp))
 
