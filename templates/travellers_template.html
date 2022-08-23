@@ -50,26 +50,26 @@ border-collapse: collapse;
                 </tr>
                 <tr>
                     <td></td>
-                    <td nowrap=""><img src="../spade.gif"/>${ns}</td>
+                    <td nowrap=""><img src="../templates/spade.gif"/>${ns}</td>
                     <td></td>
                 </tr>
                 <tr>
                     <td></td>
-                    <td nowrap=""><img src="../heart.gif"/>${nh}</td>
+                    <td nowrap=""><img src="../templates/heart.gif"/>${nh}</td>
                     <td></td>
                 </tr>
                 <tr>
                     <td></td>
-                    <td nowrap=""><img src="../diamond.gif"/>${nd}</td>
+                    <td nowrap=""><img src="../templates/diamond.gif"/>${nd}</td>
                     <td></td>
                 </tr>
                 <tr>
                     <td></td>
-                    <td nowrap=""><img src="../club.gif"/>${nc}</td>
+                    <td nowrap=""><img src="../templates/club.gif"/>${nc}</td>
                     <td></td>
                 </tr>
                 <tr>
-                    <td nowrap=""><img src="../spade.gif"/>${ws}</td>
+                    <td nowrap=""><img src="../templates/spade.gif"/>${ws}</td>
                     <td rowspan="4" colspan="1" align="left" valing="center">
                         <table width="100%" height="100%" class="deal">
                             <tbody>
@@ -95,41 +95,41 @@ border-collapse: collapse;
                             </tbody>
                         </table>
                     </td>
-                    <td nowrap=""><img src="../spade.gif"/>${es}</td>
+                    <td nowrap=""><img src="../templates/spade.gif"/>${es}</td>
                 </tr>
                 <tr>
-                    <td nowrap=""><img src="../heart.gif"/>${wh}</td>
-                    <td nowrap=""><img src="../heart.gif"/>${eh}</td>
+                    <td nowrap=""><img src="../templates/heart.gif"/>${wh}</td>
+                    <td nowrap=""><img src="../templates/heart.gif"/>${eh}</td>
                 </tr>
                 <tr>
-                    <td nowrap=""><img src="../diamond.gif"/>${wd}</td>
-                    <td nowrap=""><img src="../diamond.gif"/>${ed}</td>
+                    <td nowrap=""><img src="../templates/diamond.gif"/>${wd}</td>
+                    <td nowrap=""><img src="../templates/diamond.gif"/>${ed}</td>
                 </tr>
                 <tr>
-                    <td nowrap=""><img src="../club.gif"/>${wc}</td>
-                    <td nowrap=""><img src="../club.gif"/>${ec}</td>
-                </tr>
-                <tr>
-                    <td></td>
-                    <td nowrap=""><img src="../spade.gif"/>${ss}</td>
-                    <td></td>
-                    <td></td>
+                    <td nowrap=""><img src="../templates/club.gif"/>${wc}</td>
+                    <td nowrap=""><img src="../templates/club.gif"/>${ec}</td>
                 </tr>
                 <tr>
                     <td></td>
-                    <td nowrap=""><img src="../heart.gif"/>${sh}</td>
+                    <td nowrap=""><img src="../templates/spade.gif"/>${ss}</td>
                     <td></td>
                     <td></td>
                 </tr>
                 <tr>
                     <td></td>
-                    <td nowrap=""><img src="../diamond.gif"/>${sd}</td>
+                    <td nowrap=""><img src="../templates/heart.gif"/>${sh}</td>
                     <td></td>
                     <td></td>
                 </tr>
                 <tr>
                     <td></td>
-                    <td nowrap=""><img src="../club.gif"/>${sc}</td>
+                    <td nowrap=""><img src="../templates/diamond.gif"/>${sd}</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td nowrap=""><img src="../templates/club.gif"/>${sc}</td>
                     <td></td>
                     <td></td>
                 </tr>
@@ -142,17 +142,17 @@ border-collapse: collapse;
                 <tr>
                     <td width="8%">&nbsp;</td>
                     <th width="8%">NT</th>
-                    <th width="8%"><img src="../spade.gif"></th>
-                    <th width="8%"><img src="../heart.gif"></th>
-                    <th width="8%"><img src="../diamond.gif"></th>
-                    <th width="8%"><img src="../club.gif"></th>
+                    <th width="8%"><img src="../templates/spade.gif"></th>
+                    <th width="8%"><img src="../templates/heart.gif"></th>
+                    <th width="8%"><img src="../templates/diamond.gif"></th>
+                    <th width="8%"><img src="../templates/club.gif"></th>
                     <td rowspan="3" width="3%">&nbsp;</td>
                     <td width="8%">&nbsp;</td>
                     <th width="8%">NT</th>
-                    <th width="8%"><img src="../spade.gif"></th>
-                    <th width="8%"><img src="../heart.gif"></th>
-                    <th width="8%"><img src="../diamond.gif"></th>
-                    <th width="8%"><img src="../club.gif"></th>
+                    <th width="8%"><img src="../templates/spade.gif"></th>
+                    <th width="8%"><img src="../templates/heart.gif"></th>
+                    <th width="8%"><img src="../templates/diamond.gif"></th>
+                    <th width="8%"><img src="../templates/club.gif"></th>
                 </tr>
                 <tr>
                     <th>N</th>
@@ -182,13 +182,11 @@ border-collapse: collapse;
                     <td align="center">${w_par_d}</td>
                     <td align="center">${w_par_c}</td>
                 </tr>
-                <!--
                 <tr>
                     <td colspan="13" align="center">
-                        <b>minimax = <a href="${minimax_url}">${level}${denomination}${result}</a> ${declarer}, ${score}</b>
+                        <b>minimax = <a class="minimax_url" href="${minimax_url}">${level}${denomination} ${declarer}</a> ${result}, ${score}</b>
                     </td>
                 </tr>
-                -->
                 </tbody>
             </table>
         </td>

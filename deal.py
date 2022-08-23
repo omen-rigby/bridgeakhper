@@ -3,8 +3,8 @@ from ddstable import ddstable
 from constants import *
 
 bbo_url_template = "https://www.bridgebase.com/tools/handviewer.html?n={n}&e={e}&s={s}&w={w}&d={d}&v={v}&b={b}&a=ppp"
-board_template = open("board_template").read()
-analysis_template = open("analysis_template").read()
+board_template = open("templates/board_template").read()
+analysis_template = open("templates/analysis_template").read()
 
 
 class Deal:
@@ -92,7 +92,7 @@ class Deal:
         if result < tricks:
             if not multiplier:
                 return (50 + 50 * vul) * (result - tricks)
-            return self.sac_score(declarer, result - tricks) * 2 ** (multiplier - 1)
+            return -self.sac_score(declarer, tricks - result) * multiplier / 2
         trick_value = 20 if denomination in "cd" else 30
         base_cost = level * trick_value + 10 * (denomination == "n")
         bonus = 50 * multiplier
@@ -113,208 +113,63 @@ class Deal:
         else:
             return -400 + 300 * (undertricks + self.is_vul(declarer))
 
-    def get_cheapest_sacrifice(self, winner_score, winner_tricks, winner_denomination, loser):
-        cheapest_sacrifice = winner_score
-        for declarer in loser:
-            for denomination in "cdhsn":
-                sac_on_next_level = "cdhsn".index(denomination) <= "cdhsn".index(winner_denomination)
-                if not sac_on_next_level and winner_denomination == denomination:
-                    continue
-                undertricks = winner_tricks - self.data[
-                    f"{declarer}_par_{denomination}"] + sac_on_next_level
-                sac_score = self.sac_score(declarer, undertricks)
-                if sac_score < cheapest_sacrifice:
-                    cheapest_sac_denomination = denomination
-                    cheapest_sacrifice = sac_score
-                    sac_declarer = declarer
-                    break
-        if cheapest_sacrifice < winner_score:
-            return {"level": winner_tricks + sac_on_next_level - 6,
-                    "denomination": f"{cheapest_sac_denomination}x",
-                    "declarer": sac_declarer,
-                    "score": (-1) ** (sac_declarer in "ew") * cheapest_sacrifice,
-                    "minimax_url": self.url_with_contract(winner_tricks + sac_on_next_level - 6,
-                                                          f"{cheapest_sac_denomination}x",
-                                                          sac_declarer),
-                    "result": "-{}".format(
-                        winner_tricks - self.data[f"{sac_declarer}_par_{cheapest_sac_denomination}"] + sac_on_next_level)
-                    }
-        return {}
-
-    def get_winner(self, total_points):
-        ns_score = ew_score = 0
-        winning_contracts = []
-        for declarer, data in total_points.items():
-            for den, (tricks, score, sac) in data.items():
-                if declarer in "ns" and score >= ns_score:
-                    ns_score = score
-                    ns_den = den.lower()[0]
-                    ns_tricks = tricks
-                    if score > ns_score:
-                        winning_contracts = []
-                    else:
-                        winning_contracts.append((tricks, den, sac))
-                elif declarer in "ew" and score >= ew_score:
-                    ew_score = score
-                    ew_den = den.lower()[0]
-                    ew_tricks = tricks
-                    if score > ns_score:
-                        winning_contracts = []
-                    else:
-                        winning_contracts.append((tricks, den, sac))
-        if ns_tricks > ew_tricks:
-            winner = "ns"
-        elif ns_tricks < ew_tricks:
-            winner = "ew"
-        elif "cdhsn".index(ns_den) >= "cdhsn".index(ew_den):
-            winner = "ns"
-        else:
-            winner = "ew"
-        loser = "nsew".replace(winner, "")
-        if winner == "ns":
-            winner_score = ns_score
-            winner_denomination = ns_den
-            winner_tricks = ns_tricks
-        else:
-            winner_score = ew_score
-            winner_denomination = ew_den
-            winner_tricks = ew_tricks
-        if all(r[2] for r in winning_contracts):
-            best_sacrifice = list(sorted(winning_contracts, key=lambda x: x[0]))[0][2]
-            self.data.update(best_sacrifice)
-            return
-        elif all(r[2] is None for r in winning_contracts):
-            lowest_contracts = [self.look_down(winner, loser, c[0], winner_score) for c in winning_contracts]
-            minimax = list(sorted(lowest_contracts, key=lambda x: x[0]))[0]
-
-        for tricks in range(13, 6, -1):
-            for den in "nshdc":
-                declarers = [d for d in "nsew" if self.data[f"{d}_par_{den[0]}"] == tricks]
-                if declarers:
-                    declarer = declarers[0]
-                    winner_score = total_points[declarer][den][1]
-                    winner_denomination = den
-                    winner_tricks = tricks
-                    winner = "ns" if declarer in "ns" else "ew"
-                    return winner, winner_denomination, winner_tricks, winner_score
-        return "ns", "", 0, 0
-
-    def look_down(self, winner, loser, winner_tricks, winner_score):
-        for less_tricks in range(7, winner_tricks + 1):
-            for decl in winner:
-                for denomination in "cdhsn":
-                    tricks_taken = self.data[f"{decl.lower()}_par_{denomination[0].lower()}"]
-                    if tricks_taken > winner_tricks:
+    def _next_optimum(self, current_level, current_denomination, current_declarer, current_optimum):
+        return_value = None
+        current_optimum = -current_optimum
+        denom_index = DENOMINATIONS.index(current_denomination) + 1
+        decl_index = hands.index(current_declarer)
+        for level in range(current_level, 8):
+            for denomination in DENOMINATIONS[(level == current_level) * denom_index:]:
+                for declarer in (hands[(decl_index + 1) % 4], hands[(decl_index + 3) % 4]):
+                    result = self.data[f"{declarer.lower()}_par_{denomination[0].lower()}"]
+                    if not current_level and result < level + 6:
                         continue
-
-                    points = self.get_total_points(decl, denomination, less_tricks,
-                                                   self.data[f"{decl.lower()}_par_{denomination[0].lower()}"])
-                    if points >= winner_score \
-                            and not self.get_cheapest_sacrifice(points, less_tricks, denomination, loser):
-                        winner_tricks = self.data[f"{decl.lower()}_par_{denomination[0].lower()}"]
-                        return {
-                            "level": less_tricks - 6,
-                            "denomination": denomination,
-                            "declarer": decl,
-                            "score": (-1) ** (decl in "ew") * points,
-                            "minimax_url": self.url_with_contract(less_tricks - 6, denomination, decl),
-                            "result": "=" if less_tricks == winner_tricks
-                                      else "+{}".format(winner_tricks - less_tricks)
-                        }
+                    optimum_candidate = self.get_total_points(declarer, denomination, 6 + level, result,
+                                                              multiplier='x' * (result < level + 6))
+                    if optimum_candidate > current_optimum:
+                        current_optimum = optimum_candidate
+                        return_value = level, denomination + 'x' * (optimum_candidate < 0), declarer, optimum_candidate
+        return return_value
 
     def get_minimax(self):
         total_points = {}
-        dd = ddstable.get_ddstable(self.pbn).items()
+        dd = ddstable.get_ddstable(self.pbn.replace(b'10', b't')).items()
         for declarer, contracts in dd:
             declarer = declarer.lower()
             total_points[declarer] = {}
             for denomination, max_tricks in contracts.items():
                 self.data[f"{declarer.lower()}_par_{denomination[0].lower()}"] = max_tricks
                 result = self.get_total_points(declarer, denomination.lower()[0], max_tricks)
-                #sac = self.get_cheapest_sacrifice(result, max_tricks, denomination.lower()[0],
-                #                                  "ew" if declarer in "ns" else "ns")
-
                 total_points[declarer.lower()][denomination[0].lower()] = [
-                    max_tricks, result#, sac
-
+                    max_tricks, result
                 ]
-        # TODO: remove
-        return
-        winner, winner_denomination, winner_tricks, winner_score = self.get_winner(total_points)
-        if winner_score == 0:
-            self.data["level"] = "PASS"
-            self.data["denomination"] = ""
-            self.data["declarer"] = "N"
-            self.data["score"] = 0
-            return
+        declarer = hands[(hands.index(self.data["d"]) - 1) % 4]
+        level = 0
+        denomination = 'n'
+        optimum = 0
+        while True:
+            result = self._next_optimum(level, denomination[0], declarer, optimum)
+            if result is None:
+                if not level:
+                    result = self._next_optimum(level, denomination[0], self.data['d'], optimum)
+                if result is None:
+                    break
 
-        # for declarer, data in total_points.items():
-        #     for den, (tricks, score) in data.items():
-        #         # >= determines maximum level at which contract could be made
-        #         if self.data["b"] == "8":
-        #
-        #             print(declarer, den, tricks, score, ew_score)
-        #         if declarer in "ns" and score >= ns_score:
-        #             ns_score = score
-        #             ns_den = den.lower()[0]
-        #             ns_tricks = tricks
-        #         elif declarer in "ew" and score >= ew_score:
-        #             ew_score = score
-        #             ew_den = den.lower()[0]
-        #             ew_tricks = tricks
-        # if self.data["b"] == "8":
-        #     print(ns_tricks, ew_tricks)
-        # if ns_score + ew_score == 0:
-        #     self.data["level"] = "PASS"
-        #     self.data["denomination"] = ""
-        #     self.data["declarer"] = "N"
-        #     self.data["score"] = 0
-        #     return
-        # if ns_tricks > ew_tricks:
-        #     winner = "ns"
-        # elif ns_tricks < ew_tricks:
-        #     winner = "ew"
-        # elif "cdhsn".index(ns_den) >= "cdhsn".index(ew_den):
-        #     winner = "ns"
-        # else:
-        #     winner = "ew"
-        loser = "nsew".replace(winner, "")
-        # if winner == "ns":
-        #     winner_score = ns_score
-        #     winner_denomination = ns_den
-        #     winner_tricks = ns_tricks
-        # else:
-        #     winner_score = ew_score
-        #     winner_denomination = ew_den
-        #     winner_tricks = ew_tricks
-        sac = self.get_cheapest_sacrifice(winner_score, winner_tricks, winner_denomination, loser)
-        if sac:
-            self.data.update(sac)
-            return
-        for less_tricks in range(7, winner_tricks + 1):
-            for decl in winner:
-                for denomination in "cdhsn":
-                    tricks_taken = self.data[f"{decl.lower()}_par_{denomination[0].lower()}"]
-                    if tricks_taken > winner_tricks:
-                        continue
-
-                    points = self.get_total_points(decl, denomination, less_tricks,
-                                                   self.data[f"{decl.lower()}_par_{denomination[0].lower()}"])
-                    if points >= winner_score \
-                            and not self.get_cheapest_sacrifice(points, less_tricks, denomination, loser):
-                        winner_tricks = self.data[f"{decl.lower()}_par_{denomination[0].lower()}"]
-                        self.data.update({
-                            "level": less_tricks - 6,
-                            "denomination": denomination,
-                            "declarer": decl,
-                            "score": (-1) ** (decl in "ew") * points,
-                            "minimax_url": self.url_with_contract(less_tricks - 6, denomination, decl),
-                            "result": "=" if less_tricks == winner_tricks
-                                      else "+{}".format(winner_tricks - less_tricks)
-                        })
-                        return
+            level, denomination, declarer, optimum = result
+        if not level:
+            self.data.update({"level": "PASS", "denomination": "", "declarer": "", "score": 0, "result": ''})
         else:
-            raise Exception("Can't find minimax")
+            par = self.data[f"{declarer.lower()}_par_{denomination[0].lower()}"]
+            if 'x' not in denomination:
+                results = [(l, self.get_total_points(declarer, denomination, l + 6, par)) for l in range(level, par)]
+                results.sort(key=lambda r: (-r[1], r[0]))
+                level, optimum = results[0]
+                result = f'+{par - level - 6}' if par > level + 6 else '='
+            else:
+                result = par - level - 6
+            self.data.update({"level": str(level), "denomination": denomination, "declarer": declarer.upper(),
+                              "score": str(int(optimum * (-1) ** (declarer in 'ew'))), "result": result,
+                              'minimax_url': self.url_with_contract(level, denomination, declarer)})
 
     def get_html(self):
         # Vul to bridgemate style

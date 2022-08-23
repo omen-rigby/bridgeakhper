@@ -192,7 +192,7 @@ class ResultGetter:
 
     def pdf_rankings(self):
         max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
-        html = BeautifulSoup(open("rankings_template.html"), features="lxml")
+        html = BeautifulSoup(open("templates/rankings_template.html"), features="lxml")
         template = html.find_all("tr")[1].extract()
         for text in html.h1.find_all(text=re.compile('\$\{[^\}]+\}')):
             fixed_text = self._replace(text, {"tournament_title": CONFIG["tournament_title"],
@@ -215,7 +215,7 @@ class ResultGetter:
         return print_to_pdf(html, f"{date}/Ranks.pdf")
 
     def pdf_travellers(self, boards_only=False):
-        file = open("travellers_template.html").read()
+        file = open("templates/travellers_template.html").read()
         html = BeautifulSoup(file, features="lxml")
         html.table.tr.extract()
         html.table.tr.extract()
@@ -237,10 +237,12 @@ class ResultGetter:
                     repl_dict[f"{h}{s}"] = deal.data[f"{h}{s}"].upper().replace("T", "10")
                 for j,d in enumerate(DENOMINATIONS):
                     repl_dict[f"{h}_par_{d}"] = deal.data[f"{h}_par_{d}"]
-
-            # TODO: add minimax
-            # repl_dict["minimax"] = deal.
-            # repl_dict["minimax_url"] = deal.
+            for key in ('level', 'denomination', 'declarer', 'score', 'minimax_url', 'result'):
+                repl_dict[key] = deal.data[key]
+            if repl_dict['denomination'] == "n":
+                repl_dict['denomination'] = "NT"
+            else:
+                repl_dict['denomination'] = repl_dict['denomination'].upper()
             tables = new_tr.find_all("table")
             # VUL in boards
             colors_dict = {"nscolor": "palegreen" if deal.data["v"] in ("EW", "-") else "tomato",
@@ -254,6 +256,7 @@ class ResultGetter:
                 for text in table.find_all(text=re.compile('\$\{[^\}]+\}')):
                     new_text = self._replace(text.string, repl_dict)
                     text.string.replace_with(new_text)
+            new_tr.find("a", class_="minimax_url")["href"] = deal.data["minimax_url"]
             html.tbody.append(new_tr)
             new_tr = soup_copy.table.tr
             new_parent = soup_copy.table.table
@@ -277,7 +280,7 @@ class ResultGetter:
         return print_to_pdf(html, f"{date}/{out_filename}.pdf")
 
     def pdf_scorecards(self):
-        file = open("scorecards_template.html").read()
+        file = open("templates/scorecards_template.html").read()
         html = BeautifulSoup(file, features="lxml")
         for tr in html.find_all("tr"):
             tr.extract()
@@ -365,4 +368,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(28, 7).process()
+    ResultGetter(25, 6).process()
