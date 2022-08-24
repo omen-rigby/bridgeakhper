@@ -169,6 +169,18 @@ def save(update: Update, context: CallbackContext):
 
 def ok(update: Update, context: CallbackContext):
     board = context.user_data["board"]
+    hand = context.user_data["currentHand"]["text"].replace("10", "T")
+    if len(hand) != 20:
+        send(chat_id=update.effective_chat.id,
+             text=f"Hand has incorrect number of cards ({len(hand) - 7}). Try again",
+             reply_buttons=(),
+             context=context)
+        context.user_data["currentHand"] = send(chat_id=update.effective_chat.id,
+                                                text=context.user_data["currentHand"]["text"],
+                                                reply_buttons=board.get_remaining_cards(),
+                                                context=context)
+        return
+
     board.set_hand(context.user_data["currentHand"]["text"])
     if board.current_hand is None:
         board.save()
