@@ -1,4 +1,4 @@
-import os
+import shutil
 import logging
 from inline_key import *
 from board import Board
@@ -247,6 +247,8 @@ def end(update: Update, context: CallbackContext):
     paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
     for path in paths:
         context.bot.send_document(chat_id, open(path, 'rb'))
+    if 'DYNO' in os.environ:
+        shutil.rmtree(date)
 
 
 def get_boards_only(update: Update, context: CallbackContext):
