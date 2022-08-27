@@ -244,9 +244,13 @@ def end(update: Update, context: CallbackContext):
         return
     if 'DYNO' in os.environ:
         context.bot.send_document(chat_id, open(db_path, 'rb'))
-    paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
-    for path in paths:
-        context.bot.send_document(chat_id, open(path, 'rb'))
+    try:
+        paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
+        for path in paths:
+            context.bot.send_document(chat_id, open(path, 'rb'))
+    except Exception as e:
+        send(chat_id=chat_id, text=f"Result getter failed with error: {e}", context=context)
+
     if 'DYNO' in os.environ:
         shutil.rmtree(date)
 
