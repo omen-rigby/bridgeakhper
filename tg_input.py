@@ -58,20 +58,22 @@ def start_session(update: Update, context: CallbackContext):
 
 def missing(update, context):
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('select * from boards')
-    boards = len(cursor.fetchall())
-    cursor.execute('select * from protocols')
-    protocols = len(cursor.fetchall())
-    cursor.execute('select * from names')
-    names = len(cursor.fetchall())
     boards_num = context.bot_data.get("maxboard")
     pairs_num = context.bot_data.get("maxpair")
+    cursor = conn.cursor()
+    cursor.execute('select * from boards')
+    boards = ", ".join([str(b[0]) for b in cursor.fetchall()])
+    cursor.execute('select * from protocols')
+    protocols = list(set(cursor.fetchall()))
+    boards_with_missing_results = ", ".join([str(i) for i in range(1, boards_num + 1)
+                                   if len([p for p in protocols if p[0] == i]) < pairs_num // 2])
+    cursor.execute('select * from names')
+    names = len(cursor.fetchall())
     if boards_num and pairs_num:
         send(chat_id=update.effective_chat.id,
              text=f"""Active session: {pairs_num} pairs
-Submitted {boards} of {boards_num} boards
-Submitted {protocols} results
+Missing boards: {boards}
+Missing results for boards: {boards_with_missing_results}
 Submitted {names} names""",
              reply_buttons=[],
              context=context)
@@ -125,8 +127,32 @@ def number(update: Update, context: CallbackContext):
     if context.bot_data["maxboard"] and context.bot_data["maxpair"]:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute(f"Select number from boards where number={update.message.text}")
-        if cursor.fetchall():
+        cursor.execute(f"Select * from boards where number={update.message.text}")
+        brd = cursor.fetchall()
+        if brd:
+            brd = brd[0]
+            if context.user_data.get("view_board"):
+                if not brd:
+                    send(update.effective_chat.id, "Board not found", [], context)
+                else:
+                    n, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc = map(
+                        lambda x: str(x).upper().replace("T", "10"), brd)
+                    send(update.effective_chat.id, f"""Board {n}:
+{ns:^24}
+{nh:^24}
+{nd:^24}
+{nc:^24}
+{ws:<18}{es}
+{wh:<18}{eh}
+{wd:<18}{ed}
+{wc:<18}{ec}
+{ss:^24}
+{sh:^24}
+{sd:^24}
+{sc:^24}
+""", [], context)
+                context.user_data["view_board"] = False
+                return
             # TODO: seems no longer needed
             context.user_data["board"] = Board(number=update.message.text)
             conn.close()
@@ -255,6 +281,16 @@ def end(update: Update, context: CallbackContext):
         shutil.rmtree(date)
 
 
+def view_board(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    if update.effective_chat.username not in DIRECTORS:
+        send(chat_id=chat_id, text="You don't have enough rights to see tourney boards", context=context)
+        return
+    context.user_data["view_board"] = True
+    send(chat_id=chat_id, text=f"Enter board number",
+         reply_buttons=range(1, context.bot_data["maxboard"] + 1), context=context)
+
+
 def get_boards_only(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
     if update.effective_chat.username not in DIRECTORS:
@@ -271,6 +307,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('board', board))
     updater.dispatcher.add_handler(CommandHandler('names', names))
 
+    # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^\d+$"), number))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("OK"), ok))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Save"), save))
@@ -278,10 +315,11 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), cancel))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(" .* "), names_text))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+-\w+"), names_text))
-    updater.dispatcher.add_handler(CommandHandler("missing", missing))
-
-    updater.dispatcher.add_handler(CommandHandler("result", result))
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
+    # Results
+    updater.dispatcher.add_handler(CommandHandler("result", result))
+    updater.dispatcher.add_handler(CommandHandler("missing", missing))
+    updater.dispatcher.add_handler(CommandHandler("view_board", view_board))
     updater.dispatcher.add_handler(CommandHandler("boards", get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", end))
     if 'DYNO' in os.environ:
