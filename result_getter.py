@@ -37,7 +37,7 @@ class ResultGetter:
     @staticmethod
     def lookup(raw_pair, players):
         players = [p for p in players if any(p)]
-        partners = re.split("[^\w\s]", raw_pair, 1)
+        partners = re.split("[^\w\s]", raw_pair, 2)
         if len(partners) < 2:
             partners = raw_pair.split("  ")
             if len(partners) < 2:
