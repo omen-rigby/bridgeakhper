@@ -11,6 +11,7 @@ date = os.path.abspath(db_path).replace("\\", "/").split("/")[-2]
 
 class ResultGetter:
     _conn = None
+    _deals = None
 
     def __init__(self, boards, pairs):
         self.boards = boards
@@ -33,6 +34,12 @@ class ResultGetter:
     @property
     def max_mp(self):
         return self.pairs - 2 - self.pairs % 2
+
+    @property
+    def deals(self):
+        if not self._deals:
+            self._deals = [Deal(raw_hands=h) for h in self.hands]
+        return self._deals
 
     @staticmethod
     def lookup(raw_pair, players):
@@ -224,10 +231,9 @@ class ResultGetter:
             new_tr = soup_copy.table.tr
             for c in new_tr.find_all(text=lambda t: isinstance(t, Comment)):
                 c.extract()
-            hand = self.hands[board_number - 1]
+            deal = self.deals[board_number - 1]
             if not boards_only:
                 res = self.travellers[board_number - 1]
-            deal = Deal(raw_hands=hand) if not isinstance(hand, Deal) else hand
             repl_dict = {"d": deal.data["d"].upper(), "b": board_number,
                          "v": deal.data["v"],
                          }
@@ -311,8 +317,27 @@ class ResultGetter:
                 mp_for_round = sum(results[r * boards_per_round + b][7] for b in range(boards_per_round))
                 for i in range(boards_per_round):
                     board_data = results[r * boards_per_round + i]
+                    deal = self.deals[r * boards_per_round + i]
+                    suspicious_result = False
+                    if board_data[3] != "PASS" and '/' not in board_data[3]:
+                        level = board_data[3][0]
+                        denomination = board_data[3][1].lower()
+                        declarer = board_data[4]
+                        dummy = hands[(hands.index(declarer) + 2) % 4]
+                        result = board_data[3][-2:].lstrip("sdhcnx")
+                        tricks = int(level) + 6 if result == "=" else eval(f'{level}{result}') + 6
+                        par = deal.data[f"{declarer}_par_{denomination}"]
+                        if denomination != "n":
+                            fit = len(deal.data.get(f"{declarer}{denomination}")) + \
+                                len(deal.data.get(f"{dummy}{denomination}"))
+                        else:
+                            fit = 13
+                        if (abs(tricks - par) > 3 and denomination == "n") or (abs(tricks - par) >= 3 and fit < 7):
+                            suspicious_result = True
 
                     board_tr = BeautifulSoup(file, features="lxml").table.find_all("tr")[4]
+                    if suspicious_result:
+                        board_tr.find_all("td")[3]["bgcolor"] = "#aa7777"
                     if i:
                         for last_col in board_tr.find_all("td")[-1:-3:-1]:
                             last_col.extract()
@@ -320,6 +345,7 @@ class ResultGetter:
                         for td in board_tr.find_all("td"):
                             if "boards_per_round}" in td.get("rowspan", ""):
                                 td["rowspan"] = boards_per_round
+
                     def suits(string):
 
                         for s in ["spade", "heart", "diamond", "club"]:
@@ -328,7 +354,6 @@ class ResultGetter:
                                 break
                         string = string.replace("n", "NT")
                         return string.upper()
-
 
                     for text in board_tr.find_all(text=re.compile('\$\{[^\}]+\}')):
                         if board_data[3] == "NOT PLAYED":
