@@ -6,7 +6,7 @@ from constants import CONFIG
 def get_movement(max_pair):
     tables = (max_pair + 1) // 2
     movement_letter = "H" if CONFIG["movement"] == "howell" else "M"
-    filename = f"{movement_letter}{tables:02d}{tables * 2 - 1:02d}.MOV"
+    filename = f"{movement_letter}{tables:02d}{tables * 2 - 1:02d}.mov"
     full_path = os.path.abspath(__file__).replace("parse_mov.py", filename)
     try:
         return parse(full_path)
