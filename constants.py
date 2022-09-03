@@ -23,8 +23,9 @@ CARD_RE = re.compile("[shdc][0-9AKQJT]", flags=re.IGNORECASE)
 CONTRACT_RE = re.compile(f"^([1-7]([{SUITS_UNICODE}]|(NT))x{{0,2}}[{hands}])|(pass)|(\d\d/\d\d)$", re.IGNORECASE)
 result_re = re.compile("=|([+-]\d\d?)")
 ADJ_RE = re.compile("\d\d/\d\d")
+OPPS_RE = re.compile("(\d+) vs (\d+)")
 CARET = "_"  # □
-CONFIG = json.load(open("config.json"))
+CONFIG = json.load(open(os.path.abspath(__file__).replace("constants.py", "config.json")))
 DIRECTORS = CONFIG["directors"]
 if 'DYNO' in os.environ and os.environ.get("DIRECTOR"):
     DIRECTORS.append(os.environ.get("DIRECTOR"))

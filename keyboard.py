@@ -2,6 +2,7 @@ import sqlite3
 from copy import deepcopy 
 from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
 from constants import *
+from util import is_director
 from itertools import chain
 
 NAVIGATION_KEYBOARD = [InlineKeyboardButton("back",  callback_data="bm:back"),
@@ -19,7 +20,7 @@ ADJS = [InlineKeyboardButton(text="50/50", callback_data="bm:50/50"),
 
 def contracts_keyboard(update):
     lists = deepcopy(CONTRACTS_KEYBOARD)
-    if update.effective_chat.username in DIRECTORS:
+    if is_director(update):
         lists.append(ADJS + NAVIGATION_KEYBOARD)
     else:
         lists.append(NAVIGATION_KEYBOARD)
@@ -38,9 +39,13 @@ def lead_keyboard():
     return InlineKeyboardMarkup(rows)
 
 
-def pairs_keyboard(update, context, exclude=0):
+def pairs_keyboard(update, context, exclude=0, use_movement=True):
     pairs = context.bot_data["maxpair"]
+    movement = context.bot_data["movement"] if use_movement else ''
+
     board = context.user_data["board"].number
+    n_rounds = pairs - 1 + (pairs % 2)
+    board_set = int(board) // n_rounds + 1
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute(f"Select ns,ew from protocols where number={board}")
@@ -48,12 +53,25 @@ def pairs_keyboard(update, context, exclude=0):
     conn.close()
     allowed = [b for b in range(1, pairs + 1) if b not in denied and b != int(exclude)]
     rows = []
-    for i in range(len(allowed) // 7):
-        rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[7 * i:7 + 7 * i]])
-    if len(allowed) % 7:
-        rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[len(allowed) // 7 * 7:]])
+    if movement:
+        allowed_tuples = [f"{ns} vs {ew}" for (ns, ew, bs) in movement if bs == board_set and ns in allowed and ew in allowed]
+        for i in range(len(allowed_tuples) // 3):
+            rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}")
+                         for p in allowed_tuples[3 * i:3 + 3 * i]])
+        if len(allowed_tuples) % 3:
+            rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}")
+                         for p in allowed_tuples[len(allowed_tuples) // 3 * 3:]])
+
+        if not is_director(update):
+            rows.append(NAVIGATION_KEYBOARD)
+            return InlineKeyboardMarkup(rows)
+    else:
+        for i in range(len(allowed) // 7):
+            rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[7 * i:7 + 7 * i]])
+        if len(allowed) % 7:
+            rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[len(allowed) // 7 * 7:]])
     rows.append(NAVIGATION_KEYBOARD)
-    if update.effective_chat.username in DIRECTORS:
+    if is_director(update):
         rows.append([InlineKeyboardButton("Remove all records", callback_data=f"bm:rmall")])
 
     return InlineKeyboardMarkup(rows)

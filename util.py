@@ -2,6 +2,10 @@ from difflib import ndiff
 from constants import *
 
 
+def is_director(update):
+    return update.effective_chat.id in DIRECTORS or update.effective_chat.username in DIRECTORS
+
+
 def levenshtein_distance_gen(str1, str2):
     """Copied from
     https://codereview.stackexchange.com/questions/217065/calculate-levenshtein-distance-between-two-strings-in-python

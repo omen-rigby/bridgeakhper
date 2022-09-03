@@ -4,7 +4,8 @@ from inline_key import *
 from board import Board
 from result_getter import ResultGetter
 from generate import generate
-
+from util import is_director
+from movements.parse_mov import get_movement
 
 PORT = int(os.environ.get('PORT', 8443))
 if "DYNO" in os.environ:
@@ -42,7 +43,7 @@ def board(update: Update, context: CallbackContext):
 
 
 def start_session(update: Update, context: CallbackContext):
-    if update.effective_chat.username in DIRECTORS:
+    if is_director(update):
         generate()
         context.bot_data["maxboard"] = 0
         context.bot_data["maxpair"] = 0
@@ -171,6 +172,7 @@ def number(update: Update, context: CallbackContext):
         context.user_data["currentHand"] = hand
     elif context.bot_data["maxboard"]:
         context.bot_data["maxpair"] = int(update.message.text)
+        context.bot_data["movement"] = get_movement(context.bot_data["maxpair"])
         send(chat_id=update.effective_chat.id,
              text="Enter board number",
              reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
@@ -265,7 +267,7 @@ def restart(update: Update, context: CallbackContext):
 
 def end(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
-    if update.effective_chat.username not in DIRECTORS:
+    if not is_director(update):
         send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
         return
     if 'DYNO' in os.environ:
@@ -283,7 +285,7 @@ def end(update: Update, context: CallbackContext):
 
 def view_board(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
-    if update.effective_chat.username not in DIRECTORS:
+    if not is_director(update):
         send(chat_id=chat_id, text="You don't have enough rights to see tourney boards", context=context)
         return
     context.user_data["view_board"] = True
@@ -293,7 +295,7 @@ def view_board(update: Update, context: CallbackContext):
 
 def get_boards_only(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
-    if update.effective_chat.username not in DIRECTORS:
+    if not is_director(update):
         send(chat_id=chat_id, text="You don't have enough rights to see tourney boards", context=context)
         return
     path = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).boards_only()

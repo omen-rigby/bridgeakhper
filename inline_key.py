@@ -210,6 +210,23 @@ def inline_key(update: Update, context: CallbackContext):
                                  reply_markup=reply_markup,
                                  parse_mode=ParseMode.HTML
                                  )
+        elif OPPS_RE.match(key):
+            match = OPPS_RE.match(key)
+            ns = match.group(1)
+            ew = match.group(2)
+            new_text = re.sub(f"{CARET}\n([^:]+): ", f"{ns}\n\g<1>: {CARET}", result_data.text,
+                              flags=re.MULTILINE)
+            new_text = re.sub(f"{CARET}\n([^:]+): ", f"{ew}\n\g<1>: {CARET}", new_text,
+                              flags=re.MULTILINE)
+            reply_markup = contracts_keyboard(update)
+            context.user_data["markups"] = [pairs_keyboard(update, context, use_movement=False),
+                                            pairs_keyboard(update, context, exclude=ns, use_movement=False),
+                                            reply_markup]
+            context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
+                                                                      message_id=result_data.message_id,
+                                                                      reply_markup=reply_markup,
+                                                                      text=new_text,
+                                                                      parse_mode=ParseMode.HTML)
 
     elif CARD_RE.match(key):
         suit = key[0]
