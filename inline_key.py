@@ -40,6 +40,9 @@ def inline_key(update: Update, context: CallbackContext):
             next_field = result_data.text.split(CARET)[1].lstrip("\n")
             if next_field.startswith("Lead:"):
                 new_text = re.sub(f"{CARET}", f"{key.upper()}{CARET}", result_data.text)
+                prev, tail = new_text.split(key + CARET)
+                if prev[-1] in SUITS_UNICODE:
+                    new_text = f"{prev[:-1]}{key}{prev[-1]}{CARET}{tail}"
             else:
                 new_text = re.sub(f"{CARET}\n([^:]+): ", f"{key.upper()}\n\g<1>: {CARET}", result_data.text,
                                   flags=re.MULTILINE)
