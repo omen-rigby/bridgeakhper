@@ -63,7 +63,8 @@ def missing(update, context):
     pairs_num = context.bot_data.get("maxpair")
     cursor = conn.cursor()
     cursor.execute('select * from boards')
-    boards = ", ".join([str(b[0]) for b in cursor.fetchall()])
+    submitted_boards = [b[0] for b in cursor.fetchall()]
+    boards = ", ".join([str(b) for b in range(1, boards_num + 1) if b not in submitted_boards])
     cursor.execute('select * from protocols')
     protocols = list(set(cursor.fetchall()))
     boards_with_missing_results = ", ".join([str(i) for i in range(1, boards_num + 1)

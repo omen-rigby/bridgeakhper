@@ -103,7 +103,8 @@ class ResultGetter:
         self.hands = []
         cur = self.cursor
         cur.execute(f"select distinct * from boards order by number")
-        self.hands = cur.fetchall()
+        # board #0 can be erroneously submitted
+        self.hands = [h for h in cur.fetchall() if h[0]]
 
     def get_results(self):
         max_mp = self.max_mp
