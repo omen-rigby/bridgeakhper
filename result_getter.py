@@ -319,7 +319,7 @@ class ResultGetter:
                     board_data = results[r * boards_per_round + i]
                     deal = self.deals[r * boards_per_round + i]
                     suspicious_result = False
-                    if board_data[3] != "PASS" and '/' not in board_data[3]:
+                    if board_data[3].lower() != "pass" and '/' not in board_data[3]:
                         level = board_data[3][0]
                         denomination = board_data[3][1].lower()
                         declarer = board_data[4]
@@ -393,4 +393,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(25, 6).process()
+    ResultGetter(30, 6).process()
