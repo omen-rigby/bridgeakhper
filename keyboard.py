@@ -12,14 +12,15 @@ CONTRACTS_KEYBOARD = [[InlineKeyboardButton(text=str(i), callback_data=f"bm:{i}"
     [InlineKeyboardButton(text=x, callback_data=f"bm:{x}") for x in ["x", "xx", "pass"]],
     [InlineKeyboardButton(s, callback_data=f"bm:{s}") for s in list("NESW")]]
 
-ADJ_RESULTS = ['50/50', '60/40', '40/60' if CONFIG["scoring"] == "MPs" else ['A/A', 'A+/A-', 'A-/A+']]
-ADJS = [InlineKeyboardButton(text=r, callback_data=f"bm:{r}") for r in ADJ_RESULTS]
+
 
 
 def contracts_keyboard(update):
     lists = deepcopy(CONTRACTS_KEYBOARD)
     if is_director(update):
-        lists.append(ADJS + NAVIGATION_KEYBOARD)
+        adj_results = ['50/50', '60/40', '40/60'] if CONFIG["scoring"] == "MPs" else ['A/A', 'A+/A-', 'A-/A+']
+        adjs = [InlineKeyboardButton(text=r, callback_data=f"bm:{r}") for r in adj_results]
+        lists.append(adjs + NAVIGATION_KEYBOARD)
     else:
         lists.append(NAVIGATION_KEYBOARD)
     return InlineKeyboardMarkup(lists)
