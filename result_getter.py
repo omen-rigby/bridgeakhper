@@ -5,7 +5,8 @@ from copy import deepcopy
 from util import levenshtein, escape_suits
 from print import *
 from deal import Deal
-
+from imps import imps
+from statistics import mean
 date = os.path.abspath(db_path).replace("\\", "/").split("/")[-2]
 
 
@@ -106,8 +107,81 @@ class ResultGetter:
         # board #0 can be erroneously submitted
         self.hands = [h for h in cur.fetchall() if h[0]]
 
+    def set_scores_ximp(self, board, scores, adjusted_scores):
+        for s in adjusted_scores:
+            mp_ns = 0 if s[3] == 'A' else 3 * (-1) ** ('A-' == s[3]) * (len(scores) - 1)
+            mp_ew = -mp_ns
+            s[8] = mp_ns
+            s[9] = mp_ew
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            self.cursor.execute(statement)
+        for s in scores:
+            mp_ns = sum(imps(s[7] - other[7]) for other in scores)
+            mp_ew = -mp_ns
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            s[8] = mp_ns
+            s[9] = mp_ew
+            self.cursor.execute(statement)
+
+    def set_scores_imp(self, board, scores, adjusted_scores):
+        for s in adjusted_scores:
+            mp_ns = 0 if s[3] == 'A' else 3 * (-1) ** ('A-' == s[3])
+            mp_ew = -mp_ns
+            s[8] = mp_ns
+            s[9] = mp_ew
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            self.cursor.execute(statement)
+        results_mean = mean(s[7] for s in scores)
+        # datums ending in 5 are rounded towards the even number of tens
+        # to make mean rounding error for a whole area tend to 0
+        if results_mean % 20 == 5:
+            datum = round(results_mean, -1) - 10
+        else:
+            datum = round(results_mean, -1)
+        for s in scores:
+            mp_ns = imps(s[7] - datum)
+            mp_ew = -mp_ns
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            s[8] = mp_ns
+            s[9] = mp_ew
+            self.cursor.execute(statement)
+
+    def set_scores_mp(self, board, scores, adjusted_scores):
+        for s in adjusted_scores:
+            mp_ns = round(self.max_mp / 100 * int(s[3].split("/")[0]), 1)
+            mp_ew = self.max_mp - mp_ns
+            s[8] = mp_ns
+            s[9] = mp_ew
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            self.cursor.execute(statement)
+        scores.sort(key=lambda x: x[7])
+        current = 0
+        cluster_index = 0
+        scores = [list(s) for s in scores]
+        for s in scores:
+            repeats = [s2[7] for s2 in scores].count(s[7])
+            if adjusted_scores and CONFIG["neuberg"]:
+                mp_ew = (self.max_mp - 2 * len(adjusted_scores) - current - (repeats - 1) + 1) \
+                        * (len(scores) + len(adjusted_scores)) / len(scores) - 1
+                mp_ns = self.max_mp - mp_ew
+            else:
+                mp_ns = current + (repeats - 1)
+                mp_ew = self.max_mp - mp_ns
+            if cluster_index == repeats - 1:
+                current += 2 * repeats
+                cluster_index = 0
+            else:
+                cluster_index += 1
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            s[8] = mp_ns
+            s[9] = mp_ew
+            self.cursor.execute(statement)
+
     def get_results(self):
-        max_mp = self.max_mp
+        """
+        For adjustments refer to
+        http://db.eurobridge.org/repository/departments/directing/2001Course/LecureNotes/Score%20Adjustments1.pdf
+        """
         cur = self.cursor
         self.travellers = []
         for board in range(1, self.boards + 1):
@@ -121,36 +195,9 @@ class ResultGetter:
             sorted_results = [list(f) for f in filtered.values()]
             adjusted_scores = [s for s in sorted_results if s[7] == 1]
             scores = [s for s in sorted_results if s[7] != 1]
-            for s in adjusted_scores:
-                mp_ns = round(max_mp / 100 * int(s[3].split("/")[0]), 1)
-                mp_ew = max_mp - mp_ns
-                s[8] = mp_ns
-                s[9] = mp_ew
-                statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
-                cur.execute(statement)
-            scores.sort(key=lambda x: x[7])
-            current = 0
-            cluster_index = 0
-            scores = [list(s) for s in scores]
-            for s in scores:
-
-                repeats = [s2[7] for s2 in scores].count(s[7])
-                if adjusted_scores and CONFIG["neuberg"]:
-                    mp_ew = (self.max_mp - 2 * len(adjusted_scores) - current - (repeats - 1) + 1) \
-                            * len(sorted_results) / len(scores) - 1
-                    mp_ns = max_mp - mp_ew
-                else:
-                    mp_ns = current + (repeats - 1)
-                    mp_ew = max_mp - mp_ns
-                if cluster_index == repeats - 1:
-                    current += 2 * repeats
-                    cluster_index = 0
-                else:
-                    cluster_index += 1
-                statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
-                s[8] = mp_ns
-                s[9] = mp_ew
-                cur.execute(statement)
+            {"MPs": self.set_scores_mp, "IMPs": self.set_scores_imp, "Cross-IMPs": self.set_scores_ximp}\
+                [CONFIG["scoring"]](board, scores, adjusted_scores)
+            # TODO: change 60/40 to session average
             self.travellers.append([[s[1], s[2], escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]), s[7] if s[7] >= 0 else "",
                                     -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in scores + adjusted_scores])
         self.conn.commit()
@@ -193,17 +240,24 @@ class ResultGetter:
 
     @staticmethod
     def _replace(string, dikt):
+        minus = '−'
         for k, v in dikt.items():
             if "{" not in string:
                 return string
-            string = string.replace("${" + k + "}", " & ".join(v) if type(v) == list else str(v))
 
+            string = string.replace("${" + k + "}", " & ".join(v) if type(v) == list else str(v).replace("-", minus))
         return string
 
     def pdf_rankings(self):
         max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
         html = BeautifulSoup(open("templates/rankings_template.html"), features="lxml")
         template = html.find_all("tr")[1].extract()
+        if CONFIG["scoring"] != 'MPs':
+            html.find_all("th")[-1].extract()
+            template.find_all("td")[-1].extract()
+            scoring = CONFIG["scoring"]
+            header_text = html.find(text=re.compile("MAX = \$\{max\}"))
+            header_text.replace_with(header_text.replace("MAX = ${max}", f"Scoring: {scoring}"))
         for text in html.h1.find_all(text=re.compile('\$\{[^\}]+\}')):
             fixed_text = self._replace(text, {"tournament_title": CONFIG["tournament_title"],
                                               "date": date})
@@ -269,6 +323,10 @@ class ResultGetter:
             html.tbody.append(new_tr)
             new_tr = soup_copy.table.tr
             new_parent = soup_copy.table.table
+            scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
+            for text in new_parent.tbody.find_all(text=re.compile('\$\{scoring_short\}')):
+                text.replace_with(scoring_short)
+
             template = new_parent.find_all('tr')[1].extract()
             if boards_only:
                 continue
@@ -293,7 +351,7 @@ class ResultGetter:
         html = BeautifulSoup(file, features="lxml")
         for tr in html.find_all("tr"):
             tr.extract()
-
+        scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
 
         num_of_rounds = self.boards // boards_per_round
@@ -306,15 +364,28 @@ class ResultGetter:
             new_trs[1].th.string = self._replace(new_trs[1].th.string,
                                                  {"name": self.names[pair_number], "pair": pair_number + 1})
             # One per page
+            if CONFIG["scoring"] != "MPs":
+                new_trs[1].find("th")["colspan"] = 9
+                new_trs[2].find("th")["colspan"] = 9
             html.tbody.append(new_trs[0])
             html.tbody.append(new_trs[1])
-
             for text in new_trs[2].find_all(text=re.compile('\$\{[^\}]+\}')):
-                fixed_text = self._replace(text, {"mp_total": pair_rank[1], "max_mp": max_mp,
-                                                  "percent_total": round(100 * pair_rank[1] / max_mp, 2),
-                                                  "rank": totals.index(pair_rank) + 1})
+                if CONFIG["scoring"] != "MPs":
+                    fixed_text = text.replace("MaxMPs ${max_mp} Score ${percent_total}% ", "")
+                else:
+                    fixed_text = text
+                fixed_text = self._replace(fixed_text, {"mp_total": pair_rank[1], "max_mp": max_mp,
+                                                        "percent_total": round(100 * pair_rank[1] / max_mp, 2),
+                                                        "rank": totals.index(pair_rank) + 1,
+                                                        "scoring_short": scoring_short})
                 text.replace_with(fixed_text)
             html.tbody.append(new_trs[2])
+            for text in new_trs[3].find_all(text=re.compile('\$\{[^\}]+\}')):
+                fixed_text = self._replace(text, {"scoring_short": scoring_short})
+                text.replace_with(fixed_text)
+            if CONFIG["scoring"] != "MPs":
+                new_trs[3].find_all("th")[7].extract()
+
             html.tbody.append(new_trs[3])
             for r in range(num_of_rounds):
                 mp_for_round = sum(results[r * boards_per_round + b][7] for b in range(boards_per_round))
@@ -339,6 +410,9 @@ class ResultGetter:
                             suspicious_result = True
 
                     board_tr = BeautifulSoup(file, features="lxml").table.find_all("tr")[4]
+                    if CONFIG["scoring"] != "MPs":
+                        board_tr.find_all("td")[7].extract()
+
                     if suspicious_result:
                         board_tr.find_all("td")[3]["bgcolor"] = "#aa7777"
                     if i:

@@ -20,9 +20,8 @@ def print_to_pdf(arg, pdf_path=None):
         pdf_path = pdf_path or os.path.abspath(htm_path.replace('_processed.htm', '.pdf'))
         htm_path = os.path.abspath(htm_path)
     elif type(arg) == BeautifulSoup:
-        with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".htm", dir=f"./{date}") as f:
-            f.write(arg.prettify())
-        print(f.name)
+        with tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".htm", dir=f"./{date}") as f:
+            f.write(arg.prettify(encoding='UTF-8'))
         htm_path = os.path.abspath(f.name)
         pdf_path = os.path.abspath(pdf_path or (arg.h1.string + ".pdf"))
 

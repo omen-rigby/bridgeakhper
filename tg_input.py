@@ -50,8 +50,8 @@ def start_session(update: Update, context: CallbackContext):
         context.user_data["currentHand"] = None
         context.user_data["result"] = None
         send(chat_id=update.effective_chat.id,
-             text="Started session. Enter number of boards",
-             reply_buttons=[],
+             text="Started session. Enter scoring",
+             reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
              context=context)
     else:
         return missing(update, context)
@@ -68,7 +68,7 @@ def missing(update, context):
     cursor.execute('select * from protocols')
     protocols = list(set(cursor.fetchall()))
     boards_with_missing_results = ", ".join([str(i) for i in range(1, boards_num + 1)
-                                   if len([p for p in protocols if p[0] == i]) < pairs_num // 2])
+                                            if len([p for p in protocols if p[0] == i]) < pairs_num // 2])
     cursor.execute('select * from names')
     names = len(cursor.fetchall())
     if boards_num and pairs_num:
@@ -85,6 +85,15 @@ Submitted {names} names""",
              reply_buttons=[],
              context=context)
     conn.close()
+
+
+def scoring(update: Update, context: CallbackContext):
+    CONFIG["scoring"] = update.message.text
+    if is_director(update):
+        send(chat_id=update.effective_chat.id,
+             text="Enter number of boards",
+             reply_buttons=[],
+             context=context)
 
 
 def names(update: Update, context: CallbackContext):
@@ -316,6 +325,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Save"), save))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Restart"), restart))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), cancel))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*MPs"), scoring))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(" .* "), names_text))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+-\w+"), names_text))
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))

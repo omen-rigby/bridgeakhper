@@ -4,7 +4,7 @@
   "token": "TOKEN",
   "movement": "howell",
   "full": true,
-  "score": "mp",
+  "scoring": "MPs",
   "neuberg": true,
   "validate_lead": false
 }

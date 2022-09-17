@@ -12,10 +12,8 @@ CONTRACTS_KEYBOARD = [[InlineKeyboardButton(text=str(i), callback_data=f"bm:{i}"
     [InlineKeyboardButton(text=x, callback_data=f"bm:{x}") for x in ["x", "xx", "pass"]],
     [InlineKeyboardButton(s, callback_data=f"bm:{s}") for s in list("NESW")]]
 
-
-ADJS = [InlineKeyboardButton(text="50/50", callback_data="bm:50/50"),
-        InlineKeyboardButton(text="60/40", callback_data="bm:60/40"),
-        InlineKeyboardButton(text="60/40", callback_data="bm:40/60")]
+ADJ_RESULTS = ['50/50', '60/40', '40/60' if CONFIG["scoring"] == "MPs" else ['A/A', 'A+/A-', 'A-/A+']]
+ADJS = [InlineKeyboardButton(text=r, callback_data=f"bm:{r}") for r in ADJ_RESULTS]
 
 
 def contracts_keyboard(update):

@@ -22,7 +22,7 @@ movement: "mitchell"  (not implemented) or "howell"
 full (not implemented): whether to have maximum number of rounds available. 
 If set to false, bot would ask for the number of rounds (to be implemented).
 
-score: mp or imp (not implemented)
+scoring: MPs or IMPs or Cross-IMPs. Changed on the fly, config value is used for debugging purposes.
 
 neuberg: MP only. If true, uses [Neuberg formula](https://en.wikipedia.org/wiki/Neuberg_formula) for more fair result in case of adjusted score. Default: true. 
 
