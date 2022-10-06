@@ -5,7 +5,7 @@ import os
 
 DEBUG = False
 
-date = "2022-06-26" if DEBUG else time.strftime("%Y-%m-%d")
+date = "2022-09-23" if DEBUG else time.strftime("%Y-%m-%d")
 db_path = f"{date}/boards.db"
 protocols_path = db_path.replace("boards", "protocols")
 VULNERABILITY = ["e",
@@ -23,9 +23,11 @@ CARD_RE = re.compile("[shdc][0-9AKQJT]", flags=re.IGNORECASE)
 CONTRACT_RE = re.compile(f"^([1-7]([{SUITS_UNICODE}]|(NT))x{{0,2}}[{hands}])|(pass)|(\d\d/\d\d)$", re.IGNORECASE)
 result_re = re.compile("=|([+-]\d\d?)")
 ADJ_RE = re.compile("\d\d/\d\d")
-OPPS_RE = re.compile("(\d+) vs (\d+)")
+OPPS_RE = re.compile("([\d+|[AB]) vs (\d+|[AB])")
 CARET = "_"  # □
+NBSP = "\u00a0"
 CONFIG = json.load(open(os.path.abspath(__file__).replace("constants.py", "config.json")))
+#CONFIG["scoring"] = "Team Match IMPs"
 DIRECTORS = CONFIG["directors"]
 if 'DYNO' in os.environ and os.environ.get("DIRECTOR"):
     DIRECTORS.append(os.environ.get("DIRECTOR"))

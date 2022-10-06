@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style type="Text/css">
+@media print {
+    @page { margin: 5mm 0mm 0mm 0mm; }
+        @top-left-corner { ... / empty footer / }
+
+}
+H1 {
+FONT-SIZE: 20pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #000000; TEXT-ALIGN: center
+}
+H2 {
+FONT-SIZE: 16pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #0000a0; TEXT-ALIGN: center
+}
+ment {
+}
+table.nobrd, table.nobrd th, table.nobrd td {
+  border: none;
+}
+.home {
+  background-color: #FEF8BC;
+  border-bottom: #000000 1px;
+  border-right-width: 1px;
+}
+.away {
+  background-color: #E4A0FE;
+  border-width: 1;
+}
+table, tr, th, td {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+}
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  color: #3C3C3C;
+}
+table.allbrd, table.allbrd td {
+  border: 1px solid #0C479D;
+  border-collapse: collapse;
+}
+TD.nBRD {
+  background-color: #9BFFB9;
+}
+table.allbrd th {
+  border: 1px solid #0C479D;
+  border-collapse: collapse;
+  background: #ddffdd;
+}
+tr.open{
+line-height: 30px}
+</style>
+</head>
+<body>
+    <h1>${tournament_title} ${date}</h1>
+    <table class="nobrd" width="780" cellspacing="0" cellpadding="0" border="0">
+        <tbody>
+            <tr>
+                <td class="home" width="340" align="center"><font size="+2"><b>A</b></font></a></font></td>
+                <td width="60" align="center"><font size="+2">VS</font></td>
+                <td class="away" width="340" align="center"><font size="+2"><b>B</b></font></a></font></td>
+                <td width="160" align="center">&nbsp;</td>
+            </tr>
+            <tr height="25">
+                <td class="home" width="37%" align="center"><font size="-2"><b>&nbsp;${home}</b></font></td>
+                <td width="60" />
+                <td class="away" width="37%" align="center"><font size="-2"><b>&nbsp;${away}</b></font></td>
+                <td width="160" align="center">&nbsp;</td>
+            </tr>
+            <tr class="open">
+                <td width="37%" align="center"><font size="+1">OPEN ROOM</font></td>
+                <td width="8%" align="center">&nbsp;</td>
+                <td width="37%" align="center"><font size="+1">CLOSED ROOM</font></td>
+                <td width="18%" align="center">&nbsp;</td>
+            </tr>
+        </tbody>
+    </table>
+    <br/>
+    <table class="allbrd" width="800" cellspacing="0" cellpadding="2" border="0">
+        <tbody>
+            <tr>
+                <th width="80" align="center">CONT</th>
+                <th width="40" align="center">LEAD</th>
+                <th width="40" align="center">TR</th>
+                <th width="120" align="center">SCORE</th>
+                <th width="60" align="center">BRD #</th>
+                <th width="80" align="center">CONT</th>
+                <th width="40" align="center">LEAD</th>
+                <th width="40" align="center">TR</th>
+                <th width="120" align="center">SCORE</th>
+                <th width="80" align="center">HOME</th>
+                <th width="80" align="center">AWAY</th>
+            </tr>
+            <tr>
+                <td align="center"><a href="${open_link}">${contract_open}</td>
+                <td align="center">${lead_open}</td>
+                <td align="center">${tricks_open}</td>
+                <td align="right">${score_open}</td>
+                <td class="nBRD" align="center"><b>${board_number}</b></td>
+                <td align="center"><a href="${closed_link}">${contract_closed}</a></td>
+                <td align="center">${lead_closed}</td>
+                <td align="center">${tricks_closed}</td>
+                <td align="right">${score_closed}</td>
+                <td class="home" align="center">${result_a}</td>
+                <td class="away" align="center">${result_b}</td>
+            </tr>
+            <tr>
+                <td colspan="8" rowspan="3" align="center"><font size="+2"><b>RESULT</b></font></td>
+                <th align="right"> IMPs: </th>
+                <td class="home" align="center">${sum_a}</td>
+                <td class="away" align="center">${sum_b}</td>
+            </tr>
+            <tr>
+                <th align="right"><b> VP: </b></th>
+                <td class="home" align="center"><b>${vp_a}</b></td>
+                <td class="away" align="center"><b>${vp_b}</b></td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>

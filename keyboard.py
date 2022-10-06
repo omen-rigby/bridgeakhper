@@ -2,6 +2,7 @@ import sqlite3
 from copy import deepcopy 
 from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
 from constants import *
+from scoring import Scoring
 from util import is_director
 from itertools import chain
 
@@ -47,9 +48,13 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True):
     board_set = int(board) // n_rounds + 1
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute(f"Select ns,ew from protocols where number={board}")
+    cursor.execute(f"Select ns from protocols where number={board}")
     denied = list(set(chain(*[c for c in cursor.fetchall()])))
     conn.close()
+    if CONFIG["scoring"] == Scoring.match:
+        allowed = [b for b in ["A vs B", "B vs A"] if b[0] not in denied]
+        return InlineKeyboardMarkup([[InlineKeyboardButton(text=p, callback_data=f"bm:{p}")
+                                      for p in allowed] + NAVIGATION_KEYBOARD])
     allowed = [b for b in range(1, pairs + 1) if b not in denied and b != int(exclude)]
     rows = []
     if movement:

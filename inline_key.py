@@ -143,6 +143,9 @@ def inline_key(update: Update, context: CallbackContext):
             board_number = context.user_data["board"].number
             ns = result_data.text.split("NS: ")[1].split("\n")[0]
             ew = result_data.text.split("EW: ")[1].split("\n")[0]
+            if not ns.isdigit():
+                ns = "AB".index(ns) + 1
+                ew = "AB".index(ew) + 1
             contract = result_data.text.split("Contract: ")[1].split("\n")[0].lower().replace("nt", "n")
 
             if contract == "pass":

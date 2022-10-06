@@ -2,6 +2,7 @@ import shutil
 import logging
 from inline_key import *
 from board import Board
+from scoring import Scoring
 from result_getter import ResultGetter
 from generate import generate
 from util import is_director
@@ -51,7 +52,7 @@ def start_session(update: Update, context: CallbackContext):
         context.user_data["result"] = None
         send(chat_id=update.effective_chat.id,
              text="Started session. Enter scoring",
-             reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
+             reply_buttons=Scoring.all(),
              context=context)
     else:
         return missing(update, context)
@@ -102,9 +103,14 @@ def names(update: Update, context: CallbackContext):
     cursor = conn.cursor()
     cursor.execute("Select number from names")
     added = list(set([c[0] for c in cursor.fetchall()]))
-    conn.close()
-    all_pairs = range(1, context.bot_data["maxpair"] + 1)
+    if CONFIG["scoring"] == Scoring.match:
+        added = ["AB"[a // 3 + 1] + str(a % 3 + 1) for a in added]
+        all_pairs = ["A1", "A2", "A3", "B1", "B2", "B3"]
+    else:
+        all_pairs = range(1, context.bot_data["maxpair"] + 1)
     buttons = [l for l in all_pairs if l not in added]
+    conn.close()
+
     send(chat_id=update.effective_chat.id,
          text="Enter pair number",
          reply_buttons=buttons,
@@ -128,10 +134,13 @@ def names_text(update: Update, context: CallbackContext):
 
 def number(update: Update, context: CallbackContext):
     if context.user_data.get("names", -1) == 0:
-        pair_number = int(update.message.text)
+        if CONFIG["scoring"] == Scoring.match:
+            pair_number = update.message.text[1] + "AB".index(update.message.text[0]) * 3
+        else:
+            pair_number = int(update.message.text)
         context.user_data["names"] = pair_number
         send(chat_id=update.effective_chat.id,
-             text=f"Enter names for pair #{pair_number}",
+             text=f"Enter names for pair #{update.message.text}",
              reply_buttons=[],
              context=context)
         return
@@ -188,11 +197,19 @@ def number(update: Update, context: CallbackContext):
              reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
              context=context)
     else:
-        context.bot_data["maxboard"] = int(update.message.text)
-        send(chat_id=update.effective_chat.id,
-                     text="Enter the number of pairs",
-                     reply_buttons=[],
-                     context=context)
+        if CONFIG["scoring"] == Scoring.match:
+            context.bot_data["maxboard"] = int(update.message.text)
+            context.bot_data["maxpair"] = 4
+            send(chat_id=update.effective_chat.id,
+                 text="Enter board number",
+                 reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
+                 context=context)
+        else:
+            context.bot_data["maxboard"] = int(update.message.text)
+            send(chat_id=update.effective_chat.id,
+                 text="Enter the number of pairs",
+                 reply_buttons=[],
+                 context=context)
 
 
 def save(update: Update, context: CallbackContext):
@@ -325,7 +342,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Save"), save))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Restart"), restart))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), cancel))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*MPs"), scoring))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex(Scoring.re()), scoring))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(" .* "), names_text))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+-\w+"), names_text))
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
