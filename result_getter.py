@@ -122,6 +122,7 @@ class ResultGetter:
             s[8] = mp_ns
             s[9] = mp_ew
             self.cursor.execute(statement)
+        return scores
 
     def set_scores_imp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
@@ -145,6 +146,7 @@ class ResultGetter:
             s[8] = mp_ns
             s[9] = mp_ew
             self.cursor.execute(statement)
+        return scores
 
     def set_scores_mp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
@@ -176,6 +178,7 @@ class ResultGetter:
             s[8] = mp_ns
             s[9] = mp_ew
             self.cursor.execute(statement)
+        return scores
 
     def get_results(self):
         """
@@ -195,8 +198,12 @@ class ResultGetter:
             sorted_results = [list(f) for f in filtered.values()]
             adjusted_scores = [s for s in sorted_results if s[7] == 1]
             scores = [s for s in sorted_results if s[7] != 1]
-            {"MPs": self.set_scores_mp, "IMPs": self.set_scores_imp, "Cross-IMPs": self.set_scores_ximp}\
-                [CONFIG["scoring"]](board, scores, adjusted_scores)
+            scoring_method = {
+                "MPs": self.set_scores_mp,
+                "IMPs": self.set_scores_imp,
+                "Cross-IMPs": self.set_scores_ximp
+            }[CONFIG["scoring"]]
+            scores = scoring_method(board, scores, adjusted_scores)
             # TODO: change 60/40 to session average
             self.travellers.append([[s[1], s[2], escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]), s[7] if s[7] >= 0 else "",
                                     -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in scores + adjusted_scores])
@@ -470,4 +477,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(30, 6).process()
+    ResultGetter(27, 10).process()
