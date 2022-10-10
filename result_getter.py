@@ -1,5 +1,6 @@
 import sqlite3
 from constants import *
+from math import log10
 from bs4 import Comment
 from copy import deepcopy
 from util import levenshtein, escape_suits
@@ -79,7 +80,7 @@ class ResultGetter:
             candidates.sort(key=lambda p: p[3])
         else:
             candidates.sort(key=lambda p: players.index(p))
-        return [c[2] if type(c) != str else c for c in candidates]
+        return [(c[2], c[4] or 0, c[5]) if type(c) != str else (c, 0, 1.6) for c in candidates]
 
     def get_names(self):
         cur = self.cursor
@@ -88,14 +89,14 @@ class ResultGetter:
         try:
             conn2 = sqlite3.connect("players.db")
             cursor2 = conn2.cursor()
-            cursor2.execute("select first_name,last_name,full_name,gender from players")
+            cursor2.execute("select first_name,last_name,full_name,gender,rating,rank_ru from players")
             players = cursor2.fetchall()
             for raw_pair in raw:
                 self.names.append(self.lookup(raw_pair[1], players))
             conn2.close()
         except:
             for raw_pair in raw:
-                self.names.append(raw_pair[1].split(" "))
+                self.names.append((raw_pair[1].split(" "), 0, 1.6))
         if not raw:
             self.names = [(f"{i}_1", f"{i}_2") for i in range(1, self.pairs + 1)]
         self._conn = self.conn.close()
@@ -217,7 +218,7 @@ class ResultGetter:
             # records are duplicated sometimes
             history = list(set(cur.fetchall()))
             result_in_mp = sum(record[-2] if pair == record[1] else record[-1] for record in history)
-            self.totals.append((pair, result_in_mp))
+            self.totals.append([pair, result_in_mp])
 
             vul = {'-': "-", "n": "NS", "e": "EW", "b": "ALL"}
             self.personals.append([])
@@ -244,6 +245,45 @@ class ResultGetter:
                                           round(board[8 + (pair != board[1])] * 100 / max_mp, 2),
                                           board[1 + (pair == board[1])]])
         self.totals.sort(key=lambda x: -x[1])
+        self.get_masterpoints()
+
+    def get_masterpoints(self):
+        # AM
+        # 52 is the number of cards in a board (sic!)
+        # 0.25 is tournament coefficient for regular club events
+        total_rating = sum(sum(a[1] for a in p) / len(p) for p in self.names)
+        n = self.pairs
+        d = self.boards
+        b0 = total_rating * self.boards / 52 * 0.25
+        self.totals[0].append(round(b0))
+        for i in range(2, self.pairs + 1):
+            if i > 0.4 * self.pairs or self.totals[i - 1][1] < self.max_mp * self.boards / 2:
+                self.totals[i - 1].append(0)
+                continue
+            # TODO: check formula
+            self.totals[i - 1].append(round(b0 / (1 + i/(d - i)) ** (i - 1)))
+
+        # RU
+        # this dragon poker rules are taken from https://www.bridgesport.ru/materials/sports-classification/
+        ranks_ru = [sum(a[2] for a in p) / len(p) for p in self.names]
+        team = "team" in CONFIG["scoring"].lower()
+        n0 = n * (1 + team)  # number of pairs for team events also
+        kp = 0.9 if team else 0.95
+        typ = 2 - team
+        q1 = list(sorted((0.2 - 0.12 * r if r < 0 else 0.2 / (1.6 ** r) for r in ranks_ru), key=lambda x: -x))
+        q2 = [q * kp ** i for i, q in enumerate(q1)]
+        last = 16 if type == 2 else 32
+        kq = sum(q2[:last]) / 2 ** (typ - 1)
+        kq1 = 1 if kq >= 1 else 1 - 0.7 * log10(kq)
+        kqn = 0.6 * (kq + log10(n0) - 1.5) * kq1 if n0 >= 32 else 0.4 * kq * log10(n0) * kq1
+        kd = 2.2 * log10(d) - 2
+        t = n / 8 * max(0.5, 3 + kq - 0.5 * log10(n))
+        r = 1.1 * (100 * kd * kqn) ** (1 / t)
+
+        for i, t in enumerate(self.totals):
+            t.append(round(50 * kqn * kd / r ** i))
+        # remove extra stuff from names
+        self.names = [[n[0] for n in p] for p in self.names]
 
     @staticmethod
     def _replace(string, dikt):
@@ -275,9 +315,12 @@ class ResultGetter:
             text.replace_with(fixed_text)
         for i, rank in enumerate(self.totals):
             new_tr = deepcopy(template)
-            repl_dict = {"rank": i + 1, "pair": rank[0], "names": self.names[int(rank[0]) - 1],
-                         "mp": rank[1], "percent": round(100 * rank[1]/max_mp, 2)
-                         }
+            repl_dict = {
+                "rank": i + 1, "pair": rank[0], "names": self.names[int(rank[0]) - 1],
+                "mp": rank[1], "percent": round(100 * rank[1]/max_mp, 2),
+                "masterpoints": rank[2] or "",
+                "masterpoints_ru": rank[3] or ""
+            }
             for text in new_tr.find_all(text=re.compile('\$\{[^\}]+\}')):
                 new_text = self._replace(text.string, repl_dict)
                 text.string.replace_with(new_text)
