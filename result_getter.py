@@ -1,6 +1,6 @@
 import sqlite3
 from constants import *
-from math import log10
+from math import log10, ceil
 from bs4 import Comment
 from copy import deepcopy
 from util import levenshtein, escape_suits
@@ -89,7 +89,7 @@ class ResultGetter:
         try:
             conn2 = sqlite3.connect("players.db")
             cursor2 = conn2.cursor()
-            cursor2.execute("select first_name,last_name,full_name,gender,rating,rank_ru from players")
+            cursor2.execute("select first_name,last_name,full_name,gender,rank,rank_ru from players")
             players = cursor2.fetchall()
             for raw_pair in raw:
                 self.names.append(self.lookup(raw_pair[1], players))
@@ -251,18 +251,35 @@ class ResultGetter:
         # AM
         # 52 is the number of cards in a board (sic!)
         # 0.25 is tournament coefficient for regular club events
-        total_rating = sum(sum(a[1] for a in p) / len(p) for p in self.names)
+        total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in self.names)
         n = self.pairs
         d = self.boards
         b0 = total_rating * self.boards / 52 * 0.25
-        self.totals[0].append(round(b0))
-        for i in range(2, self.pairs + 1):
-            if i > 0.4 * self.pairs or self.totals[i - 1][1] < self.max_mp * self.boards / 2:
-                self.totals[i - 1].append(0)
+        mps = [b0]
+        for i in range(2, self.pairs):
+            mps.append(b0 / (1 + i/(n - i)) ** (i - 1))
+        cluster_index = 0
+        for i in range(self.pairs):
+            cluster_first = i - cluster_index
+            if cluster_first + 1 > 0.4 * self.pairs or self.totals[i][1] < self.max_mp * self.boards / 2:
+                self.totals[i].append(0)
                 continue
-            # TODO: check formula
-            self.totals[i - 1].append(round(b0 / (1 + i/(d - i)) ** (i - 1)))
+            cluster_length = len([a for a in self.totals if a[1] == self.totals[i][1]])
+            cluster_total = sum(mps[j] for j, a in enumerate(self.totals) if a[1] == self.totals[i][1])\
+                / cluster_length
+            if self.totals[i + 1][1] == self.totals[i][1]:
+                cluster_index += 1
+            else:
+                cluster_index = 0
 
+            # Ask Artem for the reasoning behind this
+            if i + cluster_length > 0.4 * self.pairs:
+                rounding_method = ceil
+            elif i < 2:
+                rounding_method = round
+            else:
+                rounding_method = int
+            self.totals[i].append(rounding_method(cluster_total))
         # RU
         # this dragon poker rules are taken from https://www.bridgesport.ru/materials/sports-classification/
         ranks_ru = [sum(a[2] for a in p) / len(p) for p in self.names]
@@ -279,9 +296,12 @@ class ResultGetter:
         kd = 2.2 * log10(d) - 2
         t = n / 8 * max(0.5, 3 + kq - 0.5 * log10(n))
         r = 1.1 * (100 * kd * kqn) ** (1 / t)
-
+        mps = [50 * kqn * kd / r ** i for i in range(self.pairs)]
         for i, t in enumerate(self.totals):
-            t.append(round(50 * kqn * kd / r ** i))
+            cluster_length = len([a for a in self.totals if a[1] == self.totals[i][1]])
+            tied_mps = [mps[j] for j, a in enumerate(self.totals) if a[1] == self.totals[i][1]]
+            cluster_total = sum(tied_mps) / cluster_length
+            t.append(1 if min(tied_mps) < 0.5 and max(map(round, tied_mps)) > 0 and cluster_total < 0.5 else round(cluster_total))
         # remove extra stuff from names
         self.names = [[n[0] for n in p] for p in self.names]
 
