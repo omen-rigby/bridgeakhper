@@ -1,7 +1,7 @@
 import sqlite3
 from constants import *
+from players import get_players
 from math import log10, ceil
-from bs4 import Comment
 from copy import deepcopy
 from util import levenshtein, escape_suits
 from print import *
@@ -87,13 +87,9 @@ class ResultGetter:
         cur.execute("select * from names order by number")
         raw = cur.fetchall()
         try:
-            conn2 = sqlite3.connect("players.db")
-            cursor2 = conn2.cursor()
-            cursor2.execute("select first_name,last_name,full_name,gender,rank,rank_ru from players")
-            players = cursor2.fetchall()
+            players = get_players()
             for raw_pair in raw:
                 self.names.append(self.lookup(raw_pair[1], players))
-            conn2.close()
         except:
             for raw_pair in raw:
                 self.names.append((raw_pair[1].split(" "), 0, 1.6))
