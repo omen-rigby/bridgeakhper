@@ -7,7 +7,7 @@ DEBUG = False
 
 date = "2022-06-26" if DEBUG else time.strftime("%Y-%m-%d")
 db_path = f"{date}/boards.db"
-PLAYERS_DB = os.env("PLAYERS_DB") if "DYNO" in os.environ else "players.db"
+PLAYERS_DB = os.environ("PLAYERS_DB") if "DYNO" in os.environ else "players.db"
 protocols_path = db_path.replace("boards", "protocols")
 VULNERABILITY = ["e",
                  "-", "n", "e", "b",
