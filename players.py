@@ -1,4 +1,3 @@
-import os
 import psycopg2
 import urllib.parse as up
 import sqlite3
@@ -40,7 +39,7 @@ def migrate():
 
 
 def get_players(columns="first_name,last_name,full_name,gender,rank,rank_ru"):
-    if "DYNO" in os.environ:
+    if "postgres" in PLAYERS_DB:
         try:
             url = up.urlparse(PLAYERS_DB)
             conn = psycopg2.connect(database=url.path[1:],
@@ -53,7 +52,7 @@ def get_players(columns="first_name,last_name,full_name,gender,rank,rank_ru"):
             cursor.execute(f"select {columns} from players")
             players = cursor.fetchall()
             conn.close()
-            return [map(lambda x: x.strip() if type(x) == str else x, p) for p in players]
+            return [list(map(lambda x: x.strip() if type(x) == str else x, p)) for p in players]
         except Exception:
             return []
     conn2 = sqlite3.connect(PLAYERS_DB)

@@ -254,6 +254,7 @@ class ResultGetter:
         mps = [b0]
         for i in range(2, self.pairs):
             mps.append(b0 / (1 + i/(n - i)) ** (i - 1))
+        mps.append(0)
         cluster_index = 0
         for i in range(self.pairs):
             cluster_first = i - cluster_index
@@ -263,7 +264,7 @@ class ResultGetter:
             cluster_length = len([a for a in self.totals if a[1] == self.totals[i][1]])
             cluster_total = sum(mps[j] for j, a in enumerate(self.totals) if a[1] == self.totals[i][1])\
                 / cluster_length
-            if self.totals[i + 1][1] == self.totals[i][1]:
+            if i + 1 < len(self.totals) and self.totals[i + 1][1] == self.totals[i][1]:
                 cluster_index += 1
             else:
                 cluster_index = 0
@@ -352,8 +353,6 @@ class ResultGetter:
         for board_number in range(1, self.boards + 1):
             soup_copy = BeautifulSoup(file, features="lxml")
             new_tr = soup_copy.table.tr
-            for c in new_tr.find_all(text=lambda t: isinstance(t, Comment)):
-                c.extract()
             deal = self.deals[board_number - 1]
             if not boards_only:
                 res = self.travellers[board_number - 1]
