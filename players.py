@@ -63,5 +63,22 @@ def get_players(columns="first_name,last_name,full_name,gender,rank,rank_ru"):
     return result
 
 
+def add_new_player(first, last, gender, rank, rank_ru):
+    url = up.urlparse(PLAYERS_DB)
+    conn = psycopg2.connect(database=url.path[1:],
+                            user=url.username,
+                            password=url.password,
+                            host=url.hostname,
+                            port=url.port
+                            )
+    cursor = conn.cursor()
+    full = f"{first} {last}"
+    insert = f"""INSERT INTO players (first_name, last_name, rank, gender, full_name, rating, rank_ru) 
+                 VALUES ('{first}', '{last}', {rank}, '{gender}', '{full}', 0, {rank_ru});"""
+    cursor.execute(insert)
+    conn.commit()
+    conn.close()
+
+
 if __name__ == "__main__":
-    get_players()
+    print(get_players())
