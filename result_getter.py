@@ -1,6 +1,6 @@
 import sqlite3
 from constants import *
-from players import get_players
+from players import Players
 from math import log10, ceil
 from copy import deepcopy
 from util import levenshtein, escape_suits
@@ -87,7 +87,7 @@ class ResultGetter:
         cur.execute("select * from names order by number")
         raw = cur.fetchall()
         try:
-            players = get_players()
+            players = Players.get_players()
             for raw_pair in raw:
                 self.names.append(self.lookup(raw_pair[1], players))
         except:

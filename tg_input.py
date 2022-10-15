@@ -6,7 +6,7 @@ from result_getter import ResultGetter
 from generate import generate
 from util import is_director
 from movements.parse_mov import get_movement
-from players import add_new_player
+from players import Players
 
 PORT = int(os.environ.get('PORT', 8443))
 if "DYNO" in os.environ:
@@ -305,16 +305,27 @@ def view_board(update: Update, context: CallbackContext):
 
 
 def add_player(update: Update, context: CallbackContext):
-    context.user_data["add_player"] = True
-    send(chat_id=update.effective_chat.id,
-         text=f"Enter space-separated first name, last name, gender, rank, rank RU",
-         reply_buttons=[], context=context)
+    if context.user_data.get("add_player"):
+        context.user_data["add_player"] = False
+        first, last, gender, rank, rank_ru = update.message.text.split(" ")
+        Players.add_new_player(first, last, gender, rank, rank_ru)
+    else:
+        context.user_data["add_player"] = True
+        send(chat_id=update.effective_chat.id,
+             text=f"Enter space-separated first name, last name, gender, rank, rank RU",
+             reply_buttons=[], context=context)
 
 
-def new_player(update: Update, context: CallbackContext):
-    first, last, gender, rank, rank_ru = update.message.text.split(" ")
-    add_new_player(first, last, gender, int(rank), float(rank_ru))
-    context.user_data["add_player"] = False
+def update_player(update: Update, context: CallbackContext):
+    if context.user_data.get("update_player"):
+        context.user_data["update_player"] = False
+        last, rank, rank_ru = update.message.text.split(" ")
+        Players.update(last, rank, rank_ru)
+    else:
+        context.user_data["update_player"] = True
+        send(chat_id=update.effective_chat.id,
+             text=f"Enter space-separated last name, rank, rank RU",
+             reply_buttons=[], context=context)
 
 
 def get_boards_only(update: Update, context: CallbackContext):
@@ -340,7 +351,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Restart"), restart))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), cancel))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*MPs"), scoring))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \w+ [FfMm] \d\d? \-?\d(\.5)?"), new_player))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \w+ [FfMm] \d\d?(\.7)? \-?\d(\.5)?"), add_player))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \d\d?(\.7)? \-?\d(\.5)?"), update_player))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(" .* "), names_text))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+-\w+"), names_text))
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
@@ -349,6 +361,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("missing", missing))
     updater.dispatcher.add_handler(CommandHandler("viewboard", view_board))
     updater.dispatcher.add_handler(CommandHandler("addplayer", add_player))
+    updater.dispatcher.add_handler(CommandHandler("updateplayer", update_player))
     updater.dispatcher.add_handler(CommandHandler("boards", get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", end))
     if 'DYNO' in os.environ:
