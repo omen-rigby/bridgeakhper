@@ -4,6 +4,7 @@ from constants import CONFIG
 
 
 def get_movement(max_pair):
+    return ""
     tables = (max_pair + 1) // 2
     movement_letter = "H" if CONFIG["movement"] == "howell" else "M"
     filename = f"{movement_letter}{tables:02d}{tables * 2 - 1:02d}.mov"
