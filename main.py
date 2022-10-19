@@ -1,5 +1,6 @@
 import http
-from subprocess import check_output
+from telegram import Bot
+from queue import Queue
 from flask import Flask, request
 from werkzeug.wrappers import Response
 
@@ -7,8 +8,8 @@ from tg_input import *
 app = Flask(__name__)
 
 
-updater = Updater(token=os.environ["TOKEN"])
-dispatcher = updater.dispatcher
+bot = Bot(token=os.environ["TOKEN"])
+dispatcher = Dispatcher(bot=bot, update_queue=Queue())
 
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('session', start_session))
