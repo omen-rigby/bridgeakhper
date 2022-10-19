@@ -1,4 +1,3 @@
-import os
 import http
 from subprocess import check_output
 from flask import Flask, request
@@ -36,16 +35,7 @@ dispatcher.add_handler(CommandHandler("addplayer", add_player))
 dispatcher.add_handler(CommandHandler("updateplayer", update_player))
 dispatcher.add_handler(CommandHandler("boards", get_boards_only))
 dispatcher.add_handler(CommandHandler("end", end))
-if 'DYNO' in os.environ:
-    updater.start_webhook(listen="0.0.0.0",
-                          port=int(PORT),
-                          url_path=TOKEN,
-                          webhook_url=f"https://bridgeakhper.herokuapp.com/{TOKEN}"
-                          )
-elif 'gcloud' in os.environ:
-    updater.start_webhook(check_output("gcloud run services describe bot --format 'value(status.url)' --project ${PROJECT_ID}"))
-else:
-    updater.start_polling()
+
 
 
 @app.post("/")
