@@ -42,5 +42,5 @@ dispatcher.add_handler(CommandHandler("end", end))
 @app.post("/")
 def index() -> Response:
     dispatcher.process_update(
-        Update.de_json(request.get_json(force=True), updater))
+        Update.de_json(request.get_json(force=True), bot))
     return "", http.HTTPStatus.NO_CONTENT
