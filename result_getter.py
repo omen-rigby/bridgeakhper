@@ -270,7 +270,6 @@ class ResultGetter:
                 cluster_index += 1
             else:
                 cluster_index = 0
-
             # Ask Artem for the reasoning behind this
             if i + cluster_length > 0.4 * self.pairs:
                 rounding_method = ceil
@@ -296,12 +295,16 @@ class ResultGetter:
         t = n / 8 * max(0.5, 3 + kq - 0.5 * log10(n))
         r = 1.1 * (100 * kd * kqn) ** (1 / t)
         mps = [50 * kqn * kd / r ** i for i in range(self.pairs)]
-        for i, t in enumerate(self.totals):
-            cluster_length = len([a for a in self.totals if a[1] == self.totals[i][1]])
-            tied_mps = [mps[j] for j, a in enumerate(self.totals) if a[1] == self.totals[i][1]]
-            cluster_total = sum(tied_mps) / cluster_length
-            t.append(1 if min(tied_mps) < 0.5 and max(map(round, tied_mps)) > 0 and cluster_total < 0.5 else round(cluster_total))
-        # remove extra stuff from names
+        try:
+            for i, t in enumerate(self.totals):
+                cluster_length = len([a for a in self.totals if a[1] == self.totals[i][1]])
+                tied_mps = [mps[j] for j, a in enumerate(self.totals) if a[1] == self.totals[i][1]]
+                cluster_total = sum(tied_mps) / cluster_length
+                t.append(1 if min(tied_mps) < 0.5 and max(map(round, tied_mps)) > 0 and cluster_total < 0.5 else round(cluster_total))
+            # remove extra stuff from names
+        except:
+            for i, t in enumerate(self.totals):
+                t.append(0)
         self.names = [[n[0] for n in p] for p in self.names]
 
     @staticmethod
@@ -537,4 +540,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(27, 10).process()
+    ResultGetter(28, 7).process()
