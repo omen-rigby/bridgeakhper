@@ -336,6 +336,9 @@ def get_boards_only(update: Update, context: CallbackContext):
     path = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).boards_only()
     context.bot.send_document(chat_id, open(path, 'rb'))
 
+def td_list(update: Update, context: CallbackContext):
+    send(chat_id=update.message.chat_id, text=", ".join(DIRECTORS), context=context)
+
 
 if __name__ == '__main__':
     updater = Updater(token=TOKEN)
@@ -343,6 +346,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('session', start_session))
     updater.dispatcher.add_handler(CommandHandler('board', board))
     updater.dispatcher.add_handler(CommandHandler('names', names))
+    updater.dispatcher.add_handler(CommandHandler('tdlist', td_list))
 
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^\d+$"), number))
