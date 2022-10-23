@@ -3,7 +3,7 @@ from constants import *
 
 
 def is_director(update):
-    return update.effective_chat.id in DIRECTORS or update.effective_chat.username in DIRECTORS
+    return str(update.effective_chat.id) in DIRECTORS or update.effective_chat.username in DIRECTORS
 
 
 def levenshtein_distance_gen(str1, str2):
