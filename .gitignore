@@ -1,5 +1,6 @@
 # Project stuff
 2022-*
+players.db
 # Byte-compiled / optimized / DLL files
 __pycache__/
 .idea/

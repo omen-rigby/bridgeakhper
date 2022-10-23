@@ -1,1 +1,1 @@
-web: python3 tg_input.py
+web: gunicorn bridgeakhper:app
