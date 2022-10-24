@@ -1,5 +1,5 @@
 FROM python:3.8-slim
-
+EXPOSE 8080
 # install wget
 RUN apt-get -y update
 RUN apt-get -y install wget apt-utils gnupg
