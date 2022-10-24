@@ -1,2 +1,2 @@
-FLASK_APP = "main.py"
+FLASK_APP = bridgeakhper
 FLASK_ENV=development
