@@ -7,7 +7,7 @@ from constants import date
 if os.name == "nt":
     CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
     # TODO: registry lookup
-elif 'DYNO' in os.environ:
+elif 'BOT_TOKEN' in os.environ:
     CHROME_PATH = os.environ.get('GOOGLE_CHROME_BIN')
 elif os.name == "posix":
     CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]

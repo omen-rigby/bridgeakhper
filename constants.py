@@ -7,7 +7,7 @@ DEBUG = False
 
 date = "2022-10-10" if DEBUG else time.strftime("%Y-%m-%d")
 db_path = os.environ.get("CURRENT_TOURNEY") if 'CURRENT_TOURNEY' in os.environ else f"{date}/boards.db"
-PLAYERS_DB = os.environ.get("PLAYERS_DB") if "DYNO" in os.environ else "players.db"
+PLAYERS_DB = os.environ.get("PLAYERS_DB") if "BOT_TOKEN" in os.environ else "players.db"
 protocols_path = db_path.replace("boards", "protocols")
 VULNERABILITY = ["e",
                  "-", "n", "e", "b",
@@ -28,6 +28,6 @@ OPPS_RE = re.compile("(\d+) vs (\d+)")
 CARET = "_"  # □
 CONFIG = json.load(open(os.path.abspath(__file__).replace("constants.py", "config.json")))
 DIRECTORS = CONFIG["directors"]
-if 'DYNO' in os.environ and os.environ.get("DIRECTOR"):
+if 'BOT_TOKEN' in os.environ and os.environ.get("DIRECTOR"):
     DIRECTORS.append(str(os.environ.get("DIRECTOR")))
 

@@ -8,8 +8,8 @@ from util import is_director
 from movements.parse_mov import get_movement
 from players import Players
 
-PORT = int(os.environ.get('PORT', 8443))
-if "DYNO" in os.environ:
+PORT = int(os.environ.get('PORT', 5000))
+if 'BOT_TOKEN' in os.environ:
     TOKEN = os.environ["BOT_TOKEN"]
 else:
     TOKEN = CONFIG["token"]
@@ -281,7 +281,7 @@ def end(update: Update, context: CallbackContext):
     if not is_director(update):
         send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
         return
-    if 'DYNO' in os.environ:
+    if 'BOT_TOKEN' in os.environ:
         context.bot.send_document(chat_id, open(db_path, 'rb'))
     try:
         paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
@@ -290,7 +290,7 @@ def end(update: Update, context: CallbackContext):
     except Exception as e:
         send(chat_id=chat_id, text=f"Result getter failed with error: {e}", context=context)
 
-    if 'DYNO' in os.environ:
+    if 'BOT_TOKEN' in os.environ:
         shutil.rmtree(date)
 
 
@@ -373,6 +373,12 @@ if __name__ == '__main__':
                               port=int(PORT),
                               url_path=TOKEN,
                               webhook_url=f"https://bridgeakhper.herokuapp.com/{TOKEN}"
+                              )
+    elif 'TOKEN' in os.environ:
+        updater.start_webhook(listen="0.0.0.0",
+                              port=int(PORT),
+                              url_path=TOKEN,
+                              webhook_url=f"https://bridgeakhper.fly.dev/{TOKEN}"
                               )
     else:
         updater.start_polling()
