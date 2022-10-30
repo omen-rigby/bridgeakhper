@@ -2,15 +2,18 @@ import os
 import subprocess
 import tempfile
 import logging
+import pdfkit
 from bs4 import BeautifulSoup
+from pyvirtualdisplay import Display
 from constants import date
-if os.name == "nt":
-    CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
-    # TODO: registry lookup
-elif 'BOT_TOKEN' in os.environ:
-    CHROME_PATH = os.environ.get('GOOGLE_CHROME_BIN')
-elif os.name == "posix":
-    CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]
+
+PDFKIT_PRESENT = ' ' in subprocess.check_output("whereis wkhtmltopdf", shell=True).decode()
+if not PDFKIT_PRESENT:
+    if os.name == "nt":
+        CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
+        # TODO: registry lookup
+    elif os.name == "posix":
+        CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]
 
 
 def print_to_pdf(arg, pdf_path=None):
@@ -24,12 +27,20 @@ def print_to_pdf(arg, pdf_path=None):
             f.write(arg.prettify(encoding='UTF-8'))
         htm_path = os.path.abspath(f.name)
         pdf_path = os.path.abspath(pdf_path or (arg.h1.string + ".pdf"))
-
-    cmd = f'"{CHROME_PATH}" --headless --disable-gpu --no-sandbox --print-to-pdf="{pdf_path}" --no-margins "{htm_path}"'
-    try:
-        subprocess.check_output(cmd, shell=True)
-        if remove:
-            os.remove(htm_path)
-    except:
-        pdf_path = htm_path
+    if PDFKIT_PRESENT:
+        with Display():
+            pdfkit.from_file(htm_path, pdf_path, options={
+                'encoding': 'utf-8',
+                'orientation': 'portrait',
+                'page-size': 'A4',
+                'margin-top': '0mm', 'margin-bottom': '0mm', 'margin-left': '0mm', 'margin-right': '0mm'
+            })
+    else:
+        cmd = f'"{CHROME_PATH}" --headless --disable-gpu --no-sandbox --print-to-pdf="{pdf_path}" --no-margins "{htm_path}"'
+        try:
+            subprocess.check_output(cmd, shell=True)
+            if remove:
+                os.remove(htm_path)
+        except:
+            pdf_path = htm_path
     return pdf_path

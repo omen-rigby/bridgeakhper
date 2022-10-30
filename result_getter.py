@@ -339,7 +339,7 @@ class ResultGetter:
             new_tr = deepcopy(template)
             repl_dict = {
                 "rank": i + 1, "pair": rank[0], "names": self.names[int(rank[0]) - 1],
-                "mp": rank[1], "percent": round(100 * rank[1]/max_mp, 2),
+                "mp": round(rank[1], 2), "percent": round(100 * rank[1]/max_mp, 2),
                 "masterpoints": rank[2] or "",
                 "masterpoints_ru": rank[3] or ""
             }
@@ -376,19 +376,33 @@ class ResultGetter:
                 repl_dict['denomination'] = "NT"
             else:
                 repl_dict['denomination'] = repl_dict['denomination'].upper()
-            tables = new_tr.find_all("table")
             # VUL in boards
-            colors_dict = {"nscolor": "palegreen" if deal.data["v"] in ("EW", "-") else "tomato",
-                           "ewcolor": "palegreen" if deal.data["v"] in ("NS", "-") else "tomato"}
-            for td in tables[0].find_all("td"):
-                if "color}" in td.get("bgcolor", ""):
-                    td["bgcolor"] = colors_dict[td["bgcolor"].split("{")[1].strip("}")]
-            dealer_tag = [f for f in tables[0].find_all('font') if f.string == repl_dict["d"]][0]
-            dealer_tag['style'] = 'text-decoration:underline;'
-            for table in tables:
-                for text in table.find_all(text=re.compile('\$\{[^\}]+\}')):
-                    new_text = self._replace(text.string, repl_dict)
-                    text.string.replace_with(new_text)
+            table = new_tr.find('table')
+            cols = [c for c in table.find_all('td') if type(c) != str and 'nonvul' in c.attrs.get('class', [])]
+            for i, col in enumerate(cols):
+                classes = col.attrs.get("class", [])
+                if not classes:
+                    continue
+                if i % 3 and deal.data["v"] in ("EW", "ALL"):
+                    classes.remove('nonvul')
+                    classes.append("vul")
+                if not i % 3 and deal.data["v"] in ("NS", "ALL"):
+                    col["class"].remove('nonvul')
+                    col["class"].append("vul")
+            # TODO: this crazy stuff is sick and should somehow be replaced with real html aligning
+            # yet as for now I have no idea how to implement it
+            if board_number > 9:
+                cols[0]["style"] = "padding-left: 8px;"
+                cols[-1]["style"] = "padding-left: 8px;"
+            else:
+                number = [c for c in table.find_all('td') if type(c) != str and 'digits' in c.attrs.get('class', [])][0]
+                number['style'] = "padding-left: 2px"
+            dealer_tag = new_tr.find_all('font')["NWXES".index(repl_dict["d"])]
+            dealer_tag['class'] = 'dealer'
+            # for table in tables:
+            for text in new_tr.find_all(text=re.compile('\$\{[^\}]+\}')):
+                new_text = self._replace(text.string, repl_dict)
+                text.string.replace_with(new_text)
             new_tr.find("a", class_="minimax_url")["href"] = deal.data["minimax_url"]
             html.tbody.append(new_tr)
             new_tr = soup_copy.table.tr
@@ -403,7 +417,9 @@ class ResultGetter:
             for r in res:
                 protocol_table = deepcopy(template)
                 repl_dict = {k: str(v).upper() for k, v in zip(
-                    ("ns", "ew", "contract", "declarer", "lead", "ns+", "ns-", "mp_ns", "mp_ew"), r)}
+                    ("ns", "ew", "contract", "declarer", "lead", "ns+", "ns-", ), r)}
+                repl_dict["mp_ns"] = round(r[7], 2)
+                repl_dict["mp_ew"] = round(r[8], 2)
                 repl_dict["ns_name"] = self.names[r[0] - 1]
                 repl_dict["ew_name"] = self.names[r[1] - 1]
                 bbo_url = deal.url_with_contract(r[2][0], r[2].split("=")[0].split("+")[0].split("-")[0][1:], r[3])
@@ -414,6 +430,7 @@ class ResultGetter:
                 new_parent.tbody.append(protocol_table)
             html.tbody.append(new_tr)
         out_filename = 'Boards' if boards_only else 'Travellers'
+
         return print_to_pdf(html, f"{date}/{out_filename}.pdf")
 
     def pdf_scorecards(self):
@@ -444,7 +461,7 @@ class ResultGetter:
                     fixed_text = text.replace("MaxMPs ${max_mp} Score ${percent_total}% ", "")
                 else:
                     fixed_text = text
-                fixed_text = self._replace(fixed_text, {"mp_total": pair_rank[1], "max_mp": max_mp,
+                fixed_text = self._replace(fixed_text, {"mp_total": round(pair_rank[1], 2), "max_mp": max_mp,
                                                         "percent_total": round(100 * pair_rank[1] / max_mp, 2),
                                                         "rank": totals.index(pair_rank) + 1,
                                                         "scoring_short": scoring_short})
@@ -511,9 +528,9 @@ class ResultGetter:
                                                    {"board_number": board_data[0], "vul": board_data[1],
                                                     "dir": board_data[2], "contract": suits(board_data[3]),
                                                     "declarer": board_data[4].upper(), "lead": suits(board_data[5]),
-                                                    "score": board_data[6], "mp": board_data[7],
-                                                    "percent": board_data[8],
-                                                    "mp_per_round": mp_for_round,
+                                                    "score": board_data[6], "mp": round(board_data[7], 2),
+                                                    "percent": round(board_data[8], 2),
+                                                    "mp_per_round": round(mp_for_round, 2),
                                                     "opp_names": opp_names})
                         text.replace_with(fixed_text)
 
@@ -540,4 +557,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(28, 7).process()
+    ResultGetter(27, 9).process()

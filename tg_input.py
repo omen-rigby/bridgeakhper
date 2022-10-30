@@ -7,6 +7,7 @@ from generate import generate
 from util import is_director
 from movements.parse_mov import get_movement
 from players import Players
+from shutil import copyfile
 
 PORT = int(os.environ.get('PORT', 5000))
 if 'BOT_TOKEN' in os.environ:
@@ -336,8 +337,16 @@ def get_boards_only(update: Update, context: CallbackContext):
     path = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).boards_only()
     context.bot.send_document(chat_id, open(path, 'rb'))
 
+
 def td_list(update: Update, context: CallbackContext):
     send(chat_id=update.message.chat_id, text=", ".join(DIRECTORS), context=context)
+
+
+def load_db(update: Update, context: CallbackContext):
+    path = f'{date}/boards.db'
+    if os.stat(path):
+        os.remove(path)
+    copyfile('testboards.db', path)
 
 
 if __name__ == '__main__':
@@ -347,6 +356,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('board', board))
     updater.dispatcher.add_handler(CommandHandler('names', names))
     updater.dispatcher.add_handler(CommandHandler('tdlist', td_list))
+    updater.dispatcher.add_handler(CommandHandler('loaddb', load_db))
 
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^\d+$"), number))
