@@ -399,7 +399,6 @@ class ResultGetter:
                 number['style'] = "padding-left: 2px"
             dealer_tag = new_tr.find_all('font')["NWXES".index(repl_dict["d"])]
             dealer_tag['class'] = 'dealer'
-            # for table in tables:
             for text in new_tr.find_all(text=re.compile('\$\{[^\}]+\}')):
                 new_text = self._replace(text.string, repl_dict)
                 text.string.replace_with(new_text)
