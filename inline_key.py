@@ -118,8 +118,33 @@ def inline_key(update: Update, context: CallbackContext):
                     tricks_taken = eval(f"{level}{key}")
                 score = context.user_data["board"].get_total_points(declarer, denomination, level,
                                                                     tricks_taken, multiplier)
-            new_text = new_text.replace("Score:", f"Score: {score}")
-            lst = NAVIGATION_KEYBOARD + [InlineKeyboardButton("save", callback_data="bm:enter")]
+            board_number = context.user_data["board"].number
+            ns = result_data.text.split("NS: ")[1].split("\n")[0]
+            ew = result_data.text.split("EW: ")[1].split("\n")[0]
+            contract = result_data.text.split("Contract: ")[1].split("\n")[0].lower().replace("nt", "n")
+
+            if contract == "pass":
+                declarer = ""
+                tricks = ""
+                lead = ""
+            elif "/" in contract:
+                declarer = ""
+                tricks = ""
+                lead = ""
+            else:
+                contract, declarer = contract.split(" ")
+                lead = result_data.text.split("Lead: ")[1].split("\n")[0]
+                tricks = result_data.text.split("Result: ")[1].split("\n")[0]
+
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
+                VALUES({board_number}, '{ns}', '{ew}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}');"""
+            cursor.execute(statement)
+            conn.commit()
+            conn.close()
+            new_text = new_text.replace("Score:", f"Score: {score}\nResult for board #{board_number} is saved")
+            lst = NAVIGATION_KEYBOARD + [InlineKeyboardButton('next board', callback_data='board')]
             reply_markup = InlineKeyboardMarkup([lst])
             context.user_data["markups"].append(reply_markup)
             context.user_data["result"] = context.bot\
@@ -139,41 +164,17 @@ def inline_key(update: Update, context: CallbackContext):
                                                                            text=new_text,
                                                                            reply_markup=reply_markup,
                                                                            parse_mode=ParseMode.HTML)
-        elif key == "enter":
+        elif key == "restart":
+            previous_result = context.user_data["result"]
             board_number = context.user_data["board"].number
-            ns = result_data.text.split("NS: ")[1].split("\n")[0]
-            ew = result_data.text.split("EW: ")[1].split("\n")[0]
-            contract = result_data.text.split("Contract: ")[1].split("\n")[0].lower().replace("nt", "n")
-
-            if contract == "pass":
-                score = 0
-                declarer = ""
-                tricks = ""
-                lead = ""
-            elif "/" in contract:
-                score = 1
-                declarer = ""
-                tricks = ""
-                lead = ""
-            else:
-                contract, declarer = contract.split(" ")
-                lead = result_data.text.split("Lead: ")[1].split("\n")[0]
-                tricks = result_data.text.split("Result: ")[1].split("\n")[0]
-                score = int(result_data.text.split("Score: ")[1].split("\n")[0])
-
+            ns = previous_result.text.split("NS: ")[1].split("\n")[0]
+            ew = previous_result.text.split("EW: ")[1].split("\n")[0]
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            statement = f"""
-                    INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
-                    VALUES({board_number}, '{ns}', '{ew}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}');"""
+            statement = f"""delete from protocols where number={board_number} and ns={ns}"""
             cursor.execute(statement)
             conn.commit()
             conn.close()
-            send(chat_id=update.effective_chat.id,
-                 text=f"Result for board #{board_number} is saved",
-                 reply_buttons=("/board",),
-                 context=context)
-        elif key == "restart":
             return result(update, context)
         elif key == "rmall":
             number = context.user_data["board"].number
@@ -253,4 +254,7 @@ def inline_key(update: Update, context: CallbackContext):
                  text=f"Next hand?",
                  reply_buttons=("OK", "Cancel"),
                  context=context)
+    elif key == "board":
+        from tg_input import  board
+        board(update, context)
 

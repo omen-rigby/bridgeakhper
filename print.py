@@ -16,7 +16,7 @@ if not PDFKIT_PRESENT:
         CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]
 
 
-def print_to_pdf(arg, pdf_path=None):
+def print_to_pdf(arg, pdf_path=None, landscape=False):
     remove = True
     if type(arg) == str:
         htm_path = arg
@@ -31,7 +31,7 @@ def print_to_pdf(arg, pdf_path=None):
         with Display():
             pdfkit.from_file(htm_path, pdf_path, options={
                 'encoding': 'utf-8',
-                'orientation': 'portrait',
+                'orientation': 'landscape' if landscape else 'portrait',
                 'page-size': 'A4',
                 'margin-top': '0mm', 'margin-bottom': '0mm', 'margin-left': '0mm', 'margin-right': '0mm'
             })

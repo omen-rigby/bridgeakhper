@@ -197,15 +197,6 @@ def number(update: Update, context: CallbackContext):
                      context=context)
 
 
-def save(update: Update, context: CallbackContext):
-    board = context.user_data["board"]
-    board.save()
-    result(update, context)
-    # send(chat_id=update.effective_chat.id,
-    #      text=f"Board {board.number} is saved",
-    #      reply_buttons=("/board",),
-    #      context=context)
-
 
 def ok(update: Update, context: CallbackContext):
     board = context.user_data["board"]
@@ -222,18 +213,18 @@ def ok(update: Update, context: CallbackContext):
         return
 
     board.set_hand(context.user_data["currentHand"]["text"])
-    if board.current_hand is None:
-        board.save()
-        send(chat_id=update.effective_chat.id,
-             text=f"Board {board.number} is saved",
-             reply_buttons=("/board",),
-             context=context)
-    elif board.current_hand == "w":
+    if board.current_hand == "w":
         w = board.get_w_hand().replace("T", "10")
         send(chat_id=update.effective_chat.id,
              text=f"W hand should be: {w}",
-             reply_buttons=("Save", "Restart"),
+             reply_buttons=[],
              context=context)
+        board.save()
+        send(chat_id=update.effective_chat.id,
+             text=f"Board {board.number} is saved",
+             reply_buttons=("/board", "/result", "/restart"),
+             context=context)
+
     else:
         seat = board.current_hand.upper()
         send(chat_id=update.effective_chat.id,
@@ -361,8 +352,7 @@ if __name__ == '__main__':
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^\d+$"), number))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("OK"), ok))
-    updater.dispatcher.add_handler(MessageHandler(Filters.text("Save"), save))
-    updater.dispatcher.add_handler(MessageHandler(Filters.text("Restart"), restart))
+    updater.dispatcher.add_handler(CommandHandler('restart', restart))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), cancel))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*MPs"), scoring))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \w+ [FfMm] \d\d?(\.7)? \-?\d(\.5)?"), add_player))

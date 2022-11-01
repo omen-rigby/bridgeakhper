@@ -210,7 +210,7 @@ class ResultGetter:
         max_mp = self.pairs - 2 - self.pairs % 2
         cur = self.cursor
         for pair in range(1, self.pairs + 1):
-            cur.execute(f"select * from protocols where ns={pair} or ew={pair} order by number")
+            cur.execute(f"select * from protocols where (ns={pair} or ew={pair}) and number > 0 order by number")
             # records are duplicated sometimes
             history = list(set(cur.fetchall()))
             result_in_mp = sum(record[-2] if pair == record[1] else record[-1] for record in history)
@@ -435,8 +435,7 @@ class ResultGetter:
     def pdf_scorecards(self):
         file = open("templates/scorecards_template.html").read()
         html = BeautifulSoup(file, features="lxml")
-        for tr in html.find_all("tr"):
-            tr.extract()
+        html.div.extract()
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
 
@@ -445,17 +444,16 @@ class ResultGetter:
         max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
 
         for pair_number, results in enumerate(self.personals):
+            new_div = BeautifulSoup(file, features='lxml').div
             pair_rank = [t for t in totals if t[0] == pair_number + 1][0]
-            new_trs = BeautifulSoup(file, features="lxml").table.find_all("tr")
-            new_trs[1].th.string = self._replace(new_trs[1].th.string,
+            new_trs = new_div.table.find_all("tr")
+            new_trs[0].th.string = self._replace(new_trs[0].th.string,
                                                  {"name": self.names[pair_number], "pair": pair_number + 1})
             # One per page
             if CONFIG["scoring"] != "MPs":
+                new_trs[0].find("th")["colspan"] = 9
                 new_trs[1].find("th")["colspan"] = 9
-                new_trs[2].find("th")["colspan"] = 9
-            html.tbody.append(new_trs[0])
-            html.tbody.append(new_trs[1])
-            for text in new_trs[2].find_all(text=re.compile('\$\{[^\}]+\}')):
+            for text in new_trs[1].find_all(text=re.compile('\$\{[^\}]+\}')):
                 if CONFIG["scoring"] != "MPs":
                     fixed_text = text.replace("MaxMPs ${max_mp} Score ${percent_total}% ", "")
                 else:
@@ -465,14 +463,14 @@ class ResultGetter:
                                                         "rank": totals.index(pair_rank) + 1,
                                                         "scoring_short": scoring_short})
                 text.replace_with(fixed_text)
-            html.tbody.append(new_trs[2])
-            for text in new_trs[3].find_all(text=re.compile('\$\{[^\}]+\}')):
+            for text in new_trs[2].find_all(text=re.compile('\$\{[^\}]+\}')):
                 fixed_text = self._replace(text, {"scoring_short": scoring_short})
                 text.replace_with(fixed_text)
-            if CONFIG["scoring"] != "MPs":
-                new_trs[3].find_all("th")[7].extract()
 
-            html.tbody.append(new_trs[3])
+            if CONFIG["scoring"] != "MPs":
+                new_trs[2].find_all("th")[7].extract()
+            new_trs[3].extract()
+
             for r in range(num_of_rounds):
                 mp_for_round = sum(results[r * boards_per_round + b][7] for b in range(boards_per_round))
                 for i in range(boards_per_round):
@@ -494,8 +492,7 @@ class ResultGetter:
                             fit = 13
                         if (abs(tricks - par) > 3 and denomination == "n") or (abs(tricks - par) >= 3 and fit < 7):
                             suspicious_result = True
-
-                    board_tr = BeautifulSoup(file, features="lxml").table.find_all("tr")[4]
+                    board_tr = BeautifulSoup(file, features='lxml').div.table.find_all("tr")[3]
                     if CONFIG["scoring"] != "MPs":
                         board_tr.find_all("td")[7].extract()
 
@@ -532,11 +529,12 @@ class ResultGetter:
                                                     "mp_per_round": round(mp_for_round, 2),
                                                     "opp_names": opp_names})
                         text.replace_with(fixed_text)
+                    new_div.tbody.append(board_tr)
+            if not pair_number:
+                new_div["style"] = ""
+            html.append(new_div)
 
-                    html.tbody.append(board_tr)
-        html.tbody.tr.extract()
-
-        return print_to_pdf(html, f"./{date}/Scorecards.pdf")
+        return print_to_pdf(html, f"./{date}/Scorecards.pdf", landscape=True)
 
     def boards_only(self):
         self.get_hands()
@@ -556,4 +554,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(27, 9).process()
+    ResultGetter(28, 8).process()

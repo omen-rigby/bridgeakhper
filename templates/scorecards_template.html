@@ -34,16 +34,11 @@ CAPTION {
 </head>
 <body>
 <h1>Scorecards</h1>
+<div style="page-break-before:always">
 <table style="FONT-SIZE: 10pt; FONT-FAMILY: Arial">
   <tbody>
-  <tr bgcolor="#ffffff" style="BORDER-TOP: none; BORDER-RIGHT: none; BORDER-BOTTOM: none; BORDER-LEFT: none">
-    <th colspan="11" align="left">
-      <div style="page-break-before:always"/>
-    </th>
-  </tr>
   <tr bgcolor="#ffb0b0">
-    <th colspan="10" align="left">
-      PAIR ${pair} ${name}</th></tr>
+    <th colspan="10" align="left"><div >PAIR ${pair} ${name}</div></th></tr>
   <tr bgcolor="#ffb0b0">
     <th colspan="10" align="left">${scoring_short}s ${mp_total} MaxMPs ${max_mp} Score ${percent_total}% Rank ${rank}</th>
   </tr>
@@ -73,5 +68,6 @@ CAPTION {
     <td rowspan="${boards_per_round}" align="left">${opp_names}</td>
   </tr>
   </tbody></table>
+</div>
 </body>
 </html>
