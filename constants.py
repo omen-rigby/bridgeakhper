@@ -8,7 +8,6 @@ DEBUG = False
 date = "2022-10-10" if DEBUG else time.strftime("%Y-%m-%d")
 db_path = os.environ.get("CURRENT_TOURNEY") if 'CURRENT_TOURNEY' in os.environ else f"{date}/boards.db"
 PLAYERS_DB = os.environ.get("PLAYERS_DB") if "BOT_TOKEN" in os.environ else "players.db"
-protocols_path = db_path.replace("boards", "protocols")
 VULNERABILITY = ["e",
                  "-", "n", "e", "b",
                  "n", "e", "b", "-",

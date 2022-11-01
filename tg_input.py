@@ -12,6 +12,7 @@ from shutil import copyfile
 PORT = int(os.environ.get('PORT', 5000))
 if 'BOT_TOKEN' in os.environ:
     TOKEN = os.environ["BOT_TOKEN"]
+    WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 else:
     TOKEN = CONFIG["token"]
 URL = f"https://api.telegram.org/bot{TOKEN}"
@@ -368,17 +369,11 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("updateplayer", update_player))
     updater.dispatcher.add_handler(CommandHandler("boards", get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", end))
-    if 'DYNO' in os.environ:
+    if 'BOT_TOKEN' in os.environ:
         updater.start_webhook(listen="0.0.0.0",
                               port=int(PORT),
                               url_path=TOKEN,
-                              webhook_url=f"https://bridgeakhper.herokuapp.com/{TOKEN}"
-                              )
-    elif 'TOKEN' in os.environ:
-        updater.start_webhook(listen="0.0.0.0",
-                              port=int(PORT),
-                              url_path=TOKEN,
-                              webhook_url=f"https://bridgeakhper.fly.dev/{TOKEN}"
+                              webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
                               )
     else:
         updater.start_polling()
