@@ -35,6 +35,8 @@ def print_to_pdf(arg, pdf_path=None, landscape=False):
                 'page-size': 'A4',
                 'margin-top': '0mm', 'margin-bottom': '0mm', 'margin-left': '0mm', 'margin-right': '0mm'
             })
+            if remove:
+                os.remove(htm_path)
     else:
         cmd = f'"{CHROME_PATH}" --headless --disable-gpu --no-sandbox --print-to-pdf="{pdf_path}" --no-margins "{htm_path}"'
         try:

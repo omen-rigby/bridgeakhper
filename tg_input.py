@@ -2,7 +2,7 @@ import shutil
 import logging
 from inline_key import *
 from board import Board
-from result_getter import ResultGetter
+from result_getter import ResultGetter, ALL_PLAYERS
 from generate import generate
 from util import is_director
 from movements.parse_mov import get_movement
@@ -124,8 +124,10 @@ def names_text(update: Update, context: CallbackContext):
     conn.commit()
     conn.close()
     context.user_data["names"] = None
+    found_pair_data = Players.lookup(update.message.text, ALL_PLAYERS)
+    found_pair = " - ".join(p[0] for p in found_pair_data)
     send(chat_id=update.effective_chat.id,
-         text=f"What's next?",
+         text=f"Identified as {found_pair}. What's next?",
          reply_buttons=("/names", "/board"),
          context=context)
 

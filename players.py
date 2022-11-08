@@ -1,6 +1,8 @@
 import psycopg2
 import urllib.parse as up
 import sqlite3
+import re
+from util import levenshtein
 from constants import PLAYERS_DB
 
 up.uses_netloc.append("postgres")
@@ -91,6 +93,46 @@ class Players:
         conn.commit()
         conn.close()
 
+    @staticmethod
+    def lookup(raw_pair, players):
+        players = [p for p in players if any(p)]
+        partners = re.split("[^\w\s]", raw_pair, 2)
+        if len(partners) < 2:
+            partners = raw_pair.split("  ")
+            if len(partners) < 2:
+                chunks = raw_pair.split(" ")
+                partners = [" ".join(chunks[:2]), " ".join(chunks[2:])]
+        partners = [p.strip().replace("ё", "е") for p in partners]
+        candidates = []
+        for partner in partners:
+            candidate = [p for p in players if p[2] == partner]
+            if candidate:
+                candidates.append(candidate[0])
+                continue
+            # Full name partial match
+            candidate = [p for p in players if levenshtein(partner, p[2]) <= 1]
+            if candidate:
+                candidates.append(candidate[0])
+                continue
+            # Last and first name partial match
+            candidate = [p for p in players if levenshtein(partner.split(" ")[-1], p[1]) <= 1]
+            if candidate:
+                candidates.append(candidate[0])
+                continue
+            # If a player has only first name, find
+            candidate = [p for p in players if levenshtein(partner, p[0]) <= 2]
+            if candidate:
+                candidates.append(candidate[0])
+                continue
+            # Otherwise, use name as given
+            candidates.append(partner)
+        if len(set(map(lambda p: p[3], candidates))) == 2:
+            candidates.sort(key=lambda p: p[3])
+        else:
+            candidates.sort(key=lambda p: players.index(p))
+        return [(c[2], c[4] or 0, c[5]) if type(c) != str else (c, 0, 1.6) for c in candidates]
+
 
 if __name__ == "__main__":
+    Players.add_new_player("Ваче", "Минасян", "M", 6, 1.6)
     print(Players.get_players())

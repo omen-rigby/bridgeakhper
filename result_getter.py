@@ -3,12 +3,13 @@ from constants import *
 from players import Players
 from math import log10, ceil
 from copy import deepcopy
-from util import levenshtein, escape_suits
+from util import escape_suits
 from print import *
 from deal import Deal
 from imps import imps
 from statistics import mean
 date = os.path.abspath(db_path).replace("\\", "/").split("/")[-2]
+ALL_PLAYERS = Players.get_players()
 
 
 class ResultGetter:
@@ -43,45 +44,6 @@ class ResultGetter:
             self._deals = [Deal(raw_hands=h) for h in self.hands]
         return self._deals
 
-    @staticmethod
-    def lookup(raw_pair, players):
-        players = [p for p in players if any(p)]
-        partners = re.split("[^\w\s]", raw_pair, 2)
-        if len(partners) < 2:
-            partners = raw_pair.split("  ")
-            if len(partners) < 2:
-                chunks = raw_pair.split(" ")
-                partners = [" ".join(chunks[:2]), " ".join(chunks[2:])]
-        partners = [p.strip().replace("ё", "е") for p in partners]
-        candidates = []
-        for partner in partners:
-            candidate = [p for p in players if p[2] == partner]
-            if candidate:
-                candidates.append(candidate[0])
-                continue
-            # Full name partial match
-            candidate = [p for p in players if levenshtein(partner, p[2]) <= 1]
-            if candidate:
-                candidates.append(candidate[0])
-                continue
-            # Last and first name partial match
-            candidate = [p for p in players if levenshtein(partner.split(" ")[-1], p[1]) <= 1]
-            if candidate:
-                candidates.append(candidate[0])
-                continue
-            # If a player has only first name, find
-            candidate = [p for p in players if levenshtein(partner, p[0]) <= 2]
-            if candidate:
-                candidates.append(candidate[0])
-                continue
-            # Otherwise, use name as given
-            candidates.append(partner)
-        if len(set(map(lambda p: p[3], candidates))) == 2:
-            candidates.sort(key=lambda p: p[3])
-        else:
-            candidates.sort(key=lambda p: players.index(p))
-        return [(c[2], c[4] or 0, c[5]) if type(c) != str else (c, 0, 1.6) for c in candidates]
-
     def get_names(self):
         cur = self.cursor
         cur.execute("select * from names order by number")
@@ -89,7 +51,7 @@ class ResultGetter:
         try:
             players = Players.get_players()
             for raw_pair in raw:
-                self.names.append(self.lookup(raw_pair[1], players))
+                self.names.append(Players.lookup(raw_pair[1], players))
         except:
             for raw_pair in raw:
                 self.names.append((raw_pair[1].split(" "), 0, 1.6))
