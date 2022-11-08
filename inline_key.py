@@ -19,7 +19,6 @@ def send(chat_id, text, reply_buttons=None, context=None):
             markup = ReplyKeyboardMarkup(reply_buttons, one_time_keyboard=True, resize_keyboard=True)
         else:
             markup = ReplyKeyboardMarkup(reply_buttons, one_time_keyboard=True, resize_keyboard=True)
-        print(markup)
     return context.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup, parse_mode=ParseMode.HTML)
 
 
@@ -123,18 +122,15 @@ def inline_key(update: Update, context: CallbackContext):
             ew = result_data.text.split("EW: ")[1].split("\n")[0]
             contract = result_data.text.split("Contract: ")[1].split("\n")[0].lower().replace("nt", "n")
 
-            if contract == "pass":
-                declarer = ""
-                tricks = ""
-                lead = ""
-            elif "/" in contract:
+            if contract == "_":
+                contract = key
                 declarer = ""
                 tricks = ""
                 lead = ""
             else:
                 contract, declarer = contract.split(" ")
                 lead = result_data.text.split("Lead: ")[1].split("\n")[0]
-                tricks = result_data.text.split("Result: ")[1].split("\n")[0]
+                tricks = key
 
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
@@ -144,7 +140,8 @@ def inline_key(update: Update, context: CallbackContext):
             conn.commit()
             conn.close()
             new_text = new_text.replace("Score:", f"Score: {score}\nResult for board #{board_number} is saved")
-            lst = NAVIGATION_KEYBOARD + [InlineKeyboardButton('next board', callback_data='board')]
+            lst = NAVIGATION_KEYBOARD + [InlineKeyboardButton('next board', callback_data='board'),
+                                         InlineKeyboardButton('another result', callback_data='result')]
             reply_markup = InlineKeyboardMarkup([lst])
             context.user_data["markups"].append(reply_markup)
             context.user_data["result"] = context.bot\
@@ -198,7 +195,6 @@ def inline_key(update: Update, context: CallbackContext):
                 new_text = re.sub(f": (.*)\nScore: .*", f": \g<1>{CARET}\nScore: ", result_data.text,
                                   flags=re.MULTILINE)
                 while not new_text.split(CARET)[0].split(": ")[-1]:
-                    print(new_text)
                     new_text = re.sub(f"\n([^:]+): {CARET}", f"{CARET}\n\g<1>: ", new_text,
                                       flags=re.MULTILINE)
                 context.user_data["markups"].pop()
@@ -255,6 +251,8 @@ def inline_key(update: Update, context: CallbackContext):
                  reply_buttons=("OK", "Cancel"),
                  context=context)
     elif key == "board":
-        from tg_input import  board
+        from tg_input import board
         board(update, context)
+    elif key == "result":
+        result(update, context)
 

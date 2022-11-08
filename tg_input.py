@@ -33,6 +33,7 @@ def board(update: Update, context: CallbackContext):
     cursor = conn.cursor()
     cursor.execute("select * from protocols")
     protocols = cursor.fetchall()
+    conn.close()
     unfinished = []
     for i in all_boards:
         played = set([p[1:3] for p in protocols if p[0] == i])
@@ -167,6 +168,18 @@ def number(update: Update, context: CallbackContext):
 """, [], context)
                 context.user_data["view_board"] = False
                 return
+            elif context.user_data.get("remove_board"):
+                context.user_data["remove_board"] = False
+                board_number = update.message.text.strip()
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute(f"delete from boards where number={board_number}")
+                conn.commit()
+                conn.close()
+                send(chat_id=update.effective_chat.id,
+                     text=f"board #{board_number} has been removed",
+                     reply_buttons=[], context=context)
+                return
             # TODO: seems no longer needed
             context.user_data["board"] = Board(number=update.message.text)
             conn.close()
@@ -284,7 +297,21 @@ def end(update: Update, context: CallbackContext):
         send(chat_id=chat_id, text=f"Result getter failed with error: {e}", context=context)
 
     if 'BOT_TOKEN' in os.environ:
-        shutil.rmtree(date)
+        current_dir = os.getcwd()
+        new_dir = f"{current_dir}/{date}"
+        shutil.rmtree(new_dir)
+
+
+def remove_board(update: Update, context: CallbackContext):
+    chat_id = update.message.chat_id
+    if not is_director(update):
+        send(chat_id=chat_id, text="You don't have enough rights to remove boards", context=context)
+        return
+
+    context.user_data["remove_board"] = True
+    send(chat_id=update.effective_chat.id,
+         text=f"Enter the number of board to remove",
+         reply_buttons=[], context=context)
 
 
 def view_board(update: Update, context: CallbackContext):
@@ -349,6 +376,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('names', names))
     updater.dispatcher.add_handler(CommandHandler('tdlist', td_list))
     updater.dispatcher.add_handler(CommandHandler('loaddb', load_db))
+    updater.dispatcher.add_handler(CommandHandler('rmboard', remove_board))
 
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^\d+$"), number))
