@@ -1,4 +1,4 @@
-import sqlite3
+from tourney_db import TourneyDB
 from constants import *
 from copy import deepcopy
 from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
@@ -128,12 +128,19 @@ class Board:
         return int((bonus + base_cost * multiplier + overtrick_value * (result - tricks)) * sign)
 
     def save(self):
-        conn = sqlite3.connect(db_path)
+        conn = TourneyDB.connect()
         cursor = conn.cursor()
+
         statement = f"""
-        REPLACE INTO boards (number, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc)
-        VALUES({self.number}, '{self.ns}', '{self.nh}', '{self.nd}', '{self.nc}', '{self.es}', '{self.eh}', '{self.ed}', '{self.ec}', '{self.ss}', '{self.sh}', '{self.sd}', '{self.sc}', '{self.ws}', '{self.wh}', '{self.wd}', '{self.wc}');"""
-        print(statement)
+        INSERT INTO boards (number, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc)
+        VALUES({self.number}, '{self.ns}', '{self.nh}', '{self.nd}', '{self.nc}', '{self.es}', '{self.eh}', 
+            '{self.ed}', '{self.ec}', '{self.ss}', '{self.sh}', '{self.sd}', '{self.sc}', '{self.ws}', 
+            '{self.wh}', '{self.wd}', '{self.wc}')
+ON CONFLICT (number) DO UPDATE 
+  SET ns = excluded.ns, nh = excluded.nh, nd = excluded.nd, nc = excluded.nc,
+    es = excluded.ns, eh = excluded.nh, ed = excluded.nd, ec = excluded.nc,
+    ss = excluded.ns, sh = excluded.nh, sd = excluded.nd, sc = excluded.nc,
+    ws = excluded.ns, wh = excluded.nh, wd = excluded.nd, wc = excluded.nc;"""
         cursor.execute(statement)
         conn.commit()
         conn.close()

@@ -4,7 +4,7 @@ from telegram.ext import *
 from util import remove_suits
 from keyboard import *
 from telegram.replykeyboardmarkup import ReplyKeyboardMarkup
-
+from tourney_db import TourneyDB
 
 def send(chat_id, text, reply_buttons=None, context=None):
     if isinstance(reply_buttons, InlineKeyboardMarkup):
@@ -132,7 +132,7 @@ def inline_key(update: Update, context: CallbackContext):
                 lead = result_data.text.split("Lead: ")[1].split("\n")[0]
                 tricks = key
 
-            conn = sqlite3.connect(db_path)
+            conn = TourneyDB.connect()
             cursor = conn.cursor()
             statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
                 VALUES({board_number}, '{ns}', '{ew}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}');"""
@@ -166,7 +166,7 @@ def inline_key(update: Update, context: CallbackContext):
             board_number = context.user_data["board"].number
             ns = previous_result.text.split("NS: ")[1].split("\n")[0]
             ew = previous_result.text.split("EW: ")[1].split("\n")[0]
-            conn = sqlite3.connect(db_path)
+            conn = TourneyDB.connect()
             cursor = conn.cursor()
             statement = f"""delete from protocols where number={board_number} and ns={ns}"""
             cursor.execute(statement)
@@ -175,7 +175,7 @@ def inline_key(update: Update, context: CallbackContext):
             return result(update, context)
         elif key == "rmall":
             number = context.user_data["board"].number
-            conn = sqlite3.connect(db_path)
+            conn = TourneyDB.connect()
             cursor = conn.cursor()
             statement = f"""delete from protocols where number={number}"""
             cursor.execute(statement)

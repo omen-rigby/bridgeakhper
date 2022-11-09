@@ -1,4 +1,3 @@
-import sqlite3
 from constants import *
 from players import Players
 from math import log10, ceil
@@ -8,7 +7,9 @@ from print import *
 from deal import Deal
 from imps import imps
 from statistics import mean
-date = os.path.abspath(db_path).replace("\\", "/").split("/")[-2]
+from tourney_db import TourneyDB
+from constants import date
+
 ALL_PLAYERS = Players.get_players()
 
 
@@ -27,7 +28,7 @@ class ResultGetter:
     @property
     def conn(self):
         if self._conn is None:
-            self._conn = sqlite3.connect(db_path)
+            self._conn = TourneyDB.connect()
         return self._conn
 
     @property
@@ -310,7 +311,7 @@ class ResultGetter:
                 text.string.replace_with(new_text)
 
             html.tbody.append(new_tr)
-        return print_to_pdf(html, f"{date}/Ranks.pdf")
+        return print_to_pdf(html, "Ranks.pdf")
 
     def pdf_travellers(self, boards_only=False):
         file = open("templates/travellers_template.html").read()
@@ -392,7 +393,7 @@ class ResultGetter:
             html.tbody.append(new_tr)
         out_filename = 'Boards' if boards_only else 'Travellers'
 
-        return print_to_pdf(html, f"{date}/{out_filename}.pdf")
+        return print_to_pdf(html, f"{out_filename}.pdf")
 
     def pdf_scorecards(self):
         file = open("templates/scorecards_template.html").read()
@@ -496,7 +497,7 @@ class ResultGetter:
                 new_div["style"] = ""
             html.append(new_div)
 
-        return print_to_pdf(html, f"./{date}/Scorecards.pdf", landscape=True)
+        return print_to_pdf(html, "Scorecards.pdf", landscape=True)
 
     def boards_only(self):
         self.get_hands()
@@ -516,4 +517,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(28, 8).process()
+    ResultGetter(20, 6).process()

@@ -44,6 +44,7 @@ class Players:
             insert = f"""INSERT INTO players (first_name, last_name, rank, gender, full_name, rating, rank_ru) VALUES {rows};"""
             cursor.execute(insert)
         conn.commit()
+        conn.close()
 
     @staticmethod
     def get_players(columns="first_name,last_name,full_name,gender,rank,rank_ru"):

@@ -1,4 +1,4 @@
-import sqlite3
+from tourney_db import TourneyDB
 from ddstable import ddstable
 from constants import *
 
@@ -35,7 +35,7 @@ class Deal:
         self.get_html()
 
     def get_board_from_db(self, number):
-        conn = sqlite3.connect(db_path)
+        conn = TourneyDB.connect()
         cursor = conn.cursor()
         cursor.execute(f"Select * from boards where number={number}")
         board = cursor.fetchone()

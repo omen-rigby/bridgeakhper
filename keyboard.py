@@ -1,5 +1,5 @@
-import sqlite3
-from copy import deepcopy 
+from tourney_db import TourneyDB
+from copy import deepcopy
 from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
 from constants import *
 from util import is_director
@@ -45,7 +45,7 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True):
     board = context.user_data["board"].number
     n_rounds = pairs - 1 + (pairs % 2)
     board_set = int(board) // n_rounds + 1
-    conn = sqlite3.connect(db_path)
+    conn = TourneyDB.connect()
     cursor = conn.cursor()
     cursor.execute(f"Select ns,ew from protocols where number={board}")
     denied = list(set(chain(*[c for c in cursor.fetchall()])))

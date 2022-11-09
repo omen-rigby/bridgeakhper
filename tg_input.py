@@ -8,6 +8,7 @@ from util import is_director
 from movements.parse_mov import get_movement
 from players import Players
 from shutil import copyfile
+from tourney_db import TourneyDB
 
 PORT = int(os.environ.get('PORT', 5000))
 if 'BOT_TOKEN' in os.environ:
@@ -29,7 +30,7 @@ def start(update: Update, context: CallbackContext):
 
 def board(update: Update, context: CallbackContext):
     all_boards = list(range(1, context.bot_data["maxboard"] + 1))
-    conn = sqlite3.connect(db_path)
+    conn = TourneyDB.connect()
     cursor = conn.cursor()
     cursor.execute("select * from protocols")
     protocols = cursor.fetchall()
@@ -46,23 +47,45 @@ def board(update: Update, context: CallbackContext):
          context=context)
 
 
+def init(update: Update, context: CallbackContext):
+    context.bot_data["maxboard"] = 0
+    context.bot_data["maxpair"] = 0
+    context.user_data["currentHand"] = None
+    context.user_data["result"] = None
+    send(chat_id=update.effective_chat.id,
+         text="Started session. Enter scoring",
+         reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
+         context=context)
+
+
+def clear_db(update: Update, context: CallbackContext):
+    TourneyDB.clear_tables()
+    init(update, context)
+
+
 def start_session(update: Update, context: CallbackContext):
     if is_director(update):
+        if db_path.startswith('postgres:'):
+            conn = TourneyDB.connect()
+            cursor = conn.cursor()
+            for table in ('boards', 'protocols', 'names'):
+                cursor.execute(f'select * from {table} LIMIT 1')
+                if cursor.fetchall():
+                    break
+            else:
+                return init(update, context)
+            return send(chat_id=update.effective_chat.id,
+                        text="Session exists in database. Remove and start new tournament?",
+                        reply_buttons=["Clear", "Reuse"],
+                        context=context)
         generate()
-        context.bot_data["maxboard"] = 0
-        context.bot_data["maxpair"] = 0
-        context.user_data["currentHand"] = None
-        context.user_data["result"] = None
-        send(chat_id=update.effective_chat.id,
-             text="Started session. Enter scoring",
-             reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
-             context=context)
+        init(update, context)
     else:
         return missing(update, context)
 
 
 def missing(update, context):
-    conn = sqlite3.connect(db_path)
+    conn = TourneyDB.connect()
     boards_num = context.bot_data.get("maxboard")
     pairs_num = context.bot_data.get("maxpair")
     cursor = conn.cursor()
@@ -102,7 +125,7 @@ def scoring(update: Update, context: CallbackContext):
 
 def names(update: Update, context: CallbackContext):
     context.user_data["names"] = 0
-    conn = sqlite3.connect(db_path)
+    conn = TourneyDB.connect()
     cursor = conn.cursor()
     cursor.execute("Select number from names")
     added = list(set([c[0] for c in cursor.fetchall()]))
@@ -116,10 +139,11 @@ def names(update: Update, context: CallbackContext):
 
 
 def names_text(update: Update, context: CallbackContext):
-    conn = sqlite3.connect(db_path)
+    conn = TourneyDB.connect()
     cursor = conn.cursor()
-    statement = f"""REPLACE INTO names (number, partnership)
-                    VALUES({context.user_data["names"]}, '{update.message.text}');"""
+    statement = f"""INSERT INTO names (number, partnership)
+                    VALUES({context.user_data["names"]}, '{update.message.text}') ON CONFLICT (number) DO UPDATE 
+  SET partnership = excluded.partnership;"""
     cursor.execute(statement)
     conn.commit()
     conn.close()
@@ -142,7 +166,7 @@ def number(update: Update, context: CallbackContext):
              context=context)
         return
     if context.bot_data["maxboard"] and context.bot_data["maxpair"]:
-        conn = sqlite3.connect(db_path)
+        conn = TourneyDB.connect()
         cursor = conn.cursor()
         cursor.execute(f"Select * from boards where number={update.message.text}")
         brd = cursor.fetchall()
@@ -173,7 +197,7 @@ def number(update: Update, context: CallbackContext):
             elif context.user_data.get("remove_board"):
                 context.user_data["remove_board"] = False
                 board_number = update.message.text.strip()
-                conn = sqlite3.connect(db_path)
+                conn = TourneyDB.connect()
                 cursor = conn.cursor()
                 cursor.execute(f"delete from boards where number={board_number}")
                 conn.commit()
@@ -211,7 +235,6 @@ def number(update: Update, context: CallbackContext):
                      text="Enter the number of pairs",
                      reply_buttons=[],
                      context=context)
-
 
 
 def ok(update: Update, context: CallbackContext):
@@ -289,7 +312,7 @@ def end(update: Update, context: CallbackContext):
     if not is_director(update):
         send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
         return
-    if 'BOT_TOKEN' in os.environ:
+    if 'BOT_TOKEN' in os.environ and 'CURRENT_TOURNEY' not in os.environ:
         context.bot.send_document(chat_id, open(db_path, 'rb'))
     try:
         paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
@@ -298,7 +321,7 @@ def end(update: Update, context: CallbackContext):
     except Exception as e:
         send(chat_id=chat_id, text=f"Result getter failed with error: {e}", context=context)
 
-    if 'BOT_TOKEN' in os.environ:
+    if 'BOT_TOKEN' in os.environ and 'CURRENT_TOURNEY' not in os.environ:
         current_dir = os.getcwd()
         new_dir = f"{current_dir}/{date}"
         shutil.rmtree(new_dir)
@@ -370,9 +393,36 @@ def load_db(update: Update, context: CallbackContext):
     copyfile('testboards.db', path)
 
 
+def help_command(update: Update, context: CallbackContext):
+    text = """General commands:
+/session: shows session info
+/board: starts deal entry flow
+/names: starts names entry flow"""
+    if is_director(update):
+        text = text.replace('shows session info', 'starts new session without db cleanup')
+        text += """
+
+TD only commands:
+/tdlist: prints all TDs for the session
+/loaddb: (debug only) loads test set of boards and results from repo
+/rmboard: removes all hands for the specified board
+/restart: when submitting hands, reset all hands and starts again from N
+/result: starts board result entry flow
+/missing: shows session info
+/viewboard: shows 4 hands for specified board
+/addplayer: adds a new player to players DB
+/updateplayer: updates existing player record in players DB
+/boards: gets boards without results as pdf
+/end: gets tourney results, sends you raw db file & resulting pdfs, clears all data
+        """
+
+    send(chat_id=update.message.chat_id, text=text, context=context)
+
+
 if __name__ == '__main__':
     updater = Updater(token=TOKEN)
     updater.dispatcher.add_handler(CommandHandler('start', start))
+    updater.dispatcher.add_handler(CommandHandler('help', help_command))
     updater.dispatcher.add_handler(CommandHandler('session', start_session))
     updater.dispatcher.add_handler(CommandHandler('board', board))
     updater.dispatcher.add_handler(CommandHandler('names', names))
@@ -381,6 +431,9 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('rmboard', remove_board))
 
     # User input
+    updater.dispatcher.add_handler(MessageHandler(Filters.text("Clear"), clear_db))
+    updater.dispatcher.add_handler(MessageHandler(Filters.text("Reuse"), init))
+
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^\d+$"), number))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("OK"), ok))
     updater.dispatcher.add_handler(CommandHandler('restart', restart))
