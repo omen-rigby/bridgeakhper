@@ -312,12 +312,16 @@ def end(update: Update, context: CallbackContext):
     if not is_director(update):
         send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
         return
-    if 'BOT_TOKEN' in os.environ and 'CURRENT_TOURNEY' not in os.environ:
-        context.bot.send_document(chat_id, open(db_path, 'rb'))
+    if 'BOT_TOKEN' in os.environ:
+        path = TourneyDB.dump() if 'CURRENT_TOURNEY' in os.environ else db_path
+        context.bot.send_document(chat_id, open(path, 'rb'))
+        if 'CURRENT_TOURNEY' in os.environ :
+            os.remove(path)
     try:
         paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
         for path in paths:
             context.bot.send_document(chat_id, open(path, 'rb'))
+            os.remove(path)
     except Exception as e:
         send(chat_id=chat_id, text=f"Result getter failed with error: {e}", context=context)
 

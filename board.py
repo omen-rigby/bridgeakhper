@@ -138,9 +138,9 @@ class Board:
             '{self.wh}', '{self.wd}', '{self.wc}')
 ON CONFLICT (number) DO UPDATE 
   SET ns = excluded.ns, nh = excluded.nh, nd = excluded.nd, nc = excluded.nc,
-    es = excluded.ns, eh = excluded.nh, ed = excluded.nd, ec = excluded.nc,
-    ss = excluded.ns, sh = excluded.nh, sd = excluded.nd, sc = excluded.nc,
-    ws = excluded.ns, wh = excluded.nh, wd = excluded.nd, wc = excluded.nc;"""
+    es = excluded.es, eh = excluded.eh, ed = excluded.ed, ec = excluded.ec,
+    ss = excluded.ss, sh = excluded.sh, sd = excluded.sd, sc = excluded.sc,
+    ws = excluded.ws, wh = excluded.wh, wd = excluded.wd, wc = excluded.wc;"""
         cursor.execute(statement)
         conn.commit()
         conn.close()
