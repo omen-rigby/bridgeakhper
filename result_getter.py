@@ -234,7 +234,7 @@ class ResultGetter:
             else:
                 cluster_index = 0
             # Ask Artem for the reasoning behind this
-            if i + cluster_length > 0.4 * self.pairs:
+            if cluster_first + cluster_length > 0.4 * self.pairs:
                 rounding_method = ceil
             elif i < 2:
                 rounding_method = round
@@ -300,9 +300,11 @@ class ResultGetter:
             text.replace_with(fixed_text)
         for i, rank in enumerate(self.totals):
             new_tr = deepcopy(template)
+            cluster = [i for i, r in enumerate(self.totals) if r[1] == rank[1]]
             repl_dict = {
-                "rank": i + 1, "pair": rank[0], "names": self.names[int(rank[0]) - 1],
-                "mp": round(rank[1], 2), "percent": round(100 * rank[1]/max_mp, 2),
+                "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "pair": rank[0],
+                "names": self.names[int(rank[0]) - 1], "mp": round(rank[1], 2),
+                "percent": round(100 * rank[1]/max_mp, 2),
                 "masterpoints": rank[2] or "",
                 "masterpoints_ru": rank[3] or ""
             }
