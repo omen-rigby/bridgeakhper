@@ -199,7 +199,7 @@ class ResultGetter:
 
                 self.personals[-1].append([board[0], vul[VULNERABILITY[board[0] % 16]], position,
                                           escape_suits(board[3] + board[6]), board[4], escape_suits(board[5]),
-                                          board[7] * (-1) ** (pair == board[1]),
+                                          board[7] * (-1) ** (pair != board[1]),
                                           board[8 + (pair != board[1])],
                                           round(board[8 + (pair != board[1])] * 100 / max_mp, 2),
                                           board[1 + (pair == board[1])]])
