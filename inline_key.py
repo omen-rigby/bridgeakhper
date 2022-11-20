@@ -135,7 +135,9 @@ def inline_key(update: Update, context: CallbackContext):
             conn = TourneyDB.connect()
             cursor = conn.cursor()
             statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
-                VALUES({board_number}, '{ns}', '{ew}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}');"""
+                VALUES({board_number}, '{ns}', '{ew}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
+ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE 
+  SET contract = excluded.contract, lead = excluded.lead, result = excluded.result, score = excluded.score;"""
             cursor.execute(statement)
             conn.commit()
             conn.close()
