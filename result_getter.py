@@ -209,11 +209,10 @@ class ResultGetter:
     def get_masterpoints(self):
         # AM
         # 52 is the number of cards in a board (sic!)
-        # 0.25 is tournament coefficient for regular club events
         total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in self.names)
         n = self.pairs
         d = self.boards
-        b0 = total_rating * self.boards / 52 * 0.25
+        b0 = total_rating * self.boards / 52 * CONFIG["tourney_coeff"]
         mps = [b0]
         for i in range(2, self.pairs):
             mps.append(b0 / (1 + i/(n - i)) ** (i - 1))
@@ -519,4 +518,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(20, 6).process()
+    ResultGetter(28, 8).process()

@@ -52,6 +52,7 @@ def init(update: Update, context: CallbackContext):
     context.bot_data["maxpair"] = 0
     context.user_data["currentHand"] = None
     context.user_data["result"] = None
+    CONFIG["tourney_coeff"] = 0.25
     send(chat_id=update.effective_chat.id,
          text="Started session. Enter scoring",
          reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
@@ -353,6 +354,21 @@ def view_board(update: Update, context: CallbackContext):
          reply_buttons=range(1, context.bot_data["maxboard"] + 1), context=context)
 
 
+def tourney_coeff(update: Update, context: CallbackContext):
+    if context.user_data.get("tourney_coeff"):
+        context.user_data["tourney_coeff"] = False
+        new_coeff = float(update.message.text)
+        CONFIG["tourney_coeff"] = new_coeff
+        send(chat_id=update.effective_chat.id,
+             text=f"New tournament coefficient is {new_coeff}",
+             reply_buttons=[], context=context)
+    else:
+        context.user_data["tourney_coeff"] = True
+        send(chat_id=update.effective_chat.id,
+             text=f"Enter new tounrey coeff (0.25 is the default)",
+             reply_buttons=[], context=context)
+
+
 def add_player(update: Update, context: CallbackContext):
     if context.user_data.get("add_player"):
         context.user_data["add_player"] = False
@@ -408,6 +424,7 @@ def help_command(update: Update, context: CallbackContext):
 
 TD only commands:
 /tdlist: prints all TDs for the session
+/tourneycoeff: updates tournament coefficient
 /loaddb: (debug only) loads test set of boards and results from repo
 /rmboard: removes all hands for the specified board
 /restart: when submitting hands, reset all hands and starts again from N
@@ -433,6 +450,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('tdlist', td_list))
     updater.dispatcher.add_handler(CommandHandler('loaddb', load_db))
     updater.dispatcher.add_handler(CommandHandler('rmboard', remove_board))
+    updater.dispatcher.add_handler(CommandHandler('tourneycoeff', tourney_coeff))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex("0\.2?5"), tourney_coeff))
 
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Clear"), clear_db))
