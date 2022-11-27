@@ -413,6 +413,10 @@ def load_db(update: Update, context: CallbackContext):
     copyfile('testboards.db', path)
 
 
+def custom_movement(update: Update, context: CallbackContext):
+    context.bot_data["movement"] = None
+
+
 def help_command(update: Update, context: CallbackContext):
     text = """General commands:
 /session: shows session info
@@ -425,6 +429,7 @@ def help_command(update: Update, context: CallbackContext):
 TD only commands:
 /tdlist: prints all TDs for the session
 /tourneycoeff: updates tournament coefficient
+/custommovement: turns off preset movement
 /loaddb: (debug only) loads test set of boards and results from repo
 /rmboard: removes all hands for the specified board
 /restart: when submitting hands, reset all hands and starts again from N
@@ -451,6 +456,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('loaddb', load_db))
     updater.dispatcher.add_handler(CommandHandler('rmboard', remove_board))
     updater.dispatcher.add_handler(CommandHandler('tourneycoeff', tourney_coeff))
+    updater.dispatcher.add_handler(CommandHandler('custommovement', custom_movement))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("0\.2?5"), tourney_coeff))
 
     # User input
