@@ -44,7 +44,8 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True):
 
     board = context.user_data["board"].number
     n_rounds = pairs - 1 + (pairs % 2)
-    board_set = int(board) // n_rounds + 1
+    boards_per_round = int(context.bot_data["maxboard"]) // n_rounds
+    board_set = (int(board) - 1) // boards_per_round + 1
     conn = TourneyDB.connect()
     cursor = conn.cursor()
     cursor.execute(f"Select ns,ew from protocols where number={board}")
