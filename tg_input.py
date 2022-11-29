@@ -139,6 +139,14 @@ def names(update: Update, context: CallbackContext):
          context=context)
 
 
+def freeform(update: Update, context: CallbackContext):
+    text = update.message.text
+    if context.user_data["tournament_title"]:
+        return title(update, context)
+    if re.match('.*-.*', text) or re.match(' .* ', text):
+        return names_text(update, context)
+
+
 def names_text(update: Update, context: CallbackContext):
     conn = TourneyDB.connect()
     cursor = conn.cursor()
@@ -417,6 +425,20 @@ def custom_movement(update: Update, context: CallbackContext):
     context.bot_data["movement"] = None
 
 
+def title(update: Update, context: CallbackContext):
+    if context.user_data.get("tournament_title"):
+        context.user_data["tournament_title"] = False
+        CONFIG["tournament_title"] = update.message.text
+        send(chat_id=update.effective_chat.id,
+             text=f"Set tournament title to {update.message.text}",
+             reply_buttons=[], context=context)
+    else:
+        context.user_data["tournament_title"] = True
+        send(chat_id=update.effective_chat.id,
+             text=f"Enter new tournament title",
+             reply_buttons=[], context=context)
+
+
 def help_command(update: Update, context: CallbackContext):
     text = """General commands:
 /session: shows session info
@@ -428,6 +450,7 @@ def help_command(update: Update, context: CallbackContext):
 
 TD only commands:
 /tdlist: prints all TDs for the session
+/title: adds turney title
 /tourneycoeff: updates tournament coefficient
 /custommovement: turns off preset movement
 /loaddb: (debug only) loads test set of boards and results from repo
@@ -455,6 +478,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('tdlist', td_list))
     updater.dispatcher.add_handler(CommandHandler('loaddb', load_db))
     updater.dispatcher.add_handler(CommandHandler('rmboard', remove_board))
+    updater.dispatcher.add_handler(CommandHandler('title', title))
     updater.dispatcher.add_handler(CommandHandler('tourneycoeff', tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('custommovement', custom_movement))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("0\.2?5"), tourney_coeff))
@@ -470,8 +494,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*MPs"), scoring))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \w+ [FfMm] \d\d?(\.7)? \-?\d(\.5)?"), add_player))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \d\d?(\.7)? \-?\d(\.5)?"), update_player))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex(" .* "), names_text))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+-\w+"), names_text))
+
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
     # Results
     updater.dispatcher.add_handler(CommandHandler("result", result))
@@ -481,6 +504,9 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("updateplayer", update_player))
     updater.dispatcher.add_handler(CommandHandler("boards", get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", end))
+    # Should go last
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), freeform))
+
     if 'BOT_TOKEN' in os.environ:
         updater.start_webhook(listen="0.0.0.0",
                               port=int(PORT),
