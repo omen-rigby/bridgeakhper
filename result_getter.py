@@ -212,17 +212,17 @@ class ResultGetter:
         total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in self.names)
         n = self.pairs
         d = self.boards
-        b0 = total_rating * self.boards / 52 * CONFIG["tourney_coeff"]
+        played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
+        max_mp = self.max_mp * played_boards
+        b0 = total_rating * played_boards / 52 * CONFIG["tourney_coeff"]
         mps = [b0]
-        for i in range(2, self.pairs):
+        for i in range(2, n):
             mps.append(b0 / (1 + i/(n - i)) ** (i - 1))
         mps.append(0)
         cluster_index = 0
-        max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
-
         for i in range(self.pairs):
             cluster_first = i - cluster_index
-            if cluster_first + 1 > 0.4 * self.pairs or self.totals[i][1] < max_mp / 2:
+            if cluster_first + 1 > round(0.4 * self.pairs) or self.totals[i][1] < max_mp / 2:
                 self.totals[i].append(0)
                 continue
             cluster_length = len([a for a in self.totals if a[1] == self.totals[i][1]])
@@ -233,7 +233,7 @@ class ResultGetter:
             else:
                 cluster_index = 0
             # Ask Artem for the reasoning behind this
-            if cluster_first + cluster_length > 0.4 * self.pairs:
+            if cluster_first + cluster_length > round(0.4 * self.pairs):
                 rounding_method = ceil
             elif i < 2:
                 rounding_method = round
@@ -518,4 +518,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(28, 8).process()
+    ResultGetter(27, 9).process()
