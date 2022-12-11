@@ -289,8 +289,9 @@ def ok(update: Update, context: CallbackContext):
 def cancel(update: Update, context: CallbackContext):
     board = context.user_data["board"]
     board.unset_hand()
+    hand = board.current_hand.upper()
     send(chat_id=update.effective_chat.id,
-         text="Enter N hand again",
+         text=f"Enter {hand} hand again",
          reply_buttons=[],
          context=context)
     context.user_data["currentHand"] = send(chat_id=update.effective_chat.id,
