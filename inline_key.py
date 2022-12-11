@@ -155,14 +155,14 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
                                  )
         elif CARD_RE.match(key):
             key = key.replace(key[0], SUITS_UNICODE["shdc".index(key[0])])
-            new_text = re.sub(f"{CARET}\n([^:]+): ", f"{key.upper()}\n\g<1>: {CARET}", result_data.text, flags=re.MULTILINE)
+            new_text = re.sub(f"([{SUITS_UNICODE}][0-9AQKTJ])?{CARET}\n([^:]+): ", f"{key.upper()}\n\g<2>: {CARET}", result_data.text, flags=re.MULTILINE)
             reply_markup = results_keyboard(context)
             context.user_data["markups"].append(reply_markup)
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
-                                                                           message_id=result_data.message_id,
-                                                                           text=new_text,
-                                                                           reply_markup=reply_markup,
-                                                                           parse_mode=ParseMode.HTML)
+                                                                      message_id=result_data.message_id,
+                                                                      text=new_text,
+                                                                      reply_markup=reply_markup,
+                                                                      parse_mode=ParseMode.HTML)
         elif key == "restart":
             previous_result = context.user_data["result"]
             board_number = context.user_data["board"].number

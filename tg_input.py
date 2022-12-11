@@ -141,7 +141,7 @@ def names(update: Update, context: CallbackContext):
 
 def freeform(update: Update, context: CallbackContext):
     text = update.message.text
-    if context.user_data["tournament_title"]:
+    if context.user_data.get("tournament_title"):
         return title(update, context)
     if re.match('.*-.*', text) or re.match(' .* ', text):
         return names_text(update, context)
