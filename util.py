@@ -2,6 +2,13 @@ from difflib import ndiff
 from constants import *
 
 
+class Dict2Class(object):
+
+    def __init__(self, my_dict):
+        for key in my_dict:
+            setattr(self, key, my_dict[key])
+
+
 def is_director(update):
     return str(update.effective_chat.id) in DIRECTORS or update.effective_chat.username in DIRECTORS
 

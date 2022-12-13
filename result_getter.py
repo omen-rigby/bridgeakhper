@@ -2,7 +2,8 @@ from constants import *
 from players import Players
 from math import log10, ceil
 from copy import deepcopy
-from util import escape_suits
+from util import escape_suits, Dict2Class
+from jinja2 import Template
 from print import *
 from deal import Deal
 from imps import imps
@@ -270,7 +271,7 @@ class ResultGetter:
         self.names = [[n[0] for n in p] for p in self.names]
 
     @staticmethod
-    def _replace(string, dikt):
+    def _replace(string, dikt={}):
         minus = '−'
         for k, v in dikt.items():
             if "{" not in string:
@@ -281,38 +282,23 @@ class ResultGetter:
 
     def pdf_rankings(self):
         max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
-        html = BeautifulSoup(open("templates/rankings_template.html"), features="lxml")
-        template = html.find_all("tr")[1].extract()
-        if CONFIG["scoring"] != 'MPs':
-            html.find_all("th")[-1].extract()
-            template.find_all("td")[-1].extract()
-            scoring = CONFIG["scoring"]
-            header_text = html.find(text=re.compile("MAX = \$\{max\}"))
-            header_text.replace_with(header_text.replace("MAX = ${max}", f"Scoring: {scoring}"))
-        for text in html.h1.find_all(text=re.compile('\$\{[^\}]+\}')):
-            fixed_text = self._replace(text, {"tournament_title": CONFIG["tournament_title"],
-                                              "date": date})
-            text.replace_with(fixed_text)
-        for text in html.h2.find_all(text=re.compile('\$\{[^\}]+\}')):
-            fixed_text = self._replace(text, {"tables": self.pairs // 2, "boards": self.boards,
-                                              "max": max_mp})
-            text.replace_with(fixed_text)
+        totals = []
         for i, rank in enumerate(self.totals):
-            new_tr = deepcopy(template)
             cluster = [i for i, r in enumerate(self.totals) if r[1] == rank[1]]
             repl_dict = {
-                "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "pair": rank[0],
+                "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0],
                 "names": self.names[int(rank[0]) - 1], "mp": round(rank[1], 2),
                 "percent": round(100 * rank[1]/max_mp, 2),
                 "masterpoints": rank[2] or "",
                 "masterpoints_ru": rank[3] or ""
             }
-            for text in new_tr.find_all(text=re.compile('\$\{[^\}]+\}')):
-                new_text = self._replace(text.string, repl_dict)
-                text.string.replace_with(new_text)
+            totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
 
-            html.tbody.append(new_tr)
-        return print_to_pdf(html, "Ranks.pdf")
+        html_string = Template(open("templates/rankings_template.html").read()).render(
+            scoring=CONFIG['scoring'], max=max_mp, tables=self.pairs // 2, date=date, boards=self.boards,
+            tournament_title=CONFIG["tournament_title"], totals=totals)
+        print(html_string)
+        return print_to_pdf(BeautifulSoup(html_string), "Ranks.pdf")
 
     def pdf_travellers(self, boards_only=False):
         file = open("templates/travellers_template.html").read()
@@ -518,4 +504,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(27, 9).process()
+    ResultGetter(27, 10).process()

@@ -6,8 +6,10 @@ import pdfkit
 from bs4 import BeautifulSoup
 from pyvirtualdisplay import Display
 from constants import date
-
-PDFKIT_PRESENT = ' ' in subprocess.check_output("whereis wkhtmltopdf", shell=True).decode()
+try:
+    PDFKIT_PRESENT = ' ' in subprocess.check_output("whereis wkhtmltopdf", shell=True).decode()
+except:
+    PDFKIT_PRESENT = False
 if not PDFKIT_PRESENT:
     if os.name == "nt":
         CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"

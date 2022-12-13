@@ -33,10 +33,13 @@ CAPTION {
 </style>
 </head>
 <body bgcolor="#ffffff">
-<h1>${tournament_title} ${date}</h1>
+<h1>{{tournament_title}} {{date}}</h1>
 <h1>Ranks</h1>
-
-<h2>${tables} Table ${boards} Board Howell Movement. MAX = ${max}</h2>
+{% if scoring == "MPs" %}
+<h2>{{tables}} Table {{boards}} Board Howell Movement. MAX = {{max}}</h2>
+{% else %}
+<h2>{{tables}} Table {{boards}} Board Howell Movement. Scoring = {{scoring}}</h2>
+{% endif %}
 <table style="FONT-SIZE: 11pt; FONT-FAMILY: Arial">
   <tbody>
   <tr bgcolor="#ffb0b0">
@@ -44,19 +47,26 @@ CAPTION {
     <th align="center">Pair</th>
     <th align="left">Names</th>
     <th align="center">Total</th>
+    {% if scoring == "MPs" %}
     <th align="center">%Score</th>
+    {% endif %}
     <th align="center">Master Points</th>
     <th align="center">Master Points (RU)</th>
   </tr>
+  {% for pair in totals %}
   <tr bgcolor="#efefef">
-    <td align="center">${rank}</td>
-    <td align="center">${pair}</td>
-    <td align="left">${names}</td>
-    <td align="center">${mp}</td>
-    <td align="center">${percent}</td>
-    <td align="center">${masterpoints}</td>
-    <td align="center">${masterpoints_ru}</td>
+    <td align="center">{{pair.rank}}</td>
+    <td align="center">{{pair.number}}</td>
+    <td align="left">{{pair.names|join(' &
+      ')}}</td>
+    <td align="center">{{pair.mp}}</td>
+    {% if scoring == "MPs" %}
+    <td align="center">{{pair.percent}}</td>
+    {% endif %}
+    <td align="center">{{pair.masterpoints}}</td>
+    <td align="center">{{pair.masterpoints_ru}}</td>
   </tr>
+  {% endfor %}
   </tbody>
 </table>
 <br>
