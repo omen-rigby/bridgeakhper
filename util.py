@@ -5,8 +5,12 @@ from constants import *
 class Dict2Class(object):
 
     def __init__(self, my_dict):
+        self.dict = my_dict
         for key in my_dict:
             setattr(self, key, my_dict[key])
+
+    def __str__(self):
+        return '{' + ", ".join(f"{k}: " + ("list" if type(v) == list else v.__str__()) for k, v in self.dict.items()) + '}'
 
 
 def is_director(update):

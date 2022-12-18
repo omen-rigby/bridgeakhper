@@ -271,13 +271,14 @@ class ResultGetter:
         self.names = [[n[0] for n in p] for p in self.names]
 
     @staticmethod
-    def _replace(string, dikt={}):
+    def _replace(string):
         minus = '−'
-        for k, v in dikt.items():
-            if "{" not in string:
-                return string
-
-            string = string.replace("${" + k + "}", " & ".join(v) if type(v) == list else str(v).replace("-", minus))
+        if type(string) == list:
+            string = " & ".join(string)
+            return string
+        elif type(string) != str:
+            return string
+        string = string.replace("-", minus)
         return string
 
     def pdf_rankings(self):
@@ -293,32 +294,25 @@ class ResultGetter:
                 "masterpoints_ru": rank[3] or ""
             }
             totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
-
-        html_string = Template(open("templates/rankings_template.html").read()).render(
-            scoring=CONFIG['scoring'], max=max_mp, tables=self.pairs // 2, date=date, boards=self.boards,
-            tournament_title=CONFIG["tournament_title"], totals=totals)
-        print(html_string)
-        return print_to_pdf(BeautifulSoup(html_string), "Ranks.pdf")
+        self.rankings_dict = {"scoring": CONFIG['scoring'], "max": max_mp, "tables": self.pairs // 2,
+                              "date": date, "boards": self.boards,
+                              "tournament_title": CONFIG["tournament_title"], "totals": totals}
+        html_string = Template(open("templates/rankings_template.html").read()).render(**self.rankings_dict)
+        return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Ranks.pdf")
 
     def pdf_travellers(self, boards_only=False):
-        file = open("templates/travellers_template.html").read()
-        html = BeautifulSoup(file, features="lxml")
-        html.table.tr.extract()
-        html.table.tr.extract()
+        boards = []
+        scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         for board_number in range(1, self.boards + 1):
-            soup_copy = BeautifulSoup(file, features="lxml")
-            new_tr = soup_copy.table.tr
             deal = self.deals[board_number - 1]
             if not boards_only:
                 res = self.travellers[board_number - 1]
-            repl_dict = {"d": deal.data["d"].upper(), "b": board_number,
-                         "v": deal.data["v"],
-                         }
             # Dealer and vul improvements
+            repl_dict = {"d": deal.data["d"].upper(), "b": board_number, "v": deal.data["v"]}
             for i, h in enumerate(hands):
                 for j, s in enumerate(SUITS):
                     repl_dict[f"{h}{s}"] = deal.data[f"{h}{s}"].upper().replace("T", "10")
-                for j,d in enumerate(DENOMINATIONS):
+                for j, d in enumerate(DENOMINATIONS):
                     repl_dict[f"{h}_par_{d}"] = deal.data[f"{h}_par_{d}"]
             for key in ('level', 'denomination', 'declarer', 'score', 'minimax_url', 'result'):
                 repl_dict[key] = deal.data[key]
@@ -326,165 +320,134 @@ class ResultGetter:
                 repl_dict['denomination'] = "NT"
             else:
                 repl_dict['denomination'] = repl_dict['denomination'].upper()
+            dealer_low = repl_dict["d"].lower()
+            repl_dict["ns_vul"] = (deal.data["v"] in ("EW", "-")) * "non" + "vul"
+            repl_dict["ew_vul"] = (deal.data["v"] in ("NS", "-")) * "non" + "vul"
+            repl_dict[f"{dealer_low}_dealer"] = "dealer"
             # VUL in boards
-            table = new_tr.find('table')
-            cols = [c for c in table.find_all('td') if type(c) != str and 'nonvul' in c.attrs.get('class', [])]
-            for i, col in enumerate(cols):
-                classes = col.attrs.get("class", [])
-                if not classes:
-                    continue
-                if i % 3 and deal.data["v"] in ("EW", "ALL"):
-                    classes.remove('nonvul')
-                    classes.append("vul")
-                if not i % 3 and deal.data["v"] in ("NS", "ALL"):
-                    col["class"].remove('nonvul')
-                    col["class"].append("vul")
-            # TODO: this crazy stuff is sick and should somehow be replaced with real html aligning
-            # yet as for now I have no idea how to implement it
-            if board_number > 9:
-                cols[0]["style"] = "padding-left: 8px;"
-                cols[-1]["style"] = "padding-left: 8px;"
-            else:
-                number = [c for c in table.find_all('td') if type(c) != str and 'digits' in c.attrs.get('class', [])][0]
-                number['style'] = "padding-left: 2px"
-            dealer_tag = new_tr.find_all('font')["NWXES".index(repl_dict["d"])]
-            dealer_tag['class'] = 'dealer'
-            for text in new_tr.find_all(text=re.compile('\$\{[^\}]+\}')):
-                new_text = self._replace(text.string, repl_dict)
-                text.string.replace_with(new_text)
-            new_tr.find("a", class_="minimax_url")["href"] = deal.data["minimax_url"]
-            html.tbody.append(new_tr)
-            new_tr = soup_copy.table.tr
-            new_parent = soup_copy.table.table
-            scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
-            for text in new_parent.tbody.find_all(text=re.compile('\$\{scoring_short\}')):
-                text.replace_with(scoring_short)
-
-            template = new_parent.find_all('tr')[1].extract()
+            boards.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
             if boards_only:
                 continue
+            boards[-1].tables = []
             for r in res:
-                protocol_table = deepcopy(template)
                 repl_dict = {k: str(v).upper() for k, v in zip(
-                    ("ns", "ew", "contract", "declarer", "lead", "ns+", "ns-", ), r)}
+                    ("ns", "ew", "contract", "declarer", "lead"), r)}
+                repl_dict["nsplus"] = r[5]
+                repl_dict["nsminus"] = r[6]
                 repl_dict["mp_ns"] = round(r[7], 2)
                 repl_dict["mp_ew"] = round(r[8], 2)
                 repl_dict["ns_name"] = self.names[r[0] - 1]
                 repl_dict["ew_name"] = self.names[r[1] - 1]
-                bbo_url = deal.url_with_contract(r[2][0], r[2].split("=")[0].split("+")[0].split("-")[0][1:], r[3])
-                for text in protocol_table.find_all(text=re.compile('\$\{[^\}]+\}')):
-                    new_text = self._replace(text.string, repl_dict)
-                    text.string.replace_with(new_text)
-                protocol_table.a["href"] = bbo_url
-                new_parent.tbody.append(protocol_table)
-            html.tbody.append(new_tr)
-        out_filename = 'Boards' if boards_only else 'Travellers'
+                repl_dict["bbo_url"] = deal.url_with_contract(r[2][0], r[2].split("=")[0].split("+")[0].split("-")[0][1:], r[3])
+                boards[-1].tables.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
 
-        return print_to_pdf(html, f"{out_filename}.pdf")
+        self.travellers_dict = {"scoring_short": scoring_short, "boards": boards}
+        html_string = Template(open("templates/travellers_template.html").read()).render(**self.travellers_dict)
+
+        return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Travellers.pdf")
+
+    @staticmethod
+    def _suits(string):
+        for s in ["spade", "heart", "diamond", "club"]:
+            if s in string:
+                string = string.replace(s[0], f'<img src="../{s}.gif"/>')
+                break
+        string = string.replace("n", "NT")
+        return string.upper()
+
+    def suspicious_result(self, deal, board_data):
+        if board_data[3].lower() not in ("pass", "not played") and '/' not in board_data[3]:
+            level = board_data[3][0]
+            denomination = board_data[3][1].lower()
+            declarer = board_data[4]
+            dummy = hands[(hands.index(declarer) + 2) % 4]
+            result = board_data[3][-2:].lstrip("sdhcnx")
+            tricks = int(level) + 6 if result == "=" else eval(f'{level}{result}') + 6
+            par = deal.data[f"{declarer}_par_{denomination}"]
+            if denomination != "n":
+                fit = len(deal.data.get(f"{declarer}{denomination}")) + \
+                      len(deal.data.get(f"{dummy}{denomination}"))
+            else:
+                fit = 13
+            return (abs(tricks - par) > 3 and denomination == "n") or (abs(tricks - par) >= 3 and fit < 7)
+        return False
+
 
     def pdf_scorecards(self):
-        file = open("templates/scorecards_template.html").read()
-        html = BeautifulSoup(file, features="lxml")
-        html.div.extract()
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
 
         num_of_rounds = self.boards // boards_per_round
         totals = self.totals
+        self.scorecards_dict = {
+            "scoring_short": scoring_short, "colspan": 9 + (CONFIG["scoring"] == "MPs"),
+            "boards_per_round": boards_per_round, "pairs": []
+        }
+        #TODO: handle incomplete howell
         max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
 
         for pair_number, results in enumerate(self.personals):
-            new_div = BeautifulSoup(file, features='lxml').div
             pair_rank = [t for t in totals if t[0] == pair_number + 1][0]
-            new_trs = new_div.table.find_all("tr")
-            new_trs[0].th.string = self._replace(new_trs[0].th.string,
-                                                 {"name": self.names[pair_number], "pair": pair_number + 1})
-            # One per page
-            if CONFIG["scoring"] != "MPs":
-                new_trs[0].find("th")["colspan"] = 9
-                new_trs[1].find("th")["colspan"] = 9
-            for text in new_trs[1].find_all(text=re.compile('\$\{[^\}]+\}')):
-                if CONFIG["scoring"] != "MPs":
-                    fixed_text = text.replace("MaxMPs ${max_mp} Score ${percent_total}% ", "")
-                else:
-                    fixed_text = text
-                fixed_text = self._replace(fixed_text, {"mp_total": round(pair_rank[1], 2), "max_mp": max_mp,
-                                                        "percent_total": round(100 * pair_rank[1] / max_mp, 2),
-                                                        "rank": totals.index(pair_rank) + 1,
-                                                        "scoring_short": scoring_short})
-                text.replace_with(fixed_text)
-            for text in new_trs[2].find_all(text=re.compile('\$\{[^\}]+\}')):
-                fixed_text = self._replace(text, {"scoring_short": scoring_short})
-                text.replace_with(fixed_text)
-
-            if CONFIG["scoring"] != "MPs":
-                new_trs[2].find_all("th")[7].extract()
-            new_trs[3].extract()
-
+            self.scorecards_dict["pairs"].append(Dict2Class({"name": self.names[pair_number], "number": pair_number + 1,
+                            "mp_total": round(pair_rank[1], 2), "max_mp": max_mp,
+                            "percent_total": round(100 * pair_rank[1] / max_mp, 2),
+                            "rank": totals.index(pair_rank) + 1, "boards": []
+                            }))
             for r in range(num_of_rounds):
                 mp_for_round = sum(results[r * boards_per_round + b][7] for b in range(boards_per_round))
                 for i in range(boards_per_round):
                     board_data = results[r * boards_per_round + i]
                     deal = self.deals[r * boards_per_round + i]
-                    suspicious_result = False
-                    if board_data[3].lower() not in ("pass", "not played") and '/' not in board_data[3]:
-                        level = board_data[3][0]
-                        denomination = board_data[3][1].lower()
-                        declarer = board_data[4]
-                        dummy = hands[(hands.index(declarer) + 2) % 4]
-                        result = board_data[3][-2:].lstrip("sdhcnx")
-                        tricks = int(level) + 6 if result == "=" else eval(f'{level}{result}') + 6
-                        par = deal.data[f"{declarer}_par_{denomination}"]
-                        if denomination != "n":
-                            fit = len(deal.data.get(f"{declarer}{denomination}")) + \
-                                len(deal.data.get(f"{dummy}{denomination}"))
-                        else:
-                            fit = 13
-                        if (abs(tricks - par) > 3 and denomination == "n") or (abs(tricks - par) >= 3 and fit < 7):
-                            suspicious_result = True
-                    board_tr = BeautifulSoup(file, features='lxml').div.table.find_all("tr")[3]
-                    if CONFIG["scoring"] != "MPs":
-                        board_tr.find_all("td")[7].extract()
-
-                    if suspicious_result:
-                        board_tr.find_all("td")[3]["bgcolor"] = "#aa7777"
-                    if i:
-                        for last_col in board_tr.find_all("td")[-1:-3:-1]:
-                            last_col.extract()
+                    suspicious = self.suspicious_result(deal, board_data)
+                    if board_data[3] == "NOT PLAYED":
+                        opp_names = ""
                     else:
-                        for td in board_tr.find_all("td"):
-                            if "boards_per_round}" in td.get("rowspan", ""):
-                                td["rowspan"] = boards_per_round
+                        opp_names = self.names[board_data[-1] - 1]
+                    self.scorecards_dict["pairs"][-1].boards.append(Dict2Class(
+                       {"number": board_data[0], "vul": board_data[1],
+                        "dir": board_data[2], "contract": self._suits(board_data[3]),
+                        "declarer": board_data[4].upper(), "lead": self._suits(board_data[5]),
+                        "score": board_data[6], "mp": round(board_data[7], 2),
+                        "percent": round(board_data[8], 2),
+                        "mp_per_round": round(mp_for_round, 2),
+                        "opp_names": opp_names, "suspicious": "suspicious" * suspicious}))
+        html_string = Template(open("templates/scorecards_template.html").read()).render(**self.scorecards_dict)
 
-                    def suits(string):
+        return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Scorecards.pdf.pdf")
 
-                        for s in ["spade", "heart", "diamond", "club"]:
-                            if s in string:
-                                string = string.replace(s[0], f'<img src="../{s}.gif"/>')
-                                break
-                        string = string.replace("n", "NT")
-                        return string.upper()
+    def save(self):
+        conn = Players.connect()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) from tournaments')
+        tournament_id = cursor.fetchone()[0] + 1
+        title = self.rankings_dict['tournament_title']
+        coeff = CONFIG["tourney_coeff"]
+        scoring = self.rankings_dict['scoring']
+        insert = f"""INSERT INTO tournaments (tournament_title, date, coefficient, boards, tables, players, max, scoring) VALUES 
+("{title}", "{date}", {coeff}, {self.boards}, {self.pairs}, {self.max_mp}, "{scoring}");"""
+        cursor.execute(insert)
+        for pair in self.rankings_dict["totals"]:
 
-                    for text in board_tr.find_all(text=re.compile('\$\{[^\}]+\}')):
-                        if board_data[3] == "NOT PLAYED":
-                            opp_names = ""
-                        else:
-                            opp_names = self.names[board_data[-1] - 1]
-                        fixed_text = self._replace(text,
-                                                   {"board_number": board_data[0], "vul": board_data[1],
-                                                    "dir": board_data[2], "contract": suits(board_data[3]),
-                                                    "declarer": board_data[4].upper(), "lead": suits(board_data[5]),
-                                                    "score": board_data[6], "mp": round(board_data[7], 2),
-                                                    "percent": round(board_data[8], 2),
-                                                    "mp_per_round": round(mp_for_round, 2),
-                                                    "opp_names": opp_names})
-                        text.replace_with(fixed_text)
-                    new_div.tbody.append(board_tr)
-            if not pair_number:
-                new_div["style"] = ""
-            html.append(new_div)
-
-        return print_to_pdf(html, "Scorecards.pdf", landscape=True)
+            rows = f"({tournament_id}, {pair.number}, '{pair.names}', '{pair.rank}', {pair.mps}, {pair.percent}," \
+                   f"{pair.masterpoints}, {pair.masterpoints_ru})"
+            insert = f"""
+INSERT INTO names (tournament_id, number, partnership, rank, mps, percent, masterpoints, masterpoints_ru) 
+VALUES {rows};"""
+            cursor.execute(insert)
+        for d in self.rankings_dict["totals"]:
+            rows = f"({tournament_id}, {d[0]}" + "".join(f", '{dd}'" for dd in d[1:]) + ')'
+            insert = f"""
+    INSERT INTO boards (tournament_id, number, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc)
+    VALUES {rows};"""
+            cursor.execute(insert)
+        cursor.execute("select * from protocols")
+        for d in cursor.fetchall():
+            rows = f"({tournament_id}, {d[0]}, {d[1]}, {d[2]}, '{d[3]}', '{d[4]}', '{d[5]}', '{d[6]}', {d[7]})"
+            insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead, result, score)
+    VALUES {rows};"""
+            cursor.execute(insert)
+        cursor.commit()
+        conn.close()
 
     def boards_only(self):
         self.get_hands()
@@ -504,4 +467,4 @@ class ResultGetter:
 
 
 if __name__ == "__main__":
-    ResultGetter(27, 10).process()
+    ResultGetter(27, 9).process()

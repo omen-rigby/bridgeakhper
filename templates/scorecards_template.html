@@ -30,6 +30,9 @@ TD {
 CAPTION {
 
 }
+.suspicious {
+bgcolor:"#aa7777"
+}
 </style>
 </head>
 <body>
@@ -37,10 +40,15 @@ CAPTION {
 <div style="page-break-before:always">
 <table style="FONT-SIZE: 10pt; FONT-FAMILY: Arial">
   <tbody>
+{% for pair in pairs %}
   <tr bgcolor="#ffb0b0">
-    <th colspan="10" align="left"><div >PAIR ${pair} ${name}</div></th></tr>
+    <th colspan="10" align="left"><div >PAIR {{pair.number}} {{pair.name}}</div></th></tr>
   <tr bgcolor="#ffb0b0">
-    <th colspan="10" align="left">${scoring_short}s ${mp_total} MaxMPs ${max_mp} Score ${percent_total}% Rank ${rank}</th>
+      {% if scoring == "MPs" %}
+    <th colspan="10" align="left">{{scoring_short}} {{pair.mp_total}} MaxMPs {{max_mp}} Score {{pair.percent_total}}% Rank {{pair.rank}}</th>
+      {% else %}
+    <th colspan="9" align="left">{{scoring_short}} {{pair.mp_total}} Rank {{pair.rank}}</th>
+      {% endif %}
   </tr>
   <tr bgcolor="#cfcfcf">
     <th align="center">Bd</th>
@@ -50,23 +58,32 @@ CAPTION {
     <th align="center">By</th>
     <th align="center">Lead</th>
     <th align="center">Score</th>
+    {% if scoring == "MPs" %}
     <th align="center">Percent</th>
-    <th align="center">${scoring_short}s</th>
-    <th align="center">${scoring_short}s per round</th>
+    {% endif %}
+    <th align="center">{{scoring_short}}s</th>
+    <th align="center">{{scoring_short}}s per round</th>
     <th align="center">Opps</th></tr>
+{% for board in pair.boards %}
   <tr bgcolor="#efefef">
-    <td align="center">${board_number}</td>
-    <td align="center">${vul}</td>
-    <td align="center">${dir}</td>
-    <td align="center">${contract}</td>
-    <td align="center">${declarer}</td>
-    <td align="center">${lead}</td>
-    <td align="center">${score}</td>
-    <td align="center">${percent}</td>
-    <td align="center">${mp}</td>
-    <td rowspan="${boards_per_round}">${mp_per_round}</td>
-    <td rowspan="${boards_per_round}" align="left">${opp_names}</td>
+    <td align="center">{{board.number}}</td>
+    <td align="center">{{board.vul}}</td>
+    <td align="center">{{board.dir}}</td>
+    <td align="center" class="{{board.suspicious}}">{{board.contract}}</td>
+    <td align="center">{{board.declarer}}</td>
+    <td align="center">{{board.lead}}</td>
+    <td align="center">{{board.score}}</td>
+    {% if scoring == "MPs" %}
+    <td align="center">{{board.percent}}</td>
+    {% endif %}
+    <td align="center">{{board.mp}}</td>
+    {% if loop.index0 % boards_per_round == 0 %}
+    <td rowspan="{{boards_per_round}}">{{board.mp_per_round}}</td>
+    <td rowspan="{{boards_per_round}}" align="left">{{board.opp_names}}</td>
+    {% endif %}
   </tr>
+  {% endfor %}
+  {% endfor %}
   </tbody></table>
 </div>
 </body>

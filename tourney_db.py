@@ -3,7 +3,7 @@ import urllib.parse as up
 import sqlite3
 import os
 from constants import db_path
-
+from players import Players
 up.uses_netloc.append("postgres")
 
 
@@ -115,7 +115,21 @@ VALUES {rows};"""
         conn2.close()
         return dump_path
 
-
 if __name__ == "__main__":
-    TourneyDB.create_tables()
+    #TourneyDB.create_tables()
+    from result_getter import ALL_PLAYERS
+
+    conn = Players.connect()
+    cursor = conn.cursor()
+    cursor.execute("select * from names where tournament_id=1")
+    for d in cursor.fetchall():
+        number = d[1]
+        partnership = Players.lookup(d[2], ALL_PLAYERS)
+        names = " & ".join([p[0] for p in partnership])
+        rank = sum(p[1] for p in partnership) / len(partnership) * 2
+        rank_ru = sum(p[2] for p in partnership) / len(partnership)
+        cursor.execute(f"update names set partnership='{names}',rank={rank},rank_ru={rank_ru} where number={number}")
+    conn.commit()
+    conn.close()
+
 
