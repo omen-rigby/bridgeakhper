@@ -1,7 +1,7 @@
+import itertools
 from constants import *
 from players import Players
 from math import log10, ceil
-from copy import deepcopy
 from util import escape_suits, Dict2Class
 from jinja2 import Template
 from print import *
@@ -9,7 +9,7 @@ from deal import Deal
 from imps import imps
 from statistics import mean
 from tourney_db import TourneyDB
-from constants import date
+
 
 ALL_PLAYERS = Players.get_players()
 
@@ -18,9 +18,10 @@ class ResultGetter:
     _conn = None
     _deals = None
 
-    def __init__(self, boards, pairs):
+    def __init__(self, boards, pairs, tournament_id=None):
         self.boards = boards
         self.pairs = pairs
+        self.tournament_id = tournament_id
         self.travellers = []
         self.totals = []
         self.personals = []
@@ -320,6 +321,14 @@ class ResultGetter:
                 repl_dict['denomination'] = "NT"
             else:
                 repl_dict['denomination'] = repl_dict['denomination'].upper()
+            level = deal.data['level']
+            den = deal.data['denomination']
+            decl = deal.data['declarer']
+            result = deal.data['result']
+            score = deal.data['score']
+            repl_dict['minimax_contract'] = f"{level}{den} {decl}" if level else "PASS"
+            repl_dict['minimax_outcome'] = f"{result}, {score}" if level else ""
+
             dealer_low = repl_dict["d"].lower()
             repl_dict["ns_vul"] = (deal.data["v"] in ("EW", "-")) * "non" + "vul"
             repl_dict["ew_vul"] = (deal.data["v"] in ("NS", "-")) * "non" + "vul"
@@ -355,7 +364,8 @@ class ResultGetter:
         string = string.replace("n", "NT")
         return string.upper()
 
-    def suspicious_result(self, deal, board_data):
+    @staticmethod
+    def suspicious_result(deal, board_data):
         if board_data[3].lower() not in ("pass", "not played") and '/' not in board_data[3]:
             level = board_data[3][0]
             denomination = board_data[3][1].lower()
@@ -372,7 +382,6 @@ class ResultGetter:
             return (abs(tricks - par) > 3 and denomination == "n") or (abs(tricks - par) >= 3 and fit < 7)
         return False
 
-
     def pdf_scorecards(self):
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
@@ -388,7 +397,7 @@ class ResultGetter:
 
         for pair_number, results in enumerate(self.personals):
             pair_rank = [t for t in totals if t[0] == pair_number + 1][0]
-            self.scorecards_dict["pairs"].append(Dict2Class({"name": self.names[pair_number], "number": pair_number + 1,
+            self.scorecards_dict["pairs"].append(Dict2Class({"name": self._replace(self.names[pair_number]), "number": pair_number + 1,
                             "mp_total": round(pair_rank[1], 2), "max_mp": max_mp,
                             "percent_total": round(100 * pair_rank[1] / max_mp, 2),
                             "rank": totals.index(pair_rank) + 1, "boards": []
@@ -403,50 +412,51 @@ class ResultGetter:
                         opp_names = ""
                     else:
                         opp_names = self.names[board_data[-1] - 1]
+                    dikt = {"number": board_data[0], "vul": board_data[1],
+                            "dir": board_data[2], "contract": self._suits(board_data[3]),
+                            "declarer": board_data[4].upper(), "lead": self._suits(board_data[5]),
+                            "score": board_data[6] if board_data[6] != -1 else '', "mp": round(board_data[7], 2),
+                            "percent": round(board_data[8], 2),
+                            "mp_per_round": round(mp_for_round, 2),
+                            "opp_names": opp_names, "suspicious": "suspicious" * suspicious}
                     self.scorecards_dict["pairs"][-1].boards.append(Dict2Class(
-                       {"number": board_data[0], "vul": board_data[1],
-                        "dir": board_data[2], "contract": self._suits(board_data[3]),
-                        "declarer": board_data[4].upper(), "lead": self._suits(board_data[5]),
-                        "score": board_data[6], "mp": round(board_data[7], 2),
-                        "percent": round(board_data[8], 2),
-                        "mp_per_round": round(mp_for_round, 2),
-                        "opp_names": opp_names, "suspicious": "suspicious" * suspicious}))
+                       {k: self._replace(v) for k, v in dikt.items()}))
         html_string = Template(open("templates/scorecards_template.html").read()).render(**self.scorecards_dict)
-
-        return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Scorecards.pdf.pdf")
+        return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Scorecards.pdf")
 
     def save(self):
         conn = Players.connect()
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) from tournaments')
-        tournament_id = cursor.fetchone()[0] + 1
         title = self.rankings_dict['tournament_title']
-        coeff = CONFIG["tourney_coeff"]
         scoring = self.rankings_dict['scoring']
-        insert = f"""INSERT INTO tournaments (tournament_title, date, coefficient, boards, tables, players, max, scoring) VALUES 
-("{title}", "{date}", {coeff}, {self.boards}, {self.pairs}, {self.max_mp}, "{scoring}");"""
+        max_mp = self.scorecards_dict["pairs"][0].max_mp
+        insert = f"""INSERT INTO tournaments (date, boards, players, max, scoring, tournament_id, title) VALUES 
+('{date}', {self.boards}, {self.pairs}, {max_mp}, '{scoring}', {self.tournament_id}, '{title}');"""
         cursor.execute(insert)
         for pair in self.rankings_dict["totals"]:
-
-            rows = f"({tournament_id}, {pair.number}, '{pair.names}', '{pair.rank}', {pair.mps}, {pair.percent}," \
-                   f"{pair.masterpoints}, {pair.masterpoints_ru})"
+            rows = f"({self.tournament_id}, {pair.number}, '{pair.names}', '{self._replace(pair.rank)}', {pair.mp}, {pair.percent}," \
+                   f"{pair.masterpoints or 0}, {pair.masterpoints_ru or 0})"
             insert = f"""
 INSERT INTO names (tournament_id, number, partnership, rank, mps, percent, masterpoints, masterpoints_ru) 
 VALUES {rows};"""
             cursor.execute(insert)
-        for d in self.rankings_dict["totals"]:
-            rows = f"({tournament_id}, {d[0]}" + "".join(f", '{dd}'" for dd in d[1:]) + ')'
-            insert = f"""
-    INSERT INTO boards (tournament_id, number, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc)
-    VALUES {rows};"""
+        hands_columns = ["".join(p) for p in itertools.product(hands, SUITS)]
+        par_columns = ["_par_".join(p) for p in itertools.product(hands, reversed(DENOMINATIONS))]
+        for b in self.travellers_dict["boards"]:
+            hand_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in hands_columns) + "'"
+            par_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in par_columns) + "'"
+            rows = f"({self.tournament_id}, {b.b}, {hand_values}, {par_values}, '{self._replace(b.minimax_contract)}', " \
+                   f"'{b.minimax_outcome}', '{b.minimax_url}')"
+            insert = f"""INSERT INTO boards (tournament_id, number, {", ".join(hands_columns)}, {", ".join(par_columns)}, minimax_contract, 
+minimax_outcome, minimax_url) VALUES {rows};"""
             cursor.execute(insert)
-        cursor.execute("select * from protocols")
-        for d in cursor.fetchall():
-            rows = f"({tournament_id}, {d[0]}, {d[1]}, {d[2]}, '{d[3]}', '{d[4]}', '{d[5]}', '{d[6]}', {d[7]})"
-            insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead, result, score)
-    VALUES {rows};"""
-            cursor.execute(insert)
-        cursor.commit()
+            for t in b.tables:
+                rows = f"({self.tournament_id}, {b.b}, {t.ns}, {t.ew}, '{self._replace(t.contract)}', '{t.declarer}', " \
+                       f"'{self._replace(t.lead)}', {t.nsplus or -t.nsminus}, {t.mp_ns}, {t.mp_ew}, '{t.bbo_url}')"
+                insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead,
+score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
+                cursor.execute(insert)
+        conn.commit()
         conn.close()
 
     def boards_only(self):
@@ -467,4 +477,6 @@ VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    ResultGetter(27, 9).process()
+    b = ResultGetter(27, 9, 1)
+    b.process()
+    b.save()

@@ -1,5 +1,8 @@
 from difflib import ndiff
-from constants import *
+try:
+    from constants import *
+except ImportError:
+    from .constants import *
 
 
 class Dict2Class(object):

@@ -2,8 +2,12 @@ import psycopg2
 import urllib.parse as up
 import sqlite3
 import re
-from util import levenshtein
-from constants import PLAYERS_DB
+try:
+    from util import levenshtein
+    from constants import PLAYERS_DB
+except ImportError:
+    from .util import levenshtein
+    from .constants import PLAYERS_DB
 
 up.uses_netloc.append("postgres")
 

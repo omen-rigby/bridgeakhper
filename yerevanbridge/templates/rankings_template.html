@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta content="text/html; charset='UTF-8'">
+    <title>Rankings</title>
+    <style type="Text/css">@media print {
+    @page { margin: 0mm 0mm 0mm 0mm; size: landscape; }
+    @bottom-right-corner { ... } }
+}H1 {
+	FONT-SIZE: 20pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #000000; TEXT-ALIGN: center
+}
+H2 {
+	FONT-SIZE: 16pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #0000a0; TEXT-ALIGN: center
+}
+H3 {
+	FONT-SIZE: 10pt; FONT-FAMILY: Arial,sans-serif; FONT-WEIGHT: bold; COLOR: #0000a0; TEXT-ALIGN: center
+}
+H4 {
+	FONT-SIZE: 12pt; FONT-FAMILY: Arial,sans-serif; FONT-WEIGHT: bold; TEXT-ALIGN: center
+}
+TABLE {
+	BORDER-TOP: 4px ridge; BORDER-RIGHT: 4px ridge; WIDTH: 90%; BORDER-COLLAPSE: collapse; BORDER-BOTTOM: 4px ridge; FONT-WEIGHT: normal; PADDING-BOTTOM: 2px; TEXT-ALIGN: center; PADDING-TOP: 2px; PADDING-LEFT: 2px; BORDER-LEFT: 4px ridge; PADDING-RIGHT: 2px; BACKGROUND-COLOR: #fdf0d9; cellpadding: 2
+}
+TH {
+	BORDER-TOP: #aaa 1px solid; BORDER-RIGHT: #aaa 1px solid; BORDER-BOTTOM: #aaa 1px solid; BORDER-LEFT: #aaa 1px solid
+}
+TD {
+	BORDER-TOP: #aaa 1px solid; BORDER-RIGHT: #aaa 1px solid; BORDER-BOTTOM: #aaa 1px solid; BORDER-LEFT: #aaa 1px solid
+}
+CAPTION {
+
+}
+</style>
+</head>
+<body bgcolor="#ffffff">
+<h1>{{tournament_title}} {{date}}</h1>
+<h1>Ranks</h1>
+{% if scoring == "MPs" %}
+<h2>{{tables}} Table {{boards}} Board Howell Movement. MAX = {{max}}</h2>
+{% else %}
+<h2>{{tables}} Table {{boards}} Board Howell Movement. Scoring = {{scoring}}</h2>
+{% endif %}
+<table style="FONT-SIZE: 11pt; FONT-FAMILY: Arial">
+  <tbody>
+  <tr bgcolor="#ffb0b0">
+    <th align="center">Rank</th>
+    <th align="center">Pair</th>
+    <th align="left">Names</th>
+    <th align="center">Total</th>
+    {% if scoring == "MPs" %}
+    <th align="center">%Score</th>
+    {% endif %}
+    <th align="center">Master Points</th>
+    <th align="center">Master Points (RU)</th>
+  </tr>
+  {% for pair in totals %}
+  <tr bgcolor="#efefef">
+    <td align="center">{{pair.rank}}</td>
+    <td align="center">{{pair.number}}</td>
+    <td align="left">{{pair.names}}</td>
+    <td align="center">{{pair.mp}}</td>
+    {% if scoring == "MPs" %}
+    <td align="center">{{pair.percent}}</td>
+    {% endif %}
+    <td align="center">{{pair.masterpoints}}</td>
+    <td align="center">{{pair.masterpoints_ru}}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<br>
+</body>
+</html>

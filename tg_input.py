@@ -327,7 +327,9 @@ def end(update: Update, context: CallbackContext):
         if 'CURRENT_TOURNEY' in os.environ :
             os.remove(path)
     try:
-        paths = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).process()
+        context.bot_data['result_getter'] = ResultGetter(boards=context.bot_data["maxboard"],
+                                                         pairs=context.bot_data["maxpair"])
+        paths = context.bot_data['result_getter'].process()
         for path in paths:
             context.bot.send_document(chat_id, open(path, 'rb'))
             os.remove(path)
@@ -412,6 +414,10 @@ def get_boards_only(update: Update, context: CallbackContext):
 
 def td_list(update: Update, context: CallbackContext):
     send(chat_id=update.message.chat_id, text=", ".join(DIRECTORS), context=context)
+
+
+def store(update: Update, context: CallbackContext):
+    context.bot_data['result_getter'].save()
 
 
 def load_db(update: Update, context: CallbackContext):
@@ -504,6 +510,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("updateplayer", update_player))
     updater.dispatcher.add_handler(CommandHandler("boards", get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", end))
+    updater.dispatcher.add_handler(CommandHandler("store", store))
     # Should go last
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), freeform))
 
