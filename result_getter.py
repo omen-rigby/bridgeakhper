@@ -357,12 +357,13 @@ class ResultGetter:
 
     @staticmethod
     def _suits(string):
+        old_string = string
         for s in ["spade", "heart", "diamond", "club"]:
-            if s in string:
-                string = string.replace(s[0], f'<img src="../{s}.gif"/>')
-                break
-        string = string.replace("n", "NT")
-        return string.upper()
+            string = re.sub('([1-7])' + s[0], f'\g<1><img src="../static/{s}.gif"/>', string, flags=re.IGNORECASE)
+            string = re.sub(s[0]+'([2-9akqjt])', f'<img src="../static/{s}.gif"/>\g<1>', string, flags=re.IGNORECASE)
+        if string == old_string:
+            string = string.replace("n", "NT")
+        return string
 
     @staticmethod
     def suspicious_result(deal, board_data):
@@ -422,7 +423,10 @@ class ResultGetter:
                     self.scorecards_dict["pairs"][-1].boards.append(Dict2Class(
                        {k: self._replace(v) for k, v in dikt.items()}))
         html_string = Template(open("templates/scorecards_template.html").read()).render(**self.scorecards_dict)
-        return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Scorecards.pdf")
+        try:
+            return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Scorecards.pdf")
+        except:
+            pass
 
     def save(self):
         conn = Players.connect()
@@ -445,14 +449,15 @@ VALUES {rows};"""
         for b in self.travellers_dict["boards"]:
             hand_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in hands_columns) + "'"
             par_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in par_columns) + "'"
-            rows = f"({self.tournament_id}, {b.b}, {hand_values}, {par_values}, '{self._replace(b.minimax_contract)}', " \
-                   f"'{b.minimax_outcome}', '{b.minimax_url}')"
-            insert = f"""INSERT INTO boards (tournament_id, number, {", ".join(hands_columns)}, {", ".join(par_columns)}, minimax_contract, 
-minimax_outcome, minimax_url) VALUES {rows};"""
+            rows = f"({self.tournament_id}, {b.b}, {hand_values}, {par_values}, '{self._suits(b.minimax_contract)}', " \
+                   f"'{self._replace(b.minimax_outcome)}', '{b.minimax_url}')"
+            insert = f"""INSERT INTO boards (tournament_id, number, {", ".join(hands_columns)},
+{", ".join(par_columns)}, minimax_contract, minimax_outcome, minimax_url) VALUES {rows};"""
             cursor.execute(insert)
             for t in b.tables:
-                rows = f"({self.tournament_id}, {b.b}, {t.ns}, {t.ew}, '{self._replace(t.contract)}', '{t.declarer}', " \
-                       f"'{self._replace(t.lead)}', {t.nsplus or -t.nsminus}, {t.mp_ns}, {t.mp_ew}, '{t.bbo_url}')"
+                rows = f"({self.tournament_id}, {b.b}, {t.ns}, {t.ew}, '{self._suits(t.contract)}', '{t.declarer}', " \
+                       f"'{self._suits(t.lead)}', {self._replace(t.nsplus or -t.nsminus)}, {self._replace(t.mp_ns)}," \
+                       f"{self._replace(t.mp_ew)}, '{t.bbo_url}')"
                 insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead,
 score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
                 cursor.execute(insert)
