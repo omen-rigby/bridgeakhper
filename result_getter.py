@@ -10,8 +10,6 @@ from statistics import mean
 from tourney_db import TourneyDB
 from constants import date
 
-ALL_PLAYERS = Players.get_players()
-
 
 class ResultGetter:
     _conn = None

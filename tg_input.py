@@ -2,13 +2,15 @@ import shutil
 import logging
 from inline_key import *
 from board import Board
-from result_getter import ResultGetter, ALL_PLAYERS
+from result_getter import ResultGetter
 from generate import generate
 from util import is_director
 from movements.parse_mov import get_movement
 from players import Players
 from shutil import copyfile
 from tourney_db import TourneyDB
+
+global ALL_PLAYERS
 
 PORT = int(os.environ.get('PORT', 5000))
 if 'BOT_TOKEN' in os.environ:
@@ -383,6 +385,8 @@ def add_player(update: Update, context: CallbackContext):
         context.user_data["add_player"] = False
         first, last, gender, rank, rank_ru = update.message.text.split(" ")
         Players.add_new_player(first, last, gender, rank, rank_ru)
+        global ALL_PLAYERS
+        ALL_PLAYERS = Players.get_players()
     else:
         context.user_data["add_player"] = True
         send(chat_id=update.effective_chat.id,
@@ -395,6 +399,8 @@ def update_player(update: Update, context: CallbackContext):
         context.user_data["update_player"] = False
         last, rank, rank_ru = update.message.text.split(" ")
         Players.update(last, rank, rank_ru)
+        global ALL_PLAYERS
+        ALL_PLAYERS = Players.get_players()
     else:
         context.user_data["update_player"] = True
         send(chat_id=update.effective_chat.id,
