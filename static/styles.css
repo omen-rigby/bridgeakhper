@@ -1,0 +1,27 @@
+table {
+	text-align: center; margin: 4; align: center, padding: 5px
+}
+td{
+    padding: 5px
+}
+th {
+background-color: #f7c6ca; padding: 5px
+}
+.odd {
+background-color: #fcecc6
+}
+.even {
+background-color: #c6d2ea
+}
+h1 {
+	FONT-SIZE: 18pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #000000; TEXT-ALIGN: center; align: center
+}
+h2 {
+	FONT-SIZE: 16pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #0000a0; TEXT-ALIGN: center; align: center
+}
+h3 {
+	FONT-SIZE: 12pt; FONT-FAMILY: Arial,sans-serif; FONT-WEIGHT: bold; COLOR: #0000a0; TEXT-ALIGN: center; align: center
+}
+h4 {
+	FONT-SIZE: 10pt; FONT-FAMILY: Arial,sans-serif; FONT-WEIGHT: bold; TEXT-ALIGN: center; align: center
+}

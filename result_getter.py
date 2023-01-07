@@ -30,7 +30,7 @@ class ResultGetter:
     @property
     def conn(self):
         if self._conn is None:
-            self._conn = TourneyDB.connect()
+            self._conn = TourneyDB.connect(local=db_path)
         return self._conn
 
     @property
@@ -237,7 +237,7 @@ class ResultGetter:
             # Ask Artem for the reasoning behind this
             if cluster_first + cluster_length > round(0.4 * self.pairs):
                 rounding_method = ceil
-            elif i < 2:
+            elif cluster_first < 2:
                 rounding_method = round
             else:
                 rounding_method = int
@@ -359,9 +359,13 @@ class ResultGetter:
     def _suits(string):
         old_string = string
         for s in ["spade", "heart", "diamond", "club"]:
-            string = re.sub('([1-7])' + s[0], f'\g<1><img src="../static/{s}.gif"/>', string, flags=re.IGNORECASE)
-            string = re.sub(s[0]+'([2-9akqjt])', f'<img src="../static/{s}.gif"/>\g<1>', string, flags=re.IGNORECASE)
-        if string == old_string:
+            string = re.sub('([1-7])' + s[0], f'\g<1><img src="/static/{s}.gif"/>', string, flags=re.IGNORECASE)
+            if old_string != string:
+                break
+            string = re.sub(s[0]+'([1-9akqjt]0?)', f'<img src="/static/{s}.gif"/>\g<1>', string, flags=re.IGNORECASE)
+            if old_string != string:
+                break
+        else:
             string = string.replace("n", "NT")
         return string
 
@@ -370,9 +374,9 @@ class ResultGetter:
         if board_data[3].lower() not in ("pass", "not played") and '/' not in board_data[3]:
             level = board_data[3][0]
             denomination = board_data[3][1].lower()
-            declarer = board_data[4]
+            declarer = board_data[4].lower()
             dummy = hands[(hands.index(declarer) + 2) % 4]
-            result = board_data[3][-2:].lstrip("sdhcnx")
+            result = board_data[3].lower()[-2:].lstrip("sdhcnx")
             tricks = int(level) + 6 if result == "=" else eval(f'{level}{result}') + 6
             par = deal.data[f"{declarer}_par_{denomination}"]
             if denomination != "n":
@@ -416,7 +420,7 @@ class ResultGetter:
                     dikt = {"number": board_data[0], "vul": board_data[1],
                             "dir": board_data[2], "contract": self._suits(board_data[3]),
                             "declarer": board_data[4].upper(), "lead": self._suits(board_data[5]),
-                            "score": board_data[6] if board_data[6] != -1 else '', "mp": round(board_data[7], 2),
+                            "score": board_data[6] if board_data[6] != 1 else '', "mp": round(board_data[7], 2),
                             "percent": round(board_data[8], 2),
                             "mp_per_round": round(mp_for_round, 2),
                             "opp_names": opp_names, "suspicious": "suspicious" * suspicious}
@@ -428,15 +432,19 @@ class ResultGetter:
         except:
             pass
 
-    def save(self):
+    def save(self, tourney_exists=False):
         conn = Players.connect()
         cursor = conn.cursor()
         title = self.rankings_dict['tournament_title']
         scoring = self.rankings_dict['scoring']
         max_mp = self.scorecards_dict["pairs"][0].max_mp
-        insert = f"""INSERT INTO tournaments (date, boards, players, max, scoring, tournament_id, title) VALUES 
-('{date}', {self.boards}, {self.pairs}, {max_mp}, '{scoring}', {self.tournament_id}, '{title}');"""
-        cursor.execute(insert)
+        boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
+
+        num_of_rounds = self.boards // boards_per_round
+        if not tourney_exists:
+            insert = f"""INSERT INTO tournaments (date, boards, players, max, scoring, tournament_id, title, rounds) VALUES 
+    ('{date}', {self.boards}, {self.pairs}, {max_mp}, '{scoring}', {self.tournament_id}, '{title}', {num_of_rounds});"""
+            cursor.execute(insert)
         for pair in self.rankings_dict["totals"]:
             rows = f"({self.tournament_id}, {pair.number}, '{pair.names}', '{self._replace(pair.rank)}', {pair.mp}, {pair.percent}," \
                    f"{pair.masterpoints or 0}, {pair.masterpoints_ru or 0})"
@@ -482,6 +490,84 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    b = ResultGetter(27, 9, 1)
-    b.process()
-    b.save()
+    global date, db_path
+    co = Players.connect()
+    c = co.cursor()
+    c.execute('select tournament_id, date, boards, players from tournaments where tournament_id=12')
+    for t in c.fetchall():
+        c.execute(f'select count(*) from boards where tournament_id={t[0]}')
+        if c.fetchone()[0]:
+            print(f"{t[0]} already exists")
+            continue
+
+        date = t[1]
+        print(f"processing {date} {t[0]}")
+        db_path = f'2022-08-21_1/boards.db'
+        if not os.path.exists(db_path):
+            continue
+        print(f"Generating results for {t[2]} {t[3]}")
+        g = ResultGetter(t[2], t[3], t[0])
+        g._conn = TourneyDB.connect(local=db_path)
+        g.process()
+        g.save(tourney_exists=True)
+    # from deal import Deal
+    # # import sqlite3
+    # # for t_id in (1, 2):
+    # #     c.execute(f"select * from boards where tournament_id={t_id}")
+    # #     b_data = c.fetchall()
+    #
+    # hands_columns = ["".join(p) for p in itertools.product(hands, SUITS)]
+    # par_columns = ["_par_".join(p) for p in itertools.product(hands, reversed(DENOMINATIONS))]
+    # c.execute(f'select tournament_id, number, minimax_url from boards where tournament_id=3')
+    # boards = c.fetchall()
+    # print(boards)
+    # c.execute('select tournament_id, number, ns, contract, lead, declarer from protocols where tournament_id=3')
+    # g = ResultGetter(18, 10, 3)
+    #
+    # for b in c.fetchall():
+    #     try:
+    #         lead = g._suits(b[4])
+    #     except:
+    #         continue
+    #     url = [x[2] for x in boards if x[0] == b[0] and x[1] == b[1]][0]
+    #     declarer = b[-1]
+    #     dealer = "WNES"[b[1] % 4]
+    #     pre_passes = "p" * (("NESW".index(declarer.upper()) - "NESW".index(dealer.upper())) % 4)
+    #     contract_no_result = b[3].rstrip('=+-1234567890').replace('NT', "n")\
+    #         .replace('<img src="/static/spade.gif"/>', 's')\
+    #         .replace('<img src="/static/heart.gif"/>', 'h')\
+    #         .replace('<img src="/static/diamond.gif"/>', 'd')\
+    #         .replace('<img src="/static/club.gif"/>', 'c')
+    #     link = re.sub('&a=.*', '&a=' + pre_passes + contract_no_result + 'ppp', url)
+    #
+    #     statement = f"""update protocols set handviewer_link='{link}' where tournament_id={b[0]} and number={b[1]} and ns={b[2]}"""
+    #     print(statement)
+    #     c.execute(statement)
+
+    #
+    # r = ResultGetter(18, 10, 3)
+    # hands_columns = ["".join(p) for p in itertools.product(hands, SUITS)]
+    # par_columns = ["_par_".join(p) for p in itertools.product(hands, reversed(DENOMINATIONS))]
+    # with open('2022-05-08/boards') as f:
+    #     for i, b_url in enumerate(f.read().split('\n')[:]):
+    #         b = Deal(url=b_url, number=i+1)
+    #         try:
+    #             contract = f"{b.data['level']}{b.data['denomination']}{b.data['declarer']}"
+    #             outcome = f"{b.data['result']}, {b.data['score']}"
+    #             url = b.data["minimax_url"]
+    #         except:
+    #             raise
+    #             contract = "PASS"
+    #             outcome = ""
+    #             url = ""
+    #         hand_values = "'" + "', '".join(str(b.data[h]) for h in hands_columns) + "'"
+    #         par_values = "'" + "', '".join(str(b.data[h]) for h in par_columns) + "'"
+    #         rows = f"(3, {i + 1}, {hand_values}, {par_values}, '{r._suits(contract)}', " \
+    #                f"'{r._replace(outcome)}', '{url}')"
+    #         insert = f"""insert into boards values {rows};"""
+    #         print(insert)
+    #
+    #         c.execute(insert)
+    #
+    co.commit()
+    co.close()

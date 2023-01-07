@@ -3,13 +3,10 @@
 <head>
     <meta content="text/html; charset='UTF-8'">
     <title>Rankings</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <style type="Text/css">
-
-
-</style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"/>
 </head>
 <body bgcolor="#ffffff">
+{% include 'header.html' %}
 <h1>{{tournament_title}} {{date}}</h1>
 <h1>Ranks</h1>
 {% if scoring == "MPs" %}
@@ -18,7 +15,7 @@
 <h2>{{tables}} Table {{boards}} Board Howell Movement. Scoring = {{scoring}}</h2>
 {% endif %}
 <div align="center">
-<table style="FONT-SIZE: 11pt; FONT-FAMILY: Arial">
+<table style="FONT-SIZE: 11pt; FONT-FAMILY: Arial" class="hy">
   <tbody>
   <tr>
     <th align="center">Rank</th>
@@ -39,7 +36,7 @@
   <tr class="even">
   {% endif %}
     <td align="center">{{pair.rank}}</td>
-    <td align="center"><a href="/results/{{tournament_id}}/scorecards/{{pair.number}}">{{pair.number}}</td>
+    <td align="center"><a href="/result/{{tournament_id}}/scorecard/{{pair.number}}">{{pair.number}}</td>
     <td align="left">{{pair.names}}</td>
     <td align="center">{{pair.mp}}</td>
     {% if scoring == "MPs" %}
@@ -51,6 +48,6 @@
   {% endfor %}
   </tbody>
 </table></div>
-
+{% include 'footer.html' %}
 </body>
 </html>

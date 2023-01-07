@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rating</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"/>
+
+</head>
+<body>
+{% include 'header.html' %}
+<h1>Rating list (last update: {{date}})</h1>
+<div align="center">
+    <table class="hy"><tbody>
+    <tr><th>Position</th><th>Name</th><th>Rating</th><th>Last month</th><th>Rank</th><th>Rank RU</th></tr>
+    {% for p in players %}
+    <tr class="{{'odd' if loop.index0 % 2 else 'even'}}">
+        <td>{{loop.index}}</td><td>{{p.name}}</td><td>{{p.rating}}</td><td></td><td>{{p.rank}}</td><td>{{p.rank_ru}}</td></tr>
+    {% endfor %}
+    </tbody></table>
+</div>
+{% include 'footer.html' %}
+</body>
+</html>
