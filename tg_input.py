@@ -6,11 +6,10 @@ from result_getter import ResultGetter
 from generate import generate
 from util import is_director
 from movements.parse_mov import get_movement
-from players import Players
+from players import *
 from shutil import copyfile
 from tourney_db import TourneyDB
 
-global ALL_PLAYERS
 
 PORT = int(os.environ.get('PORT', 5000))
 if 'BOT_TOKEN' in os.environ:
@@ -150,6 +149,7 @@ def freeform(update: Update, context: CallbackContext):
 
 
 def names_text(update: Update, context: CallbackContext):
+    global ALL_PLAYERS
     conn = TourneyDB.connect()
     cursor = conn.cursor()
     statement = f"""INSERT INTO names (number, partnership)
