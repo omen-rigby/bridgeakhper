@@ -30,7 +30,7 @@ class ResultGetter:
     @property
     def conn(self):
         if self._conn is None:
-            self._conn = TourneyDB.connect(local=db_path)
+            self._conn = TourneyDB.connect()
         return self._conn
 
     @property
@@ -439,6 +439,9 @@ class ResultGetter:
         scoring = self.rankings_dict['scoring']
         max_mp = self.scorecards_dict["pairs"][0].max_mp
         boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
+        if not self.tournament_id:
+            cursor.execute(f'select count(*) from tournaments')
+            self.tournament_id = cursor.fetchone()[0] + 1
 
         num_of_rounds = self.boards // boards_per_round
         if not tourney_exists:
@@ -490,26 +493,28 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    global date, db_path
-    co = Players.connect()
-    c = co.cursor()
-    c.execute('select tournament_id, date, boards, players from tournaments where tournament_id=12')
-    for t in c.fetchall():
-        c.execute(f'select count(*) from boards where tournament_id={t[0]}')
-        if c.fetchone()[0]:
-            print(f"{t[0]} already exists")
-            continue
+    # global date, db_path
+    # co = Players.connect()
+    # c = co.cursor()
+    # c.execute('select tournament_id, date, boards, players from tournaments where tournament_id=24')
+    # for t in c.fetchall():
+    #     c.execute(f'select count(*) from boards where tournament_id={t[0]}')
+    #     if c.fetchone()[0]:
+    #         print(f"{t[0]} already exists")
+    #         continue
+    #
+    #     date = t[1]
+    #     print(f"processing {date} {t[0]}")
+    #     db_path = f'2022-11-13_2/boards.db'
+    #     if not os.path.exists(db_path):
+    #         continue
+    #     print(f"Generating results for {t[2]} {t[3]}")
+        #g = ResultGetter(t[2], t[3], t[0])
+    g = ResultGetter(27, 10)
 
-        date = t[1]
-        print(f"processing {date} {t[0]}")
-        db_path = f'2022-08-21_1/boards.db'
-        if not os.path.exists(db_path):
-            continue
-        print(f"Generating results for {t[2]} {t[3]}")
-        g = ResultGetter(t[2], t[3], t[0])
-        g._conn = TourneyDB.connect(local=db_path)
-        g.process()
-        g.save(tourney_exists=True)
+# g._conn = TourneyDB.connect(local=db_path)
+    g.process()
+    g.save()
     # from deal import Deal
     # # import sqlite3
     # # for t_id in (1, 2):
@@ -569,5 +574,5 @@ if __name__ == "__main__":
     #
     #         c.execute(insert)
     #
-    co.commit()
-    co.close()
+    # co.commit()
+    # co.close()
