@@ -289,7 +289,7 @@ class ResultGetter:
             header_text.replace_with(header_text.replace("MAX = ${max}", f"Scoring: {scoring}"))
         for text in html.h1.find_all(text=re.compile('\$\{[^\}]+\}')):
             fixed_text = self._replace(text, {"tournament_title": CONFIG["tournament_title"],
-                                              "date": date})
+                                              "date": date if DEBUG else time.strftime("%Y-%m-%d")})
             text.replace_with(fixed_text)
         for text in html.h2.find_all(text=re.compile('\$\{[^\}]+\}')):
             fixed_text = self._replace(text, {"tables": self.pairs // 2, "boards": self.boards,
