@@ -6,5 +6,4 @@ lxml==4.9.2
 psycopg2_binary==2.9.4
 pdfkit==1.0.0
 pyvirtualdisplay==3.0
-flask==2.2.2
 Jinja2==3.1.2
