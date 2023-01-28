@@ -11,8 +11,6 @@ from statistics import mean
 from tourney_db import TourneyDB
 
 
-ALL_PLAYERS = Players.get_players()
-
 
 class ResultGetter:
     _conn = None
@@ -296,7 +294,7 @@ class ResultGetter:
             }
             totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
         self.rankings_dict = {"scoring": CONFIG['scoring'], "max": max_mp, "tables": self.pairs // 2,
-                              "date": date, "boards": self.boards,
+                              "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
                               "tournament_title": CONFIG["tournament_title"], "totals": totals}
         html_string = Template(open("templates/rankings_template.html").read()).render(**self.rankings_dict)
         return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Ranks.pdf")
@@ -493,86 +491,6 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    # global date, db_path
-    # co = Players.connect()
-    # c = co.cursor()
-    # c.execute('select tournament_id, date, boards, players from tournaments where tournament_id=24')
-    # for t in c.fetchall():
-    #     c.execute(f'select count(*) from boards where tournament_id={t[0]}')
-    #     if c.fetchone()[0]:
-    #         print(f"{t[0]} already exists")
-    #         continue
-    #
-    #     date = t[1]
-    #     print(f"processing {date} {t[0]}")
-    #     db_path = f'2022-11-13_2/boards.db'
-    #     if not os.path.exists(db_path):
-    #         continue
-    #     print(f"Generating results for {t[2]} {t[3]}")
-        #g = ResultGetter(t[2], t[3], t[0])
     g = ResultGetter(27, 10)
-
-# g._conn = TourneyDB.connect(local=db_path)
     g.process()
     g.save()
-    # from deal import Deal
-    # # import sqlite3
-    # # for t_id in (1, 2):
-    # #     c.execute(f"select * from boards where tournament_id={t_id}")
-    # #     b_data = c.fetchall()
-    #
-    # hands_columns = ["".join(p) for p in itertools.product(hands, SUITS)]
-    # par_columns = ["_par_".join(p) for p in itertools.product(hands, reversed(DENOMINATIONS))]
-    # c.execute(f'select tournament_id, number, minimax_url from boards where tournament_id=3')
-    # boards = c.fetchall()
-    # print(boards)
-    # c.execute('select tournament_id, number, ns, contract, lead, declarer from protocols where tournament_id=3')
-    # g = ResultGetter(18, 10, 3)
-    #
-    # for b in c.fetchall():
-    #     try:
-    #         lead = g._suits(b[4])
-    #     except:
-    #         continue
-    #     url = [x[2] for x in boards if x[0] == b[0] and x[1] == b[1]][0]
-    #     declarer = b[-1]
-    #     dealer = "WNES"[b[1] % 4]
-    #     pre_passes = "p" * (("NESW".index(declarer.upper()) - "NESW".index(dealer.upper())) % 4)
-    #     contract_no_result = b[3].rstrip('=+-1234567890').replace('NT', "n")\
-    #         .replace('<img src="/static/spade.gif"/>', 's')\
-    #         .replace('<img src="/static/heart.gif"/>', 'h')\
-    #         .replace('<img src="/static/diamond.gif"/>', 'd')\
-    #         .replace('<img src="/static/club.gif"/>', 'c')
-    #     link = re.sub('&a=.*', '&a=' + pre_passes + contract_no_result + 'ppp', url)
-    #
-    #     statement = f"""update protocols set handviewer_link='{link}' where tournament_id={b[0]} and number={b[1]} and ns={b[2]}"""
-    #     print(statement)
-    #     c.execute(statement)
-
-    #
-    # r = ResultGetter(18, 10, 3)
-    # hands_columns = ["".join(p) for p in itertools.product(hands, SUITS)]
-    # par_columns = ["_par_".join(p) for p in itertools.product(hands, reversed(DENOMINATIONS))]
-    # with open('2022-05-08/boards') as f:
-    #     for i, b_url in enumerate(f.read().split('\n')[:]):
-    #         b = Deal(url=b_url, number=i+1)
-    #         try:
-    #             contract = f"{b.data['level']}{b.data['denomination']}{b.data['declarer']}"
-    #             outcome = f"{b.data['result']}, {b.data['score']}"
-    #             url = b.data["minimax_url"]
-    #         except:
-    #             raise
-    #             contract = "PASS"
-    #             outcome = ""
-    #             url = ""
-    #         hand_values = "'" + "', '".join(str(b.data[h]) for h in hands_columns) + "'"
-    #         par_values = "'" + "', '".join(str(b.data[h]) for h in par_columns) + "'"
-    #         rows = f"(3, {i + 1}, {hand_values}, {par_values}, '{r._suits(contract)}', " \
-    #                f"'{r._replace(outcome)}', '{url}')"
-    #         insert = f"""insert into boards values {rows};"""
-    #         print(insert)
-    #
-    #         c.execute(insert)
-    #
-    # co.commit()
-    # co.close()

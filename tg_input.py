@@ -2,13 +2,14 @@ import shutil
 import logging
 from inline_key import *
 from board import Board
-from result_getter import ResultGetter, ALL_PLAYERS
+from result_getter import ResultGetter
 from generate import generate
 from util import is_director
 from movements.parse_mov import get_movement
-from players import Players
+from players import *
 from shutil import copyfile
 from tourney_db import TourneyDB
+
 
 PORT = int(os.environ.get('PORT', 5000))
 if 'BOT_TOKEN' in os.environ:
@@ -141,13 +142,14 @@ def names(update: Update, context: CallbackContext):
 
 def freeform(update: Update, context: CallbackContext):
     text = update.message.text
-    if context.user_data["tournament_title"]:
+    if context.user_data.get("tournament_title"):
         return title(update, context)
     if re.match('.*-.*', text) or re.match(' .* ', text):
         return names_text(update, context)
 
 
 def names_text(update: Update, context: CallbackContext):
+    global ALL_PLAYERS
     conn = TourneyDB.connect()
     cursor = conn.cursor()
     statement = f"""INSERT INTO names (number, partnership)
@@ -289,8 +291,9 @@ def ok(update: Update, context: CallbackContext):
 def cancel(update: Update, context: CallbackContext):
     board = context.user_data["board"]
     board.unset_hand()
+    hand = board.current_hand.upper()
     send(chat_id=update.effective_chat.id,
-         text="Enter N hand again",
+         text=f"Enter {hand} hand again",
          reply_buttons=[],
          context=context)
     context.user_data["currentHand"] = send(chat_id=update.effective_chat.id,
@@ -384,6 +387,8 @@ def add_player(update: Update, context: CallbackContext):
         context.user_data["add_player"] = False
         first, last, gender, rank, rank_ru = update.message.text.split(" ")
         Players.add_new_player(first, last, gender, rank, rank_ru)
+        global ALL_PLAYERS
+        ALL_PLAYERS = Players.get_players()
     else:
         context.user_data["add_player"] = True
         send(chat_id=update.effective_chat.id,
@@ -396,6 +401,8 @@ def update_player(update: Update, context: CallbackContext):
         context.user_data["update_player"] = False
         last, rank, rank_ru = update.message.text.split(" ")
         Players.update(last, rank, rank_ru)
+        global ALL_PLAYERS
+        ALL_PLAYERS = Players.get_players()
     else:
         context.user_data["update_player"] = True
         send(chat_id=update.effective_chat.id,

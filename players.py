@@ -138,6 +138,10 @@ class Players:
         return [(c[2], c[4] or 0, c[5]) if type(c) != str else (c, 0, 1.6) for c in candidates]
 
 
+global ALL_PLAYERS
+ALL_PLAYERS = Players.get_players()
+
+
 if __name__ == "__main__":
     Players.add_new_player("Ваче", "Минасян", "M", 6, 1.6)
     print(Players.get_players())
