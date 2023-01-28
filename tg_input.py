@@ -468,7 +468,8 @@ TD only commands:
 /addplayer: adds a new player to players DB
 /updateplayer: updates existing player record in players DB
 /boards: gets boards without results as pdf
-/end: gets tourney results, sends you raw db file & resulting pdfs, clears all data
+/end: gets tourney results, sends you raw db file & resulting pdfs, clears all data,
+/store: saves tourney results to yerevanbridge site db
         """
 
     send(chat_id=update.message.chat_id, text=text, context=context)
