@@ -11,7 +11,6 @@ from statistics import mean
 from tourney_db import TourneyDB
 
 
-
 class ResultGetter:
     _conn = None
     _deals = None
@@ -297,7 +296,7 @@ class ResultGetter:
                               "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
                               "tournament_title": CONFIG["tournament_title"], "totals": totals}
         html_string = Template(open("templates/rankings_template.html").read()).render(**self.rankings_dict)
-        return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Ranks.pdf")
+        return print_to_pdf(html_string, "Ranks.pdf")
 
     def pdf_travellers(self, boards_only=False):
         boards = []
@@ -351,16 +350,16 @@ class ResultGetter:
         self.travellers_dict = {"scoring_short": scoring_short, "boards": boards}
         html_string = Template(open("templates/travellers_template.html").read()).render(**self.travellers_dict)
 
-        return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Travellers.pdf")
+        return print_to_pdf(html_string, "Travellers.pdf")
 
     @staticmethod
     def _suits(string):
         old_string = string
         for s in ["spade", "heart", "diamond", "club"]:
-            string = re.sub('([1-7])' + s[0], f'\g<1><img src="/static/{s}.gif"/>', string, flags=re.IGNORECASE)
+            string = re.sub('([1-7])' + s[0], f'\g<1><img src="https://bridgemoscow.ru/images/{s}.gif"/>', string, flags=re.IGNORECASE)
             if old_string != string:
                 break
-            string = re.sub(s[0]+'([1-9akqjt]0?)', f'<img src="/static/{s}.gif"/>\g<1>', string, flags=re.IGNORECASE)
+            string = re.sub(s[0]+'([1-9akqjt]0?)', f'<img src="https://bridgemoscow.ru/images/{s}.gif"/>\g<1>', string, flags=re.IGNORECASE)
             if old_string != string:
                 break
         else:
@@ -424,9 +423,9 @@ class ResultGetter:
                             "opp_names": opp_names, "suspicious": "suspicious" * suspicious}
                     self.scorecards_dict["pairs"][-1].boards.append(Dict2Class(
                        {k: self._replace(v) for k, v in dikt.items()}))
-        html_string = Template(open("templates/scorecards_template.html").read()).render(**self.scorecards_dict)
+        html_template = Template(open("templates/scorecards_template.html").read()).render(**self.scorecards_dict)
         try:
-            return print_to_pdf(BeautifulSoup(html_string, features="lxml"), "Scorecards.pdf")
+            return print_to_pdf(html_template, "Scorecards.pdf")
         except:
             pass
 

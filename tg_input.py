@@ -327,7 +327,7 @@ def end(update: Update, context: CallbackContext):
     if 'BOT_TOKEN' in os.environ:
         path = TourneyDB.dump() if 'CURRENT_TOURNEY' in os.environ else db_path
         context.bot.send_document(chat_id, open(path, 'rb'))
-        if 'CURRENT_TOURNEY' in os.environ :
+        if 'CURRENT_TOURNEY' in os.environ:
             os.remove(path)
     try:
         context.bot_data['result_getter'] = ResultGetter(boards=context.bot_data["maxboard"],
