@@ -452,6 +452,13 @@ def title(update: Update, context: CallbackContext):
              reply_buttons=[], context=context)
 
 
+def mothly_report(update: Update, context: CallbackContext):
+    send(chat_id=update.effective_chat.id,
+         text=Players.monthly_report(),
+         reply_buttons=[], context=context)
+
+
+
 def help_command(update: Update, context: CallbackContext):
     text = """General commands:
 /session: shows session info
@@ -477,6 +484,7 @@ TD only commands:
 /boards: gets boards without results as pdf
 /end: gets tourney results, sends you raw db file & resulting pdfs, clears all data,
 /store: saves tourney results to yerevanbridge site db
+/mothlyreport: generates table with monthly MPs for RU players
         """
 
     send(chat_id=update.message.chat_id, text=text, context=context)
@@ -495,6 +503,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('title', title))
     updater.dispatcher.add_handler(CommandHandler('tourneycoeff', tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('custommovement', custom_movement))
+    updater.dispatcher.add_handler(CommandHandler('mothlyreport', mothly_report))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("0\.2?5"), tourney_coeff))
 
     # User input

@@ -2,12 +2,9 @@ import psycopg2
 import urllib.parse as up
 import sqlite3
 import re
-try:
-    from util import levenshtein
-    from constants import PLAYERS_DB
-except ImportError:
-    from .util import levenshtein
-    from .constants import PLAYERS_DB
+import time
+from util import levenshtein
+from constants import PLAYERS_DB
 
 up.uses_netloc.append("postgres")
 
@@ -136,6 +133,29 @@ class Players:
         else:
             candidates.sort(key=lambda p: players.index(p))
         return [(c[2], c[4] or 0, c[5]) if type(c) != str else (c, 0, 1.6) for c in candidates]
+
+    @staticmethod
+    def monthly_report():
+        current = time.localtime()
+        month = current[1] if current[2] > 24 else (current[1] - 2) % 12 + 1
+        year = current[0]
+        conn = Players.connect()
+        cursor = conn.cursor()
+        cursor.execute('select full_name,id_ru from players where id_ru > 0')
+        ru_players = {p[0].strip(): p[1] for p in cursor.fetchall()}
+        cursor.execute(f'select tournament_id from tournaments where EXTRACT(MONTH FROM "date")={month} '
+                       f'and EXTRACT(year FROM "date")={year}')
+        tourneys = cursor.fetchall()
+        mps = {}
+        for tourney in tourneys:
+            cursor.execute(f'select partnership, masterpoints_ru from names where tournament_id={tourney[0]} '
+                           f'and masterpoints_ru > 0')
+            pairs = cursor.fetchall()
+            for pair in pairs:
+                for name in pair[0].split(' & '):
+                    if name in ru_players.keys():
+                        mps[name] = mps.get(name, 0) + pair[1]
+        return "ID\tName\tMPs\n" + "\n".join(f"{ru_players[k]}\t{k}\t{v}" for k,v in mps.items())
 
 
 global ALL_PLAYERS
