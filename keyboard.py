@@ -26,7 +26,7 @@ def contracts_keyboard(update):
     return InlineKeyboardMarkup(lists)
 
 
-def lead_keyboard():
+def lead_keyboard(update):
     rows = []
 
     for i, s in enumerate(SUITS_UNICODE):
@@ -34,7 +34,9 @@ def lead_keyboard():
                       for text in [SUITS_UNICODE[i]] + CARDS_WITH_DIGIT_TEN]
         half = (len(suit_cards) + 1) // 2
         rows.extend([suit_cards[:half], suit_cards[half:]])
-    rows.append(NAVIGATION_KEYBOARD)
+    rows.append(deepcopy(NAVIGATION_KEYBOARD))
+    if is_director(update):
+        rows[-1].append(InlineKeyboardButton("Unknown lead", callback_data="bm:nolead"))
     return InlineKeyboardMarkup(rows)
 
 

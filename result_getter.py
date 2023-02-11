@@ -442,8 +442,9 @@ class ResultGetter:
 
         num_of_rounds = self.boards // boards_per_round
         if not tourney_exists:
+            t_date = date if DEBUG else time.strftime("%Y-%m-%d")
             insert = f"""INSERT INTO tournaments (date, boards, players, max, scoring, tournament_id, title, rounds) VALUES 
-    ('{date}', {self.boards}, {self.pairs}, {max_mp}, '{scoring}', {self.tournament_id}, '{title}', {num_of_rounds});"""
+    ('{t_date}', {self.boards}, {self.pairs}, {max_mp}, '{scoring}', {self.tournament_id}, '{title}', {num_of_rounds});"""
             cursor.execute(insert)
         for pair in self.rankings_dict["totals"]:
             rows = f"({self.tournament_id}, {pair.number}, '{pair.names}', '{self._replace(pair.rank)}', {pair.mp}, {pair.percent}," \
