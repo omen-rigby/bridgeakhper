@@ -176,6 +176,13 @@ def number(update: Update, context: CallbackContext):
              reply_buttons=[],
              context=context)
         return
+    if context.user_data.get("rounds"):
+        context.user_data["rounds"] = False
+        CONFIG["rounds"] = int(update.message.text)
+        send(chat_id=update.effective_chat.id,
+             text=f"The number of rounds is set to {update.message.text}",
+             reply_buttons=[], context=context)
+        return
     if context.bot_data["maxboard"] and context.bot_data["maxpair"]:
         conn = TourneyDB.connect()
         cursor = conn.cursor()
@@ -338,6 +345,7 @@ def end(update: Update, context: CallbackContext):
             os.remove(path)
     except Exception as e:
         send(chat_id=chat_id, text=f"Result getter failed with error: {e}", context=context)
+        raise
 
     if 'BOT_TOKEN' in os.environ and 'CURRENT_TOURNEY' not in os.environ:
         current_dir = os.getcwd()
@@ -427,6 +435,10 @@ def store(update: Update, context: CallbackContext):
     context.bot_data['result_getter'].save()
 
 
+def correct(update: Update, context: CallbackContext):
+    context.bot_data['result_getter'].save(correction=True)
+
+
 def load_db(update: Update, context: CallbackContext):
     path = f'{date}/boards.db'
     if os.stat(path):
@@ -436,6 +448,14 @@ def load_db(update: Update, context: CallbackContext):
 
 def custom_movement(update: Update, context: CallbackContext):
     context.bot_data["movement"] = None
+
+
+def rounds(update: Update, context: CallbackContext):
+    if not context.user_data.get("rounds"):
+        context.user_data["rounds"] = True
+        send(chat_id=update.effective_chat.id,
+             text=f"Enter the number of rounds",
+             reply_buttons=[], context=context)
 
 
 def title(update: Update, context: CallbackContext):
@@ -472,6 +492,7 @@ TD only commands:
 /tdlist: prints all TDs for the session
 /title: adds turney title
 /tourneycoeff: updates tournament coefficient
+/rounds: adjust the number of rounds  
 /custommovement: turns off preset movement
 /loaddb: (debug only) loads test set of boards and results from repo
 /rmboard: removes all hands for the specified board

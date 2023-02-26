@@ -175,8 +175,10 @@ class ResultGetter:
             cur.execute(f"select * from protocols where (ns={pair} or ew={pair}) and number > 0 order by number")
             # records are duplicated sometimes
             history = list(set(cur.fetchall()))
-            result_in_mp = sum(record[-2] if pair == record[1] else record[-1] for record in history)
-            self.totals.append([pair, result_in_mp])
+            results = [record[-2] if pair == record[1] else record[-1] for record in history]
+            result_in_mp = sum(results)
+            mp_per_board = result_in_mp/len(results)
+            self.totals.append([pair, result_in_mp, mp_per_board])
 
             vul = {'-': "-", "n": "NS", "e": "EW", "b": "ALL"}
             self.personals.append([])
@@ -202,7 +204,7 @@ class ResultGetter:
                                           board[8 + (pair != board[1])],
                                           round(board[8 + (pair != board[1])] * 100 / max_mp, 2),
                                           board[1 + (pair == board[1])]])
-        self.totals.sort(key=lambda x: -x[1])
+        self.totals.sort(key=lambda x: -x[2])
         self.get_masterpoints()
 
     def get_masterpoints(self):
@@ -212,7 +214,6 @@ class ResultGetter:
         n = self.pairs
         d = self.boards
         played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
-        max_mp = self.max_mp * played_boards
         b0 = total_rating * played_boards / 52 * CONFIG["tourney_coeff"]
         mps = [b0]
         for i in range(2, n):
@@ -221,23 +222,21 @@ class ResultGetter:
         cluster_index = 0
         for i in range(self.pairs):
             cluster_first = i - cluster_index
-            if cluster_first + 1 > round(0.4 * self.pairs) or self.totals[i][1] < max_mp / 2:
+            if cluster_first + 1 > round(0.4 * self.pairs) or self.totals[i][2] < self.max_mp / 2:
                 self.totals[i].append(0)
                 continue
-            cluster_length = len([a for a in self.totals if a[1] == self.totals[i][1]])
-            cluster_total = sum(mps[j] for j, a in enumerate(self.totals) if a[1] == self.totals[i][1])\
+            cluster_length = len([a for a in self.totals if a[2] == self.totals[i][2]])
+            cluster_total = sum(mps[j] for j, a in enumerate(self.totals) if a[2] == self.totals[i][2])\
                 / cluster_length
-            if i + 1 < len(self.totals) and self.totals[i + 1][1] == self.totals[i][1]:
+            if i + 1 < len(self.totals) and self.totals[i + 1][2] == self.totals[i][2]:
                 cluster_index += 1
             else:
                 cluster_index = 0
             # Ask Artem for the reasoning behind this
             if cluster_first + cluster_length > round(0.4 * self.pairs):
                 rounding_method = ceil
-            elif cluster_first < 2:
-                rounding_method = round
             else:
-                rounding_method = int
+                rounding_method = round
             self.totals[i].append(rounding_method(cluster_total))
         # RU
         # this dragon poker rules are taken from https://www.bridgesport.ru/materials/sports-classification/
@@ -258,8 +257,8 @@ class ResultGetter:
         mps = [50 * kqn * kd / r ** i for i in range(self.pairs)]
         try:
             for i, t in enumerate(self.totals):
-                cluster_length = len([a for a in self.totals if a[1] == self.totals[i][1]])
-                tied_mps = [mps[j] for j, a in enumerate(self.totals) if a[1] == self.totals[i][1]]
+                cluster_length = len([a for a in self.totals if a[2] == self.totals[i][2]])
+                tied_mps = [mps[j] for j, a in enumerate(self.totals) if a[2] == self.totals[i][2]]
                 cluster_total = sum(tied_mps) / cluster_length
                 t.append(1 if min(tied_mps) < 0.5 and max(map(round, tied_mps)) > 0 and cluster_total < 0.5 else round(cluster_total))
             # remove extra stuff from names
@@ -280,19 +279,18 @@ class ResultGetter:
         return string
 
     def pdf_rankings(self):
-        max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
         totals = []
         for i, rank in enumerate(self.totals):
-            cluster = [i for i, r in enumerate(self.totals) if r[1] == rank[1]]
+            cluster = [i for i, r in enumerate(self.totals) if r[2] == rank[2]]
             repl_dict = {
                 "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0],
                 "names": self.names[int(rank[0]) - 1], "mp": round(rank[1], 2),
-                "percent": round(100 * rank[1]/max_mp, 2),
-                "masterpoints": rank[2] or "",
-                "masterpoints_ru": rank[3] or ""
+                "percent": round(100 * rank[2]/self.max_mp, 2),
+                "masterpoints": rank[3] or "",
+                "masterpoints_ru": rank[4] or ""
             }
             totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
-        self.rankings_dict = {"scoring": CONFIG['scoring'], "max": max_mp, "tables": self.pairs // 2,
+        self.rankings_dict = {"scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
                               "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
                               "tournament_title": CONFIG["tournament_title"], "totals": totals}
         html_string = Template(open("templates/rankings_template.html").read()).render(**self.rankings_dict)
@@ -429,7 +427,7 @@ class ResultGetter:
         except:
             pass
 
-    def save(self, tourney_exists=False):
+    def save(self, tourney_exists=False, correction=False):
         conn = Players.connect()
         cursor = conn.cursor()
         title = self.rankings_dict['tournament_title']
@@ -439,6 +437,11 @@ class ResultGetter:
         if not self.tournament_id:
             cursor.execute(f'select count(*) from tournaments')
             self.tournament_id = cursor.fetchone()[0] + 1
+        if correction:
+            cursor.execute(f'remove from tournaments where tournament_id={self.tournament_id}')
+            cursor.execute(f'remove from names where tournament_id={self.tournament_id}')
+            cursor.execute(f'remove from boards where tournament_id={self.tournament_id}')
+            cursor.execute(f'remove from protocols where tournament_id={self.tournament_id}')
 
         num_of_rounds = self.boards // boards_per_round
         if not tourney_exists:
@@ -491,6 +494,6 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(27, 10)
+    g = ResultGetter(21, 7)
     g.process()
-    g.save()
+    # g.save()
