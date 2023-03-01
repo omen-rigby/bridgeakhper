@@ -263,8 +263,8 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
                  reply_buttons=("OK", "Cancel"),
                  context=context)
     elif key == "board":
-        from tg_input import board
-        board(update, context)
+        from command_handlers import CommandHandlers
+        CommandHandlers.board(update, context)
     elif key == "result":
         result(update, context)
 
