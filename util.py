@@ -17,7 +17,7 @@ class Dict2Class(object):
 
 
 def is_director(update):
-    return str(update.effective_chat.id) in DIRECTORS or update.effective_chat.username in DIRECTORS
+    return str(update.effective_user.id) in DIRECTORS or update.effective_user.username in DIRECTORS
 
 
 def levenshtein_distance_gen(str1, str2):
