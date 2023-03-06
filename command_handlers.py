@@ -154,7 +154,7 @@ class CommandHandlers:
         text = update.message.text
         if context.user_data.get("tournament_title"):
             return CommandHandlers.title(update, context)
-        if re.match('.*-.*', text) or re.match(' .* ', text):
+        if re.match('.*[-–—].*', text) or re.match(' .* ', text):
             return CommandHandlers.names_text(update, context)
 
     @staticmethod
