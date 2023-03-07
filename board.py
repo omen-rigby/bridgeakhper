@@ -127,6 +127,10 @@ class Board:
         overtrick_value = [50, 100][vul] * multiplier if multiplier > 1 else trick_value
         return int((bonus + base_cost * multiplier + overtrick_value * (result - tricks)) * sign)
 
+    def get_board_from_pbn(self, pbn):
+        for hand in pbn.split(' '):
+            self.set_hand(hand.replace(".", "\n"))
+
     def save(self):
         conn = TourneyDB.connect()
         cursor = conn.cursor()

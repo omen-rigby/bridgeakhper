@@ -1,6 +1,7 @@
 import logging
 from inline_key import *
 from command_handlers import CommandHandlers
+from file_handlers import FileHandlers
 
 
 PORT = int(os.environ.get('PORT', 5000))
@@ -54,6 +55,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("boards", CommandHandlers.get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document, FileHandlers.upload_boards))
     # Should go last
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), CommandHandlers.freeform))
 
