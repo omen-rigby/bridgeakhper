@@ -6,11 +6,11 @@ Inspired by @elizaveta2810 and tested in Yerevan bridge club.
 ## Cloud setup
 Below are the steps for a typical cloud setup. Feel free to adjust it to meet your needs.
 Cloud setup works faster than local and doesn't depend on 
-Create a new telegram bot for your club using @BotFather and edit config.json.
-Create a player database. We use ElephantSQL free tier, but local DB is also supported.
-Create a fly.io account and install flyctl.
-Install docker.
-Follow [this](https://bakanim.xyz/posts/deploy-telegram-bot-to-fly-io/) guide for the flyctl setup.
+* Create a new telegram bot for your club using @BotFather and edit config.json.
+* Create a player database. We use ElephantSQL free tier, but local DB is also supported.
+* Create a fly.io account and install flyctl.
+* Install docker.
+* Follow [this](https://bakanim.xyz/posts/deploy-telegram-bot-to-fly-io/) guide for the flyctl setup.
 ## Local setup
 ### Players database (optional)
 Use this step to unify the way player names appear in the results.
@@ -36,9 +36,6 @@ directors: list of directors. They will be able to start session and generate th
 token: Enter token of your bot. You can find in chat history for @BotFather.
 
 movement: "mitchell"  (not implemented) or "howell"
-
-full (not implemented): whether to have maximum number of rounds available. 
-If set to false, bot would ask for the number of rounds (to be implemented).
 
 scoring: MPs or IMPs or Cross-IMPs. Changed on the fly, config value is used for debugging purposes.
 

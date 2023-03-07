@@ -22,52 +22,73 @@ TABLE {
 	BORDER-TOP: 4px ridge; BORDER-RIGHT: 4px ridge; WIDTH: 90%; BORDER-COLLAPSE: collapse; BORDER-BOTTOM: 4px ridge; FONT-WEIGHT: normal; PADDING-BOTTOM: 2px; TEXT-ALIGN: center; PADDING-TOP: 2px; PADDING-LEFT: 2px; BORDER-LEFT: 4px ridge; PADDING-RIGHT: 2px; BACKGROUND-COLOR: #fdf0d9; cellpadding: 2
 }
 TH {
-	BORDER-TOP: #aaa 1px solid; BORDER-RIGHT: #aaa 1px solid; BORDER-BOTTOM: #aaa 1px solid; BORDER-LEFT: #aaa 1px solid
+	BORDER-TOP: #aaa 1px solid; BORDER-RIGHT: #aaa 1px solid; BORDER-BOTTOM: #aaa 1px solid; BORDER-LEFT: #aaa 1px solid; align:center;
 }
 TD {
-	BORDER-TOP: #aaa 1px solid; BORDER-RIGHT: #aaa 1px solid; BORDER-BOTTOM: #aaa 1px solid; BORDER-LEFT: #aaa 1px solid
+	BORDER-TOP: #aaa 1px solid; BORDER-RIGHT: #aaa 1px solid; BORDER-BOTTOM: #aaa 1px solid; BORDER-LEFT: #aaa 1px solid; align:center;
 }
 CAPTION {
 
+}
+.suspicious {
+background-color: #aa7777;
 }
 </style>
 </head>
 <body>
 <h1>Scorecards</h1>
+{% for pair in pairs %}
+{% if loop.index0 > 0 %}
 <div style="page-break-before:always">
+{% else %}
+<div>
+{% endif %}
 <table style="FONT-SIZE: 10pt; FONT-FAMILY: Arial">
   <tbody>
-  <tr bgcolor="#ffb0b0">
-    <th colspan="10" align="left"><div >PAIR ${pair} ${name}</div></th></tr>
-  <tr bgcolor="#ffb0b0">
-    <th colspan="10" align="left">${scoring_short}s ${mp_total} MaxMPs ${max_mp} Score ${percent_total}% Rank ${rank}</th>
-  </tr>
-  <tr bgcolor="#cfcfcf">
-    <th align="center">Bd</th>
-    <th align="center">Vul</th>
-    <th align="center">Dir</th>
-    <th align="center">Contract</th>
-    <th align="center">By</th>
-    <th align="center">Lead</th>
-    <th align="center">Score</th>
-    <th align="center">Percent</th>
-    <th align="center">${scoring_short}s</th>
-    <th align="center">${scoring_short}s per round</th>
-    <th align="center">Opps</th></tr>
-  <tr bgcolor="#efefef">
-    <td align="center">${board_number}</td>
-    <td align="center">${vul}</td>
-    <td align="center">${dir}</td>
-    <td align="center">${contract}</td>
-    <td align="center">${declarer}</td>
-    <td align="center">${lead}</td>
-    <td align="center">${score}</td>
-    <td align="center">${percent}</td>
-    <td align="center">${mp}</td>
-    <td rowspan="${boards_per_round}">${mp_per_round}</td>
-    <td rowspan="${boards_per_round}" align="left">${opp_names}</td>
-  </tr>
+    <tr bgcolor="#ffb0b0">
+      <th colspan="10" align="left"><div >PAIR {{pair.number}} {{pair.name}}</div></th></tr>
+    <tr bgcolor="#ffb0b0">
+        {% if scoring == "MPs" %}
+      <th colspan="10" align="left">{{scoring_short}} {{pair.mp_total}} MaxMPs {{max_mp}} Score {{pair.percent_total}}% Rank {{pair.rank}}</th>
+        {% else %}
+      <th colspan="10" align="left">{{scoring_short}} {{pair.mp_total}} Rank {{pair.rank}}</th>
+        {% endif %}
+    </tr>
+    <tr bgcolor="#cfcfcf">
+      <th>Bd</th>
+      <th>Vul</th>
+      <th>Dir</th>
+      <th>Contract</th>
+      <th>By</th>
+      <th>Lead</th>
+      <th>Score</th>
+      {% if scoring == "MPs" %}
+      <th>Percent</th>
+      {% endif %}
+      <th>{{scoring_short}}s</th>
+      <th>{{scoring_short}}s per round</th>
+      <th>Opps</th></tr>
+    {% for board in pair.boards %}
+    <tr bgcolor="#efefef">
+      <td>{{board.number}}</td>
+      <td>{{board.vul}}</td>
+      <td>{{board.dir}}</td>
+      <td class="{{board.suspicious}}">{{board.contract|safe}}</td>
+      <td>{{board.declarer}}</td>
+      <td>{{board.lead|safe}}</td>
+      <td>{{board.score}}</td>
+      {% if scoring == "MPs" %}
+      <td>{{board.percent}}</td>
+      {% endif %}
+      <td>{{board.mp}}</td>
+      {% if loop.index0 % boards_per_round == 0 %}
+      <td rowspan="{{boards_per_round}}">{{board.mp_per_round}}</td>
+      <td rowspan="{{boards_per_round}}" align="left">{{board.opp_names}}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
   </tbody></table>
 </div>
+{% endfor %}
 </body>
 </html>

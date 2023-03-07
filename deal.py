@@ -31,7 +31,7 @@ class Deal:
             self.data["v"] = VULNERABILITY[raw_hands[0] % 16]
             self.url = bbo_url_template.format(n=self.data["n"], s=self.data["s"], e=self.data["e"], w=self.data["w"],
                                                v=self.data["v"], d=self.data["d"], b=self.data["b"])
-            print(self.url)
+
         self.get_html()
 
     def get_board_from_db(self, number):

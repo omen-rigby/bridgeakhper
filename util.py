@@ -1,9 +1,23 @@
 from difflib import ndiff
-from constants import *
+try:
+    from constants import *
+except ImportError:
+    from .constants import *
+
+
+class Dict2Class(object):
+
+    def __init__(self, my_dict):
+        self.dict = my_dict
+        for key in my_dict:
+            setattr(self, key, my_dict[key])
+
+    def __str__(self):
+        return '{' + ", ".join(f"{k}: " + ("list" if type(v) == list else v.__str__()) for k, v in self.dict.items()) + '}'
 
 
 def is_director(update):
-    return str(update.effective_chat.id) in DIRECTORS or update.effective_chat.username in DIRECTORS
+    return str(update.effective_user.id) in DIRECTORS or update.effective_user.username in DIRECTORS
 
 
 def levenshtein_distance_gen(str1, str2):
