@@ -68,7 +68,7 @@ class ResultGetter:
 
     def set_scores_ximp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
-            mp_ns = 0 if s[3] == 'A' else 3 * (-1) ** ('A-' == s[3]) * (len(scores) - 1)
+            mp_ns = 0 if s[3] == 'A/A' else 3 * (-1) ** ('A+/A-' == s[3]) * (len(scores) - 1)
             mp_ew = -mp_ns
             s[8] = mp_ns
             s[9] = mp_ew
@@ -85,13 +85,16 @@ class ResultGetter:
 
     def set_scores_imp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
-            mp_ns = 0 if s[3] == 'A' else 3 * (-1) ** ('A-' == s[3])
+            mp_ns = 0 if s[3] == 'A/A' else 3 * (-1) ** ('A+/A-' == s[3]) * (len(scores) - 1)
             mp_ew = -mp_ns
             s[8] = mp_ns
             s[9] = mp_ew
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
             self.cursor.execute(statement)
-        results_mean = mean(s[7] for s in scores)
+        if scores:
+            results_mean = mean(s[7] for s in scores)
+        else:
+            results_mean = 0
         # datums ending in 5 are rounded towards the even number of tens
         # to make mean rounding error for a whole area tend to 0
         if results_mean % 20 == 5:
@@ -164,8 +167,10 @@ class ResultGetter:
             }[CONFIG["scoring"]]
             scores = scoring_method(board, scores, adjusted_scores)
             # TODO: change 60/40 to session average
-            self.travellers.append([[s[1], s[2], escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]), s[7] if s[7] >= 0 else "",
-                                    -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in scores + adjusted_scores])
+            all_scores = sorted(scores + adjusted_scores, key=lambda x: x[-2])
+            self.travellers.append([[s[1], s[2], escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]),
+                                     s[7] if s[7] >= 0 and s[7] != 1 else "",
+                                    -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in all_scores])
         self.conn.commit()
 
     def get_standings(self):
@@ -220,9 +225,10 @@ class ResultGetter:
             mps.append(b0 / (1 + i/(n - i)) ** (i - 1))
         mps.append(0)
         cluster_index = 0
+        half = self.max_mp / 2 if CONFIG["scoring"] == "MPs" else 0
         for i in range(self.pairs):
             cluster_first = i - cluster_index
-            if cluster_first + 1 > round(0.4 * self.pairs) or self.totals[i][2] < self.max_mp / 2:
+            if cluster_first + 1 > round(0.4 * self.pairs) or self.totals[i][2] < half:
                 self.totals[i].append(0)
                 continue
             cluster_length = len([a for a in self.totals if a[2] == self.totals[i][2]])
@@ -494,6 +500,7 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(21, 7)
+    g = ResultGetter(20, 6)
+    CONFIG["scoring"] = "IMPs"
     g.process()
     # g.save()

@@ -113,16 +113,19 @@ class Players:
                 continue
             # Full name partial match
             candidate = [p for p in players if levenshtein(partner, p[2]) <= 1]
+            candidate.sort(key=lambda p: levenshtein(partner, p[2]))
             if candidate:
                 candidates.append(candidate[0])
                 continue
             # Last and first name partial match
             candidate = [p for p in players if levenshtein(partner.split(" ")[-1], p[1]) <= 1]
+            candidate.sort(key=lambda p: levenshtein(partner.split(" ")[-1], p[1]))
             if candidate:
                 candidates.append(candidate[0])
                 continue
             # If a player has only first name, find
             candidate = [p for p in players if levenshtein(partner, p[0]) <= 2]
+            candidate.sort(key=lambda p: levenshtein(partner, p[0]))
             if candidate:
                 candidates.append(candidate[0])
                 continue
