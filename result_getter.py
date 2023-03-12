@@ -68,15 +68,17 @@ class ResultGetter:
 
     def set_scores_ximp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
-            mp_ns = 0 if s[3] == 'A/A' else 3 * (-1) ** ('A+/A-' == s[3]) * (len(scores) - 1)
+            mp_ns = 0 if s[3] == 'A/A' else 3 * (-1) ** ('A+/A-' == s[3])
             mp_ew = -mp_ns
             s[8] = mp_ns
             s[9] = mp_ew
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
             self.cursor.execute(statement)
         for s in scores:
-            mp_ns = sum(imps(s[7] - other[7]) for other in scores)
+            mp_ns = sum(imps(s[7] - other[7]) for other in scores) / (len(scores) - 1)
             mp_ew = -mp_ns
+            if abs(mp_ns) < 1/len(scores):
+                mp_ns = mp_ew = 0
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
             s[8] = mp_ns
             s[9] = mp_ew
@@ -202,7 +204,6 @@ class ResultGetter:
                     position = "NS"
                 elif pair == board[2]:
                     position = "EW"
-
                 self.personals[-1].append([board[0], vul[VULNERABILITY[board[0] % 16]], position,
                                           escape_suits(board[3] + board[6]), board[4], escape_suits(board[5]),
                                           board[7] * (-1) ** (pair != board[1]),
@@ -381,8 +382,11 @@ class ResultGetter:
             tricks = int(level) + 6 if result == "=" else eval(f'{level}{result}') + 6
             par = deal.data[f"{declarer}_par_{denomination}"]
             if denomination != "n":
-                fit = len(deal.data.get(f"{declarer}{denomination}")) + \
-                      len(deal.data.get(f"{dummy}{denomination}"))
+                decl_trumps = len(deal.data.get(f"{declarer}{denomination}"))
+                dummy_trumps = len(deal.data.get(f"{dummy}{denomination}"))
+                if decl_trumps + dummy_trumps <= 5 and abs(decl_trumps - dummy_trumps) < 5:
+                    return True
+                fit = decl_trumps + dummy_trumps
             else:
                 fit = 13
             return (abs(tricks - par) > 3 and denomination == "n") or (abs(tricks - par) >= 3 and fit < 7)
