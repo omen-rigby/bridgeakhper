@@ -27,7 +27,11 @@ RUN apt-get update && \
          xfonts-base
 RUN rm -rf /var/lib/apt/lists/* && \
     dpkg -i wkhtmltox_0.12.6-1.stretch_amd64.deb && \
-    rm -f wkhtmltox_0.12.6-1.stretch_amd64.deb
+    rm -f wkhtmltox_0.12.6-1.stretch_amd64.deb \
+# Install ucanaccess driver
+wget -O ucanaccess.zip https://sourceforge.net/projects/ucanaccess/files/UCanAccess-5.0.1.bin.zip/download \
+
+
 
 # Cleanup
 RUN apt-get -y autoremove && \

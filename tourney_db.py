@@ -2,10 +2,21 @@ import psycopg2
 import urllib.parse as up
 import sqlite3
 import os
-from constants import db_path
+import jaydebeapi
+from constants import db_path, SUITS, SUITS_UNICODE
 from players import Players
 up.uses_netloc.append("postgres")
 
+mdb_path = "templates/yer_20230312pimp1.mdb"
+# TODO: replace for cloud setup
+ucanaccess_jars = [
+    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/ucanaccess-5.0.1.jar",
+    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/lib/commons-lang3-3.8.1.jar",
+    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/lib/commons-logging-1.2.jar",
+    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/lib/hsqldb-2.5.0.jar",
+    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/lib/jackcess-3.0.1.jar",
+]
+classpath = ":".join(ucanaccess_jars)
 
 class TourneyDB:
     @staticmethod
@@ -115,21 +126,47 @@ VALUES {rows};"""
         conn2.close()
         return dump_path
 
-if __name__ == "__main__":
-    #TourneyDB.create_tables()
-    from result_getter import ALL_PLAYERS
+    @staticmethod
+    def to_access():
+        conn = TourneyDB.connect()
+        cursor = conn.cursor()
+        cursor.execute('select * from protocols')
+        protocols = cursor.fetchall()
+        players = max(max(p[1] for p in protocols), max(p[2] for p in protocols))
+        ms_conn = jaydebeapi.connect(
+            "net.ucanaccess.jdbc.UcanaccessDriver",
+            f"jdbc:ucanaccess://{mdb_path};newDatabaseVersion=V2010",
+            ["", ""],
+            classpath
+        )
 
-    conn = Players.connect()
-    cursor = conn.cursor()
-    cursor.execute("select * from names where tournament_id=1")
-    for d in cursor.fetchall():
-        number = d[1]
-        partnership = Players.lookup(d[2], ALL_PLAYERS)
-        names = " & ".join([p[0] for p in partnership])
-        rank = sum(p[1] for p in partnership) / len(partnership) * 2
-        rank_ru = sum(p[2] for p in partnership) / len(partnership)
-        cursor.execute(f"update names set partnership='{names}',rank={rank},rank_ru={rank_ru} where number={number}")
-    conn.commit()
-    conn.close()
+        ms_cursor = ms_conn.cursor()
+        ms_cursor.execute('select * from Data')
+        ms_cursor.execute('delete from Data')
+        for i, p in enumerate(protocols):
+            number, ns, ew, contract, declarer, lead, result, score = p[:8]
+            decl_num = ew if declarer in 'EW' else ns
+            contract = contract.replace('XX', ' xx').replace('X', ' x')
+            for new, old in zip(SUITS, SUITS_UNICODE):
+                lead = lead.replace(old, new)
+                contract = contract.replace(old, new)
+            # The two numbers below have no meaning yet look consistent
+            table = (ns - 1) // 2 + 1
+            round_n = (ns + ew - 1) % (players - 1) + 1
+            rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns}, {ew}, {decl_num}, '{declarer}', '{contract}'," \
+                   f"'{result}', '{lead}', {score}, 10000)"
+
+            insert = f"INSERT INTO Data (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW], Contract, " \
+                     f"Result, LeadCard, ScoreNS, ScoreEW) VALUES {rows};"
+            ms_cursor.execute(insert)
+        ms_conn.commit()
+        ms_conn.close()
+        conn.close()
+
+
+
+if __name__ == "__main__":
+    TourneyDB.to_access()
+
 
 
