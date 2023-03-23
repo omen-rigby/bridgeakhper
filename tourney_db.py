@@ -7,7 +7,7 @@ from constants import db_path, SUITS, SUITS_UNICODE
 from players import Players
 up.uses_netloc.append("postgres")
 
-mdb_path = "templates/yer_20230312pimp1.mdb"
+mdb_path = "/home/ibitkin/Downloads/2000.mdb"
 # TODO: replace for cloud setup
 ucanaccess_jars = [
     "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/ucanaccess-5.0.1.jar",
@@ -141,8 +141,8 @@ VALUES {rows};"""
         )
 
         ms_cursor = ms_conn.cursor()
-        ms_cursor.execute('select * from Data')
-        ms_cursor.execute('delete from Data')
+        ms_cursor.execute('select * from ReceivedData')
+        ms_cursor.execute('delete from ReceivedData')
         for i, p in enumerate(protocols):
             number, ns, ew, contract, declarer, lead, result, score = p[:8]
             decl_num = ew if declarer in 'EW' else ns
@@ -154,15 +154,14 @@ VALUES {rows};"""
             table = (ns - 1) // 2 + 1
             round_n = (ns + ew - 1) % (players - 1) + 1
             rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns}, {ew}, {decl_num}, '{declarer}', '{contract}'," \
-                   f"'{result}', '{lead}', {score}, 10000)"
+                   f"'{result}', '{lead}')"
 
-            insert = f"INSERT INTO Data (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW], Contract, " \
-                     f"Result, LeadCard, ScoreNS, ScoreEW) VALUES {rows};"
+            insert = f"INSERT INTO ReceivedData (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW], Contract, " \
+                     f"Result, LeadCard) VALUES {rows};"
             ms_cursor.execute(insert)
         ms_conn.commit()
         ms_conn.close()
         conn.close()
-
 
 
 if __name__ == "__main__":
