@@ -23,10 +23,12 @@ class TourneyDB:
             return sqlite3.connect(path)
 
     @staticmethod
-    def _create_tables(conn):
+    def _create_tables(conn, flavor='sqlite'):
+        int_type = 'int4' if flavor == 'postgres' else 'integer'
+        float_type = 'float4' if flavor == 'postgres' else 'float'
         cursor = conn.cursor()
-        statement = """CREATE TABLE "boards" (
-                                "number"	INTEGER  PRIMARY KEY,
+        statement = f"""CREATE TABLE "boards" (
+                                "number"	{int_type}  PRIMARY KEY,
                                 "ns"	TEXT,
                                 "nh"	TEXT,
                                 "nd"	TEXT,
@@ -45,30 +47,33 @@ class TourneyDB:
                                 "wc"	TEXT
                             )"""
         cursor.execute(statement)
-        statement = """CREATE TABLE "protocols" (
-                                        "number"	INTEGER,
-                                        "ns"	INTEGER,
-                                        "ew"	INTEGER,
+        statement = f"""CREATE TABLE "protocols" (
+                                        "number"	{int_type},
+                                        "ns"	{int_type},
+                                        "ew"	{int_type},
                                         "contract"	TEXT,
                                         "declarer"	TEXT,
                                         "lead"	TEXT,
                                         "result"  TEXT,
-                                        "score"	INTEGER,
-                                        "mp_ns" INTEGER,
-                                        "mp_ew" INTEGER
+                                        "score"	{int_type},
+                                        "mp_ns" {float_type},
+                                        "mp_ew" {float_type}
                                     )"""
         cursor.execute(statement)
-        statement = """CREATE TABLE "names" (
-                                        "number"	INTEGER  PRIMARY KEY,
+        if flavor == 'postgres':
+            constraint = 'ALTER TABLE public.protocols ADD CONSTRAINT protocols_un UNIQUE ("number",ns,ew);'
+            cursor.execute(constraint)
+        statement = f"""CREATE TABLE "names" (
+                                        "number"	{int_type}  PRIMARY KEY,
                                         "partnership"	TEXT
                                     )"""
         cursor.execute(statement)
         conn.commit()
 
     @staticmethod
-    def create_tables():
+    def create_tables(flavor='sqlite'):
         conn = TourneyDB.connect()
-        TourneyDB._create_tables(conn)
+        TourneyDB._create_tables(conn, flavor=flavor)
         conn.close()
 
     @staticmethod
@@ -115,21 +120,22 @@ VALUES {rows};"""
         conn2.close()
         return dump_path
 
-if __name__ == "__main__":
-    #TourneyDB.create_tables()
-    from result_getter import ALL_PLAYERS
 
-    conn = Players.connect()
-    cursor = conn.cursor()
-    cursor.execute("select * from names where tournament_id=1")
-    for d in cursor.fetchall():
-        number = d[1]
-        partnership = Players.lookup(d[2], ALL_PLAYERS)
-        names = " & ".join([p[0] for p in partnership])
-        rank = sum(p[1] for p in partnership) / len(partnership) * 2
-        rank_ru = sum(p[2] for p in partnership) / len(partnership)
-        cursor.execute(f"update names set partnership='{names}',rank={rank},rank_ru={rank_ru} where number={number}")
-    conn.commit()
-    conn.close()
+if __name__ == "__main__":
+    TourneyDB.create_tables(flavor='postgres')
+    # from result_getter import ALL_PLAYERS
+    #
+    # conn = Players.connect()
+    # cursor = conn.cursor()
+    # cursor.execute("select * from names where tournament_id=1")
+    # for d in cursor.fetchall():
+    #     number = d[1]
+    #     partnership = Players.lookup(d[2], ALL_PLAYERS)
+    #     names = " & ".join([p[0] for p in partnership])
+    #     rank = sum(p[1] for p in partnership) / len(partnership) * 2
+    #     rank_ru = sum(p[2] for p in partnership) / len(partnership)
+    #     cursor.execute(f"update names set partnership='{names}',rank={rank},rank_ru={rank_ru} where number={number}")
+    # conn.commit()
+    # conn.close()
 
 

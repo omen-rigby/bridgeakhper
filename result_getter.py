@@ -211,7 +211,13 @@ class ResultGetter:
                                           round(board[8 + (pair != board[1])] * 100 / max_mp, 2),
                                           board[1 + (pair == board[1])]])
         self.totals.sort(key=lambda x: -x[2])
-        self.get_masterpoints()
+        try:
+            self.get_masterpoints()
+        except:
+            for i in range(self.pairs):
+                self.totals[i].append(0)
+                self.totals[i].append(0)
+            self.names = [[n[0] for n in p] for p in self.names]
 
     def get_masterpoints(self):
         # AM
