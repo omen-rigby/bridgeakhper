@@ -55,6 +55,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("boards", CommandHandlers.get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
+    updater.dispatcher.add_handler(CommandHandler("bridgematedb", CommandHandlers.bridgematedb))
     updater.dispatcher.add_handler(MessageHandler(Filters.document, FileHandlers.upload_boards))
     # Should go last
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), CommandHandlers.freeform))

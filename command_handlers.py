@@ -1,4 +1,5 @@
 import shutil
+from transliterate import translit
 from board import Board
 from result_getter import ResultGetter
 from generate import generate
@@ -486,6 +487,14 @@ class CommandHandlers:
         send(chat_id=update.effective_chat.id,
              text=Players.monthly_report(),
              reply_buttons=[], context=context)
+
+    @staticmethod
+    def bridgematedb(update: Update, context: CallbackContext):
+        path = TourneyDB.to_access()
+        city = translit(CONFIG["city"].lower(), 'ru', reversed=True)
+        date_chunk = time.strftime("%y%m%d")
+        scoring = 'mp' if CONFIG["scoring"] == "MPs" else "imp"
+        context.bot.send_document(update.message.chat_id, open(path, 'rb'), f'{city}{date_chunk}p{scoring}1.bws')
 
     @staticmethod
     def help_command(update: Update, context: CallbackContext):

@@ -7,16 +7,6 @@ from constants import db_path, SUITS, SUITS_UNICODE
 from players import Players
 up.uses_netloc.append("postgres")
 
-mdb_path = "/home/ibitkin/Downloads/2000.mdb"
-# TODO: replace for cloud setup
-ucanaccess_jars = [
-    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/ucanaccess-5.0.1.jar",
-    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/lib/commons-lang3-3.8.1.jar",
-    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/lib/commons-logging-1.2.jar",
-    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/lib/hsqldb-2.5.0.jar",
-    "/home/ibitkin/Downloads/UCanAccess-5.0.1.bin/lib/jackcess-3.0.1.jar",
-]
-classpath = ":".join(ucanaccess_jars)
 
 class TourneyDB:
     @staticmethod
@@ -128,40 +118,51 @@ VALUES {rows};"""
 
     @staticmethod
     def to_access():
+        mdb_path = "templates/mdb.bws"
+        ucanaccess_jars = [
+            f'access_drivers/{path}' for path in ['ucanaccess-5.0.1.jar', 'lib/commons-lang3-3.8.1.jar',
+                                                  'lib/commons-logging-1.2.jar', 'lib/hsqldb-2.5.0.jar',
+                                                  'lib/jackcess-3.0.1.jar']]
+        ms_conn = jaydebeapi.connect(
+            "net.ucanaccess.jdbc.UcanaccessDriver",
+            f"jdbc:ucanaccess://{mdb_path};newDatabaseVersion=V2010",
+            ["", ""],
+            ":".join(ucanaccess_jars)
+        )
         conn = TourneyDB.connect()
         cursor = conn.cursor()
         cursor.execute('select * from protocols')
         protocols = cursor.fetchall()
         players = max(max(p[1] for p in protocols), max(p[2] for p in protocols))
-        ms_conn = jaydebeapi.connect(
-            "net.ucanaccess.jdbc.UcanaccessDriver",
-            f"jdbc:ucanaccess://{mdb_path};newDatabaseVersion=V2010",
-            ["", ""],
-            classpath
-        )
-
         ms_cursor = ms_conn.cursor()
-        ms_cursor.execute('select * from ReceivedData')
         ms_cursor.execute('delete from ReceivedData')
         for i, p in enumerate(protocols):
             number, ns, ew, contract, declarer, lead, result, score = p[:8]
             decl_num = ew if declarer in 'EW' else ns
-            contract = contract.replace('XX', ' xx').replace('X', ' x')
+            contract = contract.upper().replace('XX', ' xx').replace('X', ' x')
+            if contract[0].isdigit():
+                contract = f"{contract[0]} {contract[1:]}"
+                if contract[2] == "N" and (len(contract) == 3 or contract[3] != "T"):
+                    contract = contract.replace('N', 'NT')
             for new, old in zip(SUITS, SUITS_UNICODE):
                 lead = lead.replace(old, new)
-                contract = contract.replace(old, new)
+                contract = contract.replace(old, new.upper())
+            lead = lead.upper()
+            declarer = declarer.upper()
             # The two numbers below have no meaning yet look consistent
             table = (ns - 1) // 2 + 1
             round_n = (ns + ew - 1) % (players - 1) + 1
-            rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns}, {ew}, {decl_num}, '{declarer}', '{contract}'," \
-                   f"'{result}', '{lead}')"
+            rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns + 900}, {ew + 900}, {decl_num + 900}, " \
+                   f"'{declarer}', '{contract}', '{result}', '{lead}', '')"
 
-            insert = f"INSERT INTO ReceivedData (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW], Contract, " \
-                     f"Result, LeadCard) VALUES {rows};"
+            insert = f"INSERT INTO ReceivedData (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW]," \
+                     f" Contract, Result, LeadCard, Remarks) VALUES {rows};"
             ms_cursor.execute(insert)
+        ms_cursor.execute("select * from ReceivedData")
         ms_conn.commit()
         ms_conn.close()
         conn.close()
+        return mdb_path
 
 
 if __name__ == "__main__":
