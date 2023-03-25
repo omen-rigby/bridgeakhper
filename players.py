@@ -107,35 +107,60 @@ class Players:
         partners = [p.strip().replace("ё", "е") for p in partners]
         candidates = []
         for partner in partners:
-            candidate = [p for p in players if p[2] == partner]
+            name = partner.split(' ')[-1].replace('.', "")
+            surname = partner.split(' ')[-1].replace('.', "")
+            if len(surname) == 1 and not surname in (p[1] for p in players):
+                initial = surname
+                surname = partner.split(' ')[0]
+                name = initial
+                full_name = partner
+            elif len(name) == 1 and not name in (p[1] for p in players):
+                initial = name
+                name = initial
+                full_name = partner
+            elif len(partner.split(' ')) == 2:
+                name, surname = partner.split()
+                initial = ""
+                full_name = partner
+            else:
+                name = partner
+                surname = partner
+                initial = ""
+                full_name = partner
+            print(initial, name, surname, full_name)
+            candidate = [p for p in players if p[2] == full_name and p not in candidates]
             if candidate:
                 candidates.append(candidate[0])
                 continue
             # Full name partial match
-            candidate = [p for p in players if levenshtein(partner, p[2]) <= 1]
+            candidate = [p for p in players if levenshtein(full_name, p[2]) <= 1]
             candidate.sort(key=lambda p: levenshtein(partner, p[2]))
             if candidate:
                 candidates.append(candidate[0])
                 continue
             # Last and first name partial match
-            candidate = [p for p in players if levenshtein(partner.split(" ")[-1], p[1]) <= 1]
+            candidate = [p for p in players if levenshtein(surname, p[1]) <= 1 and p not in candidates]
             candidate.sort(key=lambda p: levenshtein(partner.split(" ")[-1], p[1]))
             if candidate:
-                candidates.append(candidate[0])
+                if initial and len(candidates) > 1:
+                    candidates.append([c for c in candidates if c[0][0] == initial])
+                else:
+                    candidates.append(candidate[0])
                 continue
             # If a player has only first name, find
-            candidate = [p for p in players if levenshtein(partner, p[0]) <= 2]
-            candidate.sort(key=lambda p: levenshtein(partner, p[0]))
-            if candidate:
-                candidates.append(candidate[0])
-                continue
+            if name == partner:
+                candidate = [p for p in players if levenshtein(name, p[0]) <= 2 and p not in candidates]
+                candidate.sort(key=lambda p: levenshtein(partner, p[0]))
+                if candidate:
+                    candidates.append(candidate[0])
+                    continue
             # Otherwise, use name as given
             candidates.append(partner)
         if len(set(map(lambda p: p[3], candidates))) == 2:
             candidates.sort(key=lambda p: p[3])
         else:
             candidates.sort(key=lambda p: players.index(p))
-        return [(c[2], c[4] or 0, c[5]) if type(c) != str else (c, 0, 1.6) for c in candidates]
+        return [(c[2], c[4] or 0, c[5] or 5) if type(c) != str else (c, 0, 1.6) for c in candidates]
 
     @staticmethod
     def monthly_report():

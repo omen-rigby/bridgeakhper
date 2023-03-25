@@ -29,7 +29,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('tourneycoeff', CommandHandlers.tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('custommovement', CommandHandlers.custom_movement))
     updater.dispatcher.add_handler(CommandHandler('monthlyreport', CommandHandlers.monthly_report))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex("0\.2?5"), CommandHandlers.tourney_coeff))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex("^0\.2?5$"), CommandHandlers.tourney_coeff))
 
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Clear"), CommandHandlers.clear_db))
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.text("OK"), CommandHandlers.ok))
     updater.dispatcher.add_handler(CommandHandler('restart', CommandHandlers.restart))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), CommandHandlers.cancel))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*MPs"), CommandHandlers.scoring))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex("^(Cross-)?I?MPs$"), CommandHandlers.scoring))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \w+ [FfMm] \d\d?(\.7)? \-?\d(\.5)?"),
                                                   CommandHandlers.add_player))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \d\d?(\.7)? \-?\d(\.5)?"),
@@ -55,6 +55,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("boards", CommandHandlers.get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
+    updater.dispatcher.add_handler(CommandHandler("correct", CommandHandlers.correct))
     updater.dispatcher.add_handler(CommandHandler("bridgematedb", CommandHandlers.bridgematedb))
     updater.dispatcher.add_handler(MessageHandler(Filters.document, FileHandlers.upload_boards))
     # Should go last

@@ -6,8 +6,8 @@ import os
 DEBUG = False
 
 date = "2022-10-10" if DEBUG else time.strftime("%Y-%m-%d")
-db_path = os.environ.get("CURRENT_TOURNEY") if 'CURRENT_TOURNEY' in os.environ else f"{date}/boards.db"
-PLAYERS_DB = os.environ.get("PLAYERS_DB") if "BOT_TOKEN" in os.environ else "players.db"
+db_path = os.environ.get("CURRENT_TOURNEY")
+PLAYERS_DB = os.environ.get("PLAYERS_DB")
 VULNERABILITY = ["e",
                  "-", "n", "e", "b",
                  "n", "e", "b", "-",
@@ -25,8 +25,11 @@ CONTRACT_RE = re.compile(f"^([1-7]([{SUITS_UNICODE}]|(NT))x{{0,2}}[{hands}])|(pa
 result_re = re.compile("=|([+-]\d\d?)")
 OPPS_RE = re.compile("(\d+) vs (\d+)")
 CARET = "_"  # □
-CONFIG = json.load(open(os.path.abspath(__file__).replace("constants.py", "config.json")))
+CONFIG = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
 DIRECTORS = CONFIG["directors"]
-if 'BOT_TOKEN' in os.environ and os.environ.get("DIRECTOR"):
-    DIRECTORS.append(str(os.environ.get("DIRECTOR")))
+if CONFIG.get("city"):
+    DIRECTORS.extend({"Ереван": ["2032624676", "Tania5588", "Kirilloid08"],  # Baloyan, Ponomareva, Egorov
+                      "Воронеж": ["1170570249"],  # V. Romanov
+                      "Курск": ["KotObormotlap4atyi"]  # Chernyshev aka polifem
+                      }.get(CONFIG["city"], []))
 

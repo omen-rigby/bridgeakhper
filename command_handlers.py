@@ -64,6 +64,11 @@ class CommandHandlers:
         context.bot_data["maxpair"] = 0
         context.user_data["currentHand"] = None
         context.user_data["result"] = None
+        for key in ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
+                    'rounds'):
+            context.user_data[key] = False
+        initial_config = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
+        CONFIG["tournament_title"] = initial_config["tournament_title"]
         CONFIG["tourney_coeff"] = 0.25
         send(chat_id=update.effective_chat.id,
              text="Started session. Enter scoring",
@@ -253,7 +258,11 @@ class CommandHandlers:
             context.user_data["currentHand"] = hand
         elif context.bot_data["maxboard"]:
             context.bot_data["maxpair"] = int(update.message.text)
-            context.bot_data["movement"] = get_movement(context.bot_data["maxpair"])
+            # TODO: need better conditiion
+            if CONFIG.get("city") == "Ереван":
+                context.bot_data["movement"] = get_movement(context.bot_data["maxpair"])
+            else:
+                context.bot_data["movement"] = None
             send(chat_id=update.effective_chat.id,
                  text="Enter board number",
                  reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
@@ -342,9 +351,9 @@ class CommandHandlers:
         if not is_director(update):
             send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
             return
-        if 'BOT_TOKEN' in os.environ and update.effective_chat.id > 0:
+        if 'BOT_TOKEN' in os.environ:
             path = TourneyDB.dump() if 'CURRENT_TOURNEY' in os.environ else db_path
-            context.bot.send_document(chat_id, open(path, 'rb'))
+            context.bot.send_document(update.message.from_user.id, open(path, 'rb'))
             if 'CURRENT_TOURNEY' in os.environ:
                 os.remove(path)
         try:
@@ -459,6 +468,9 @@ class CommandHandlers:
     @staticmethod
     def custom_movement(update: Update, context: CallbackContext):
         context.bot_data["movement"] = None
+        send(chat_id=update.effective_chat.id,
+             text="No movement is used",
+             reply_buttons=[], context=context)
 
     @staticmethod
     def rounds(update: Update, context: CallbackContext):
@@ -523,6 +535,7 @@ class CommandHandlers:
     /boards: gets boards without results as pdf
     /end: gets tourney results, sends you raw db file & resulting pdfs, clears all data,
     /store: saves tourney results to yerevanbridge site db
+    /correct: resaves last tourney results to yerevanbridge site db
     /monthlyreport: generates table with monthly MPs for RU players
             """
 
