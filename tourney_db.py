@@ -2,6 +2,7 @@ import psycopg2
 import urllib.parse as up
 import sqlite3
 import os
+import csv
 import jaydebeapi
 from constants import db_path, SUITS, SUITS_UNICODE
 from players import Players
@@ -122,12 +123,12 @@ VALUES {rows};"""
         return dump_path
 
     @staticmethod
-    def to_access():
+    def to_access(starting_number=0):
         mdb_path = "templates/mdb.bws"
-        ucanaccess_jars = [
-            f'access_drivers/{path}' for path in ['ucanaccess-5.0.1.jar', 'lib/commons-lang3-3.8.1.jar',
-                                                  'lib/commons-logging-1.2.jar', 'lib/hsqldb-2.5.0.jar',
-                                                  'lib/jackcess-3.0.1.jar']]
+        dirpath = os.path.dirname(os.path.abspath(__file__))
+        ucanaccess_jars = [f'{dirpath}/access_driver/{path}' for path in
+            ['ucanaccess-5.0.1.jar', 'lib/commons-lang3-3.8.1.jar', 'lib/commons-logging-1.2.jar',
+             'lib/hsqldb-2.5.0.jar', 'lib/jackcess-3.0.1.jar']]
         ms_conn = jaydebeapi.connect(
             "net.ucanaccess.jdbc.UcanaccessDriver",
             f"jdbc:ucanaccess://{mdb_path};newDatabaseVersion=V2010",
@@ -157,7 +158,10 @@ VALUES {rows};"""
             # The two numbers below have no meaning yet look consistent
             table = (ns - 1) // 2 + 1
             round_n = (ns + ew - 1) % (players - 1) + 1
-            rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns + 900}, {ew + 900}, {decl_num + 900}, " \
+            ns += starting_number
+            ew += starting_number
+            decl_num += starting_number
+            rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns}, {ew}, {decl_num}, " \
                    f"'{declarer}', '{contract}', '{result}', '{lead}', '')"
 
             insert = f"INSERT INTO ReceivedData (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW]," \
@@ -166,12 +170,22 @@ VALUES {rows};"""
         ms_cursor.execute("select * from ReceivedData")
         ms_conn.commit()
         ms_conn.close()
+        cursor.execute("select * from names order by number")
+        raw = cursor.fetchall()
+        players = Players.get_players()
+        players_path = 'players.csv'
+        with open(players_path, 'w', newline='', encoding="cp1251") as csvfile:
+            writer = csv.writer(csvfile, delimiter=';', quotechar='"')
+            for number, raw_pair in enumerate(raw):
+                raw_data = Players.lookup(raw_pair[1], players)
+                writer.writerow([number + starting_number + 1, raw_data[0][0], raw_data[1][0], '0',
+                                 (raw_data[0][2] + raw_data[1][2])/2])
+
         conn.close()
-        return mdb_path
+        return mdb_path, players_path
 
 
 if __name__ == "__main__":
-    TourneyDB.to_access()
-
+    pass
 
 

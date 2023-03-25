@@ -127,7 +127,6 @@ class Players:
                 surname = partner
                 initial = ""
                 full_name = partner
-            print(initial, name, surname, full_name)
             candidate = [p for p in players if p[2] == full_name and p not in candidates]
             if candidate:
                 candidates.append(candidate[0])

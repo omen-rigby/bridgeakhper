@@ -5,7 +5,8 @@ from copy import deepcopy
 
 APPS = {"Ереван": "bridgeakhper",
         "Воронеж": "bridgeakhper-voronezh",
-        "Курск": "bridgeakhper-kursk"}
+        "Курск": "bridgeakhper-kursk"
+        }
 
 config_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")
 constants_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "constants.py")
@@ -24,10 +25,10 @@ with open(config_path) as f:
         new_json["city"] = city
         new_json["tournament_title"] = f"Клубный турнир - {city}"
         with open(config_path, 'w') as g:
-            g.write(json.dumps(new_json, indent=4))
+            g.write(json.dumps(new_json, indent=2))
         subprocess.check_output(f'flyctl deploy -a {fly_app}'.split())
     else:
         with open(config_path, 'w') as g:
-            g.write(json.dumps(old_json, indent=4))
+            g.write(json.dumps(old_json, indent=2))
         with open(constants_path, 'w') as h:
             h.write(constants)

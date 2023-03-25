@@ -1,4 +1,5 @@
-FROM python:3.8-slim
+FROM openjdk:slim
+COPY --from=python:3.8-slim / /
 EXPOSE 8080
 # install wget
 RUN apt-get -y update
@@ -27,11 +28,7 @@ RUN apt-get update && \
          xfonts-base
 RUN rm -rf /var/lib/apt/lists/* && \
     dpkg -i wkhtmltox_0.12.6-1.stretch_amd64.deb && \
-    rm -f wkhtmltox_0.12.6-1.stretch_amd64.deb \
-# Install ucanaccess driver
-wget -O ucanaccess.zip https://sourceforge.net/projects/ucanaccess/files/UCanAccess-5.0.1.bin.zip/download \
-
-
+    rm -f wkhtmltox_0.12.6-1.stretch_amd64.deb
 
 # Cleanup
 RUN apt-get -y autoremove && \
