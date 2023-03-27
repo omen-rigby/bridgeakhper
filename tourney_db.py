@@ -137,7 +137,7 @@ VALUES {rows};"""
         )
         conn = TourneyDB.connect()
         cursor = conn.cursor()
-        cursor.execute('select * from protocols')
+        cursor.execute('select * from protocols where number < 21')
         protocols = cursor.fetchall()
         players = max(max(p[1] for p in protocols), max(p[2] for p in protocols))
         ms_cursor = ms_conn.cursor()
@@ -178,8 +178,8 @@ VALUES {rows};"""
             writer = csv.writer(csvfile, delimiter=';', quotechar='"')
             for number, raw_pair in enumerate(raw):
                 raw_data = Players.lookup(raw_pair[1], players)
-                writer.writerow([number + starting_number + 1, raw_data[0][0], raw_data[1][0], '0',
-                                 (raw_data[0][2] + raw_data[1][2])/2])
+                rank = str((raw_data[0][2] + raw_data[1][2])/2).replace('.', ",")
+                writer.writerow([number + starting_number + 1, raw_data[0][0], raw_data[1][0], '0', rank])
 
         conn.close()
         return mdb_path, players_path

@@ -1,5 +1,4 @@
 import shutil
-from transliterate import translit
 from board import Board
 from result_getter import ResultGetter
 from generate import generate
@@ -505,10 +504,10 @@ class CommandHandlers:
         chat_id = update.message.chat_id
         starting_number = {"Ереван": 800, "Воронеж": 600, "Курск": 700}[CONFIG['city']]
         path, players_data = TourneyDB.to_access(starting_number)
-        city = translit(CONFIG["city"].lower(), 'ru', reversed=True)
         date_chunk = time.strftime("%y%m%d")
         scoring = 'mp' if CONFIG["scoring"] == "MPs" else "imp"
-        context.bot.send_document(chat_id, open(path, 'rb'), f'{city}{date_chunk}p{scoring}1.bws')
+        room = starting_number // 100
+        context.bot.send_document(chat_id, open(path, 'rb'), f'um{date_chunk}p{scoring}1r{room}.bws')
         context.bot.send_document(chat_id, open(players_data, 'rb'))
 
     @staticmethod
