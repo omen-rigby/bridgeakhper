@@ -137,7 +137,7 @@ VALUES {rows};"""
         )
         conn = TourneyDB.connect()
         cursor = conn.cursor()
-        cursor.execute('select * from protocols where number < 21')
+        cursor.execute('select * from protocols')
         protocols = cursor.fetchall()
         players = max(max(p[1] for p in protocols), max(p[2] for p in protocols))
         ms_cursor = ms_conn.cursor()
