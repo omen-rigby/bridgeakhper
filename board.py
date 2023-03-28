@@ -102,7 +102,6 @@ class Board:
         """
         sign = (-1) ** (declarer in "ew")
         multiplier = 2 ** multiplier.count("x")
-        print([declarer, denomination, tricks, result, multiplier])
         vul = self.is_vul(declarer)
         if result is None:
             result = tricks
@@ -111,7 +110,6 @@ class Board:
             if multiplier == 1:
                 return (50 + 50 * vul) * (result - tricks) * sign
             return -self.sac_score(declarer, tricks - result) * multiplier // 2 * sign
-        print("CONTRACT MADE")
         trick_value = 20 if denomination in "cd♦♣" else 30
         base_cost = level * trick_value + 10 * (denomination[0] == "n")
         bonus = 50

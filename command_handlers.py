@@ -500,6 +500,17 @@ class CommandHandlers:
              reply_buttons=[], context=context)
 
     @staticmethod
+    def bridgematedb(update: Update, context: CallbackContext):
+        chat_id = update.message.chat_id
+        starting_number = {"Ереван": 800, "Воронеж": 600, "Курск": 700}[CONFIG['city']]
+        path, players_data = TourneyDB.to_access(starting_number)
+        date_chunk = time.strftime("%y%m%d")
+        scoring = 'mp' if CONFIG["scoring"] == "MPs" else "imp"
+        room = starting_number // 100
+        context.bot.send_document(chat_id, open(path, 'rb'), f'um{date_chunk}p{scoring}1r{room}.bws')
+        context.bot.send_document(chat_id, open(players_data, 'rb'))
+
+    @staticmethod
     def help_command(update: Update, context: CallbackContext):
         text = """General commands:
     /session: shows session info

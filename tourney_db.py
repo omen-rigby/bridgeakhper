@@ -2,7 +2,9 @@ import psycopg2
 import urllib.parse as up
 import sqlite3
 import os
-from constants import db_path
+import csv
+import jaydebeapi
+from constants import db_path, SUITS, SUITS_UNICODE
 from players import Players
 up.uses_netloc.append("postgres")
 
@@ -120,22 +122,70 @@ VALUES {rows};"""
         conn2.close()
         return dump_path
 
+    @staticmethod
+    def to_access(starting_number=0):
+        mdb_path = "templates/mdb.bws"
+        dirpath = os.path.dirname(os.path.abspath(__file__))
+        ucanaccess_jars = [f'{dirpath}/access_driver/{path}' for path in
+            ['ucanaccess-5.0.1.jar', 'lib/commons-lang3-3.8.1.jar', 'lib/commons-logging-1.2.jar',
+             'lib/hsqldb-2.5.0.jar', 'lib/jackcess-3.0.1.jar']]
+        ms_conn = jaydebeapi.connect(
+            "net.ucanaccess.jdbc.UcanaccessDriver",
+            f"jdbc:ucanaccess://{mdb_path};newDatabaseVersion=V2010",
+            ["", ""],
+            ":".join(ucanaccess_jars)
+        )
+        conn = TourneyDB.connect()
+        cursor = conn.cursor()
+        cursor.execute('select * from protocols')
+        protocols = cursor.fetchall()
+        players = max(max(p[1] for p in protocols), max(p[2] for p in protocols))
+        ms_cursor = ms_conn.cursor()
+        ms_cursor.execute('delete from ReceivedData')
+        for i, p in enumerate(protocols):
+            number, ns, ew, contract, declarer, lead, result, score = p[:8]
+            decl_num = ew if declarer in 'EW' else ns
+            contract = contract.upper().replace('XX', ' xx').replace('X', ' x')
+            if contract[0].isdigit():
+                contract = f"{contract[0]} {contract[1:]}"
+                if contract[2] == "N" and (len(contract) == 3 or contract[3] != "T"):
+                    contract = contract.replace('N', 'NT')
+            for new, old in zip(SUITS, SUITS_UNICODE):
+                lead = lead.replace(old, new)
+                contract = contract.replace(old, new.upper())
+            lead = lead.upper()
+            declarer = declarer.upper()
+            # The two numbers below have no meaning yet look consistent
+            table = (ns - 1) // 2 + 1
+            round_n = (ns + ew - 1) % (players - 1) + 1
+            ns += starting_number
+            ew += starting_number
+            decl_num += starting_number
+            rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns}, {ew}, {decl_num}, " \
+                   f"'{declarer}', '{contract}', '{result}', '{lead}', '')"
+
+            insert = f"INSERT INTO ReceivedData (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW]," \
+                     f" Contract, Result, LeadCard, Remarks) VALUES {rows};"
+            ms_cursor.execute(insert)
+        ms_cursor.execute("select * from ReceivedData")
+        ms_conn.commit()
+        ms_conn.close()
+        cursor.execute("select * from names order by number")
+        raw = cursor.fetchall()
+        players = Players.get_players()
+        players_path = 'players.csv'
+        with open(players_path, 'w', newline='', encoding="cp1251") as csvfile:
+            writer = csv.writer(csvfile, delimiter=';', quotechar='"')
+            for number, raw_pair in enumerate(raw):
+                raw_data = Players.lookup(raw_pair[1], players)
+                rank = str((raw_data[0][2] + raw_data[1][2])/2).replace('.', ",")
+                writer.writerow([number + starting_number + 1, raw_data[0][0], raw_data[1][0], '0', rank])
+
+        conn.close()
+        return mdb_path, players_path
+
 
 if __name__ == "__main__":
-    TourneyDB.create_tables(flavor='postgres')
-    # from result_getter import ALL_PLAYERS
-    #
-    # conn = Players.connect()
-    # cursor = conn.cursor()
-    # cursor.execute("select * from names where tournament_id=1")
-    # for d in cursor.fetchall():
-    #     number = d[1]
-    #     partnership = Players.lookup(d[2], ALL_PLAYERS)
-    #     names = " & ".join([p[0] for p in partnership])
-    #     rank = sum(p[1] for p in partnership) / len(partnership) * 2
-    #     rank_ru = sum(p[2] for p in partnership) / len(partnership)
-    #     cursor.execute(f"update names set partnership='{names}',rank={rank},rank_ru={rank_ru} where number={number}")
-    # conn.commit()
-    # conn.close()
+    pass
 
 
