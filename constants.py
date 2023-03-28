@@ -6,8 +6,9 @@ import os
 DEBUG = False
 
 date = "2022-10-10" if DEBUG else time.strftime("%Y-%m-%d")
-db_path = os.environ.get("CURRENT_TOURNEY")
-PLAYERS_DB = os.environ.get("PLAYERS_DB")
+db_path = 'postgres://kkuszqyy:t4VC-3XOKsoqB3sfXbkedyidyJr5v9N4@mouse.db.elephantsql.com/kkuszqyy'
+PLAYERS_DB = "postgres://brazysvu:Wu90folV-2LsFRVF02qSaMZov_bSU1yp@mouse.db.elephantsql.com/brazysvu"
+
 VULNERABILITY = ["e",
                  "-", "n", "e", "b",
                  "n", "e", "b", "-",

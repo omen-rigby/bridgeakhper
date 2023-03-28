@@ -103,7 +103,6 @@ border-collapse: collapse;
         tables = old_string.split('<TH width="100%" colSpan=13>Board')
 
         new_tables = [tables[0]]
-        print(len(tables))
         contract_re = re.compile(
             '<TD align=center>(\d+)</TD>\n(\s+)<TD align=center>(\d+)</TD>\n\s+<TD align=center>(\d)([SHDCN])([^<]+)</TD>'
             '\n\s+<TD align=center>(\w)</TD>',
