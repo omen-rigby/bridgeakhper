@@ -6,7 +6,7 @@ import os
 DEBUG = False
 
 date = "2022-10-10" if DEBUG else time.strftime("%Y-%m-%d")
-db_path = os.environ.get("CURRENT_TOURNEY")
+db_path = os.environ.get("CURRENT_TOURNEY") 
 PLAYERS_DB = os.environ.get("PLAYERS_DB")
 VULNERABILITY = ["e",
                  "-", "n", "e", "b",
