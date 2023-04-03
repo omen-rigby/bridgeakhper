@@ -63,12 +63,14 @@ class CommandHandlers:
         context.bot_data["maxpair"] = 0
         context.user_data["currentHand"] = None
         context.user_data["result"] = None
+        context.user_data["names"] = None
         for key in ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
-                    'rounds'):
+                    'rounds', 'add_td'):
             context.user_data[key] = False
         initial_config = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
         CONFIG["tournament_title"] = initial_config["tournament_title"]
         CONFIG["tourney_coeff"] = 0.25
+        init_tds()
         send(chat_id=update.effective_chat.id,
              text="Started session. Enter scoring",
              reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
@@ -159,8 +161,16 @@ class CommandHandlers:
         text = update.message.text
         if context.user_data.get("tournament_title"):
             return CommandHandlers.title(update, context)
-        if re.match('.*[-–—].*', text) or re.match(' .* ', text):
+        if context.user_data.get("add_player"):
+            CommandHandlers.add_player(update, context)
+        if context.user_data.get("update_player"):
+            CommandHandlers.update_player(update, context)
+        if context.user_data.get("add_td"):
+            return CommandHandlers.add_td(update, context)
+        if context.user_data.get("names") is not None and \
+                re.match('[\w ]+[-–—][\w ]+', text) or re.match('[\w ]+ [\w ]+', text):
             return CommandHandlers.names_text(update, context)
+        send(update.effective_chat.id, "Unknown command", [], context)
 
     @staticmethod
     def names_text(update: Update, context: CallbackContext):
@@ -183,6 +193,9 @@ class CommandHandlers:
 
     @staticmethod
     def number(update: Update, context: CallbackContext):
+        if len(update.message.text) > 3:
+            # Telegram ID
+            return CommandHandlers.freeform(update, context)
         if context.user_data.get("names", -1) == 0:
             pair_number = int(update.message.text)
             context.user_data["names"] = pair_number
@@ -257,8 +270,7 @@ class CommandHandlers:
             context.user_data["currentHand"] = hand
         elif context.bot_data["maxboard"]:
             context.bot_data["maxpair"] = int(update.message.text)
-            # TODO: need better conditiion
-            if CONFIG.get("city") == "Ереван":
+            if AM:
                 context.bot_data["movement"] = get_movement(context.bot_data["maxpair"])
             else:
                 context.bot_data["movement"] = None
@@ -412,29 +424,55 @@ class CommandHandlers:
     def add_player(update: Update, context: CallbackContext):
         if context.user_data.get("add_player"):
             context.user_data["add_player"] = False
-            first, last, gender, rank, rank_ru = update.message.text.split(" ")
-            Players.add_new_player(first, last, gender, rank, rank_ru)
+            if AM:
+                first, last, gender, rank, rank_ru = update.message.text.split(" ")
+            else:
+                first, last, gender, rank_ru = update.message.text.split(" ")
+                rank = 0
+            Players.add_new_player(first, last, gender, rank or 0, rank_ru)
             global ALL_PLAYERS
             ALL_PLAYERS = Players.get_players()
+            send(update.effective_chat.id, f"Added player {first} {last}", [], context)
         else:
             context.user_data["add_player"] = True
             send(chat_id=update.effective_chat.id,
-                 text=f"Enter space-separated first name, last name, gender, rank, rank RU",
+                 text=f"Enter space-separated first name, last name, gender{', rank' * AM}, rank RU",
                  reply_buttons=[], context=context)
 
     @staticmethod
     def update_player(update: Update, context: CallbackContext):
         if context.user_data.get("update_player"):
             context.user_data["update_player"] = False
-            last, rank, rank_ru = update.message.text.split(" ")
-            Players.update(last, rank, rank_ru)
+            text = update.message.text
+            if AM:
+                if text.count(' ') == 2:
+                    last, rank, rank_ru = text.split(' ')
+                    first = None
+                else:
+                    first, last, rank, rank_ru = text.split(' ')
+            else:
+                rank = None
+                if text.count(' ') == 1:
+                    first = None
+                    last, rank_ru = text.split(' ')
+                else:
+                    first, last, rank_ru = text.split(' ')
+            Players.update(last, first_name=first, rank=rank, rank_ru=rank_ru)
             global ALL_PLAYERS
             ALL_PLAYERS = Players.get_players()
+            send(update.effective_chat.id, "Updated player", [], context)
         else:
             context.user_data["update_player"] = True
             send(chat_id=update.effective_chat.id,
-                 text=f"Enter space-separated last name, rank, rank RU",
+                 text=f"Enter space-separated values: last name/full name{', rank' * AM}, rank RU",
                  reply_buttons=[], context=context)
+
+    @staticmethod
+    def list_players(update: Update, context: CallbackContext):
+        players_list = Players.get_players('full_name,rank_ru' + ',rank' * AM)
+        send(chat_id=update.effective_chat.id,
+             text=f"Name\trank\n" + '\n'.join("\t".join(map(str, p)) for p in players_list),
+             reply_buttons=[], context=context)
 
     @staticmethod
     def get_boards_only(update: Update, context: CallbackContext):
@@ -447,7 +485,24 @@ class CommandHandlers:
 
     @staticmethod
     def td_list(update: Update, context: CallbackContext):
-        send(chat_id=update.message.chat_id, text=", ".join(DIRECTORS), context=context)
+        send(chat_id=update.effective_chat.id, text=", ".join(DIRECTORS), context=context)
+
+    @staticmethod
+    def add_td(update: Update, context: CallbackContext):
+        chat_id = update.effective_chat.id
+        if not is_director(update):
+            send(chat_id=chat_id, text="You don't have enough rights to add TDs", context=context)
+            return
+
+        if context.user_data.get("add_td"):
+            context.user_data["add_td"] = False
+            DIRECTORS.add(update.message.text)
+            send(chat_id=chat_id, text="The following players have TD rights:" + ", ".join(DIRECTORS), context=context)
+        else:
+            context.user_data["add_td"] = True
+            send(chat_id=update.effective_chat.id,
+                 text=f"Enter nickname or Telegram ID of the new TD",
+                 reply_buttons=[], context=context)
 
     @staticmethod
     def store(update: Update, context: CallbackContext):
@@ -522,10 +577,10 @@ class CommandHandlers:
 
     TD only commands:
     /tdlist: prints all TDs for the session
-    /title: adds turney title
-    /tourneycoeff: updates tournament coefficient
-    /rounds: adjust the number of rounds  
-    /custommovement: turns off preset movement
+    /title: adds turney title""" + """
+    /tourneycoeff: updates tournament coefficient""" * AM + """
+    /rounds: adjust the number of rounds""" + """
+    /custommovement: turns off preset movement""" * AM + """
     /loaddb: (debug only) loads test set of boards and results from repo
     /rmboard: removes all hands for the specified board
     /restart: when submitting hands, reset all hands and starts again from N
@@ -534,11 +589,13 @@ class CommandHandlers:
     /viewboard: shows 4 hands for specified board
     /addplayer: adds a new player to players DB
     /updateplayer: updates existing player record in players DB
+    /playerslist: prints list of all players associated with the club
     /boards: gets boards without results as pdf
-    /end: gets tourney results, sends you raw db file & resulting pdfs, clears all data,
+    /end: gets tourney results, sends you raw db file & resulting pdfs, clears all data
+    /bridgematedb: convert to bridgemate format""" + """
     /store: saves tourney results to yerevanbridge site db
-    /correct: resaves last tourney results to yerevanbridge site db
-    /monthlyreport: generates table with monthly MPs for RU players
-            """
+    /correct: resaves last tourney results to yerevanbridge site db""" * AM + """
+    /addtd: adds director to current tourney. To add a permanent TD, ask devs in DM""" + """
+    /monthlyreport: generates table with monthly MPs for RU players""" * AM
 
         send(chat_id=update.message.chat_id, text=text, context=context)

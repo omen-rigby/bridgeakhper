@@ -40,10 +40,6 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('restart', CommandHandlers.restart))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), CommandHandlers.cancel))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^(Cross-)?I?MPs$"), CommandHandlers.scoring))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \w+ [FfMm] \d\d?(\.7)? \-?\d(\.5)?"),
-                                                  CommandHandlers.add_player))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex("\w+ \d\d?(\.7)? \-?\d(\.5)?"),
-                                                  CommandHandlers.update_player))
 
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
     # Results
@@ -52,11 +48,13 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("viewboard", CommandHandlers.view_board))
     updater.dispatcher.add_handler(CommandHandler("addplayer", CommandHandlers.add_player))
     updater.dispatcher.add_handler(CommandHandler("updateplayer", CommandHandlers.update_player))
+    updater.dispatcher.add_handler(CommandHandler("playerslist", CommandHandlers.list_players))
     updater.dispatcher.add_handler(CommandHandler("boards", CommandHandlers.get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
     updater.dispatcher.add_handler(CommandHandler("correct", CommandHandlers.correct))
     updater.dispatcher.add_handler(CommandHandler("bridgematedb", CommandHandlers.bridgematedb))
+    updater.dispatcher.add_handler(CommandHandler("addtd", CommandHandlers.add_td))
     updater.dispatcher.add_handler(MessageHandler(Filters.document, FileHandlers.upload_boards))
     # Should go last
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), CommandHandlers.freeform))

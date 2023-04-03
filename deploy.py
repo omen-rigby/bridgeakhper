@@ -3,10 +3,11 @@ import os
 import json
 from copy import deepcopy
 
-APPS = {"Ереван": "bridgeakhper",
-        "Воронеж": "bridgeakhper-voronezh",
-        "Курск": "bridgeakhper-kursk"
-        }
+APPS = {
+     "Ереван": "bridgeakhper",
+     "Воронеж": "bridgeakhper-voronezh",
+     "Курск": "bridgeakhper-kursk"
+}
 
 config_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")
 constants_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "constants.py")
@@ -26,7 +27,10 @@ with open(config_path) as f:
         new_json["tournament_title"] = f"Клубный турнир - {city}"
         with open(config_path, 'w') as g:
             g.write(json.dumps(new_json, indent=2))
-        subprocess.check_output(f'flyctl deploy -a {fly_app}'.split())
+        try:
+            subprocess.check_output(f'flyctl deploy -a {fly_app} --force-machines'.split())
+        except Exception as e:
+            print(f"{city} deployment failed with exception")
     else:
         with open(config_path, 'w') as g:
             g.write(json.dumps(old_json, indent=2))

@@ -26,10 +26,20 @@ result_re = re.compile("=|([+-]\d\d?)")
 OPPS_RE = re.compile("(\d+) vs (\d+)")
 CARET = "_"  # □
 CONFIG = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
-DIRECTORS = CONFIG["directors"]
-if CONFIG.get("city"):
-    DIRECTORS.extend({"Ереван": ["2032624676", "Tania5588", "Kirilloid08"],  # Baloyan, Ponomareva, Egorov
-                      "Воронеж": ["1170570249"],  # V. Romanov
-                      "Курск": ["KotObormotlap4atyi"]  # Chernyshev aka polifem
-                      }.get(CONFIG["city"], []))
+AM = CONFIG["city"] in ("Ереван",)
 
+global DIRECTORS
+
+
+def init_tds():
+    global DIRECTORS
+    DIRECTORS = set(CONFIG["directors"])
+    if CONFIG.get("city"):
+        DIRECTORS.update({
+            "Ереван": ["2032624676", "Tania5588", "Kirilloid08"],  # Baloyan, Ponomareva, Egorov
+            "Воронеж": ["1170570249"],  # V. Romanov
+            "Курск": ["KotObormotlap4atyi"]  # Chernyshev aka polifem
+        }.get(CONFIG["city"], []))
+
+
+init_tds()

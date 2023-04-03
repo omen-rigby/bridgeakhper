@@ -36,23 +36,30 @@ def inline_key(update: Update, context: CallbackContext):
         result_data = context.user_data["result"]
 
         if key.isdigit():
-            next_field = result_data.text.split(CARET)[1].lstrip("\n")
-            if next_field.startswith("Lead:"):
-                new_text = re.sub(f"{CARET}", f"{key.upper()}{CARET}", result_data.text)
-                prev, tail = new_text.split(key + CARET)
-                if prev[-1] in SUITS_UNICODE:
-                    new_text = f"{prev[:-1]}{key}{prev[-1]}{CARET}{tail}"
-            else:
-                new_text = re.sub(f"{CARET}\n([^:]+): ", f"{key.upper()}\n\g<1>: {CARET}", result_data.text,
+            if int(result_data.text.split(CARET)[0].split(": ")[-1] + key) > context.bot_data["maxpair"]:
+                # bad number submitted
+                new_text = re.sub(f"\n([^:]+): .*{CARET}", f"\n\g<1>: {CARET}", result_data.text,
                                   flags=re.MULTILINE)
-            if next_field.startswith("EW: "):
-                context.user_data["markups"] = [pairs_keyboard(update, context)]
-                reply_markup = pairs_keyboard(update, context, exclude=key)
-                context.user_data["markups"].append(reply_markup)
+                new_text = f"Incorrect pair number, try again\n{new_text}"
+                reply_markup = context.user_data["markups"][-1]
             else:
-                reply_markup = contracts_keyboard(update)
-                if context.user_data["markups"][-1] != reply_markup:
+                next_field = result_data.text.split(CARET)[1].lstrip("\n")
+                if next_field.startswith("Lead:"):
+                    new_text = re.sub(f"{CARET}", f"{key.upper()}{CARET}", result_data.text)
+                    prev, tail = new_text.split(key + CARET)
+                    if prev[-1] in SUITS_UNICODE:
+                        new_text = f"{prev[:-1]}{key}{prev[-1]}{CARET}{tail}"
+                else:
+                    new_text = re.sub(f"{CARET}\n([^:]+): ", f"{key.upper()}\n\g<1>: {CARET}", result_data.text,
+                                      flags=re.MULTILINE)
+                if next_field.startswith("EW: "):
+                    context.user_data["markups"] = [pairs_keyboard(update, context)]
+                    reply_markup = pairs_keyboard(update, context, exclude=key)
                     context.user_data["markups"].append(reply_markup)
+                else:
+                    reply_markup = contracts_keyboard(update)
+                    if context.user_data["markups"][-1] != reply_markup:
+                        context.user_data["markups"].append(reply_markup)
 
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
                                                                            message_id=result_data.message_id,
@@ -222,6 +229,14 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
                                  reply_markup=reply_markup,
                                  parse_mode=ParseMode.HTML
                                  )
+        elif key == "wrongdirection":
+            context.user_data["reverted_directions"] = not context.user_data.get("reverted_directions")
+            reply_markup = pairs_keyboard(update, context, reverted=context.user_data["reverted_directions"])
+            context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
+                                                                      message_id=result_data.message_id,
+                                                                      reply_markup=reply_markup,
+                                                                      text=result_data.text,
+                                                                      parse_mode=ParseMode.HTML)
         elif OPPS_RE.match(key):
             match = OPPS_RE.match(key)
             ns = match.group(1)

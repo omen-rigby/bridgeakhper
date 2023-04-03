@@ -40,7 +40,7 @@ def lead_keyboard(update):
     return InlineKeyboardMarkup(rows)
 
 
-def pairs_keyboard(update, context, exclude=0, use_movement=True):
+def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False):
     pairs = context.bot_data["maxpair"]
     movement = context.bot_data["movement"] if use_movement else ''
 
@@ -56,7 +56,8 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True):
     allowed = [b for b in range(1, pairs + 1) if b not in denied and b != int(exclude)]
     rows = []
     if movement:
-        allowed_tuples = [f"{ns} vs {ew}" for (ns, ew, bs) in movement if bs == board_set and ns in allowed and ew in allowed]
+        allowed_tuples = [f"{ew if reverted else ns} vs {ns if reverted else ew}"
+                          for (ns, ew, bs) in movement if bs == board_set and ns in allowed and ew in allowed]
         for i in range(len(allowed_tuples) // 3):
             rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}")
                          for p in allowed_tuples[3 * i:3 + 3 * i]])
@@ -74,7 +75,8 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True):
             rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[len(allowed) // 7 * 7:]])
     rows.append(NAVIGATION_KEYBOARD)
     if is_director(update):
-        rows.append([InlineKeyboardButton("Remove all records", callback_data=f"bm:rmall")])
+        rows.append([InlineKeyboardButton("Remove all", callback_data=f"bm:rmall"),
+                     InlineKeyboardButton("Switch directions", callback_data="bm:wrongdirection")])
 
     return InlineKeyboardMarkup(rows)
 

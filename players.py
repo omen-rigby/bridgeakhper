@@ -4,7 +4,7 @@ import sqlite3
 import re
 import time
 from util import levenshtein
-from constants import PLAYERS_DB
+from constants import PLAYERS_DB, CONFIG
 
 up.uses_netloc.append("postgres")
 
@@ -53,7 +53,8 @@ class Players:
             try:
                 conn = Players.connect()
                 cursor = conn.cursor()
-                cursor.execute(f"select {columns} from players")
+                city = CONFIG['city']
+                cursor.execute(f"select {columns} from players where city='{city}'")
                 players = cursor.fetchall()
                 conn.close()
                 return [list(map(lambda x: x.strip() if type(x) == str else x, p)) for p in players]
@@ -68,22 +69,24 @@ class Players:
 
     @staticmethod
     def add_new_player(first, last, gender, rank, rank_ru):
+        gender = "M" if gender.lower() in ("м", "муж", "m", "male") else "F"
         conn = Players.connect()
         cursor = conn.cursor()
         full = f"{first} {last}"
-        insert = f"""INSERT INTO players (first_name, last_name, rank, gender, full_name, rating, rank_ru) 
-                     VALUES ('{first}', '{last}', {rank}, '{gender}', '{full}', 0, {rank_ru});"""
+        insert = f"""INSERT INTO players (first_name, last_name, rank, gender, full_name, rating, rank_ru, city) 
+                     VALUES ('{first or ""}', '{last}', {rank}, '{gender}', '{full}', 0, {rank_ru}, '{CONFIG["city"]}');"""
         cursor.execute(insert)
         conn.commit()
         conn.close()
 
     @staticmethod
-    def update(last_name, rank=None, rank_ru=None):
+    def update(last_name, rank=None, rank_ru=None, first_name=None):
         conn = Players.connect()
         cursor = conn.cursor()
         changes_dict = {"rank": rank, "rank_ru": rank_ru}
         changes = ",".join([f"{k}={v}" for k,v in changes_dict.items() if v is not None])
-        cursor.execute(f"UPDATE players set {changes} WHERE last_name='{last_name}'")
+        cursor.execute(f"UPDATE players set {changes} WHERE last_name='{last_name}'"
+                       + f"and first_name='{first_name}'" * (first_name is not None))
         conn.commit()
         conn.close()
 
@@ -103,7 +106,10 @@ class Players:
             partners = raw_pair.split("  ")
             if len(partners) < 2:
                 chunks = raw_pair.split(" ")
-                partners = [" ".join(chunks[:2]), " ".join(chunks[2:])]
+                if len(chunks) == 2:
+                    partners = chunks
+                else:
+                    partners = [" ".join(chunks[:2]), " ".join(chunks[2:])]
         partners = [p.strip().replace("ё", "е") for p in partners]
         candidates = []
         for partner in partners:
@@ -159,7 +165,7 @@ class Players:
             candidates.sort(key=lambda p: p[3])
         else:
             candidates.sort(key=lambda p: players.index(p))
-        return [(c[2], c[4] or 0, c[5] or 5) if type(c) != str else (c, 0, 1.6) for c in candidates]
+        return [(c[2], c[4] or 0, c[5] if c[5] is not None else 5) if type(c) != str else (c, 0, 1.6) for c in candidates]
 
     @staticmethod
     def monthly_report():
@@ -190,5 +196,4 @@ ALL_PLAYERS = Players.get_players()
 
 
 if __name__ == "__main__":
-    Players.add_new_player("Ваче", "Минасян", "M", 6, 1.6)
-    print(Players.get_players())
+    print(Players.lookup("Вахранева Биткин", ALL_PLAYERS))

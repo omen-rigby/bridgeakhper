@@ -220,37 +220,43 @@ class ResultGetter:
             self.names = [[n[0] for n in p] for p in self.names]
 
     def get_masterpoints(self):
-        # AM
-        # 52 is the number of cards in a board (sic!)
-        total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in self.names)
         n = self.pairs
-        d = self.boards
-        played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
-        b0 = total_rating * played_boards / 52 * CONFIG["tourney_coeff"]
-        mps = [b0]
-        for i in range(2, n):
-            mps.append(b0 / (1 + i/(n - i)) ** (i - 1))
-        mps.append(0)
-        cluster_index = 0
-        half = self.max_mp / 2 if CONFIG["scoring"] == "MPs" else 0
-        for i in range(self.pairs):
-            cluster_first = i - cluster_index
-            if cluster_first + 1 > round(0.4 * self.pairs) or self.totals[i][2] < half:
-                self.totals[i].append(0)
-                continue
-            cluster_length = len([a for a in self.totals if a[2] == self.totals[i][2]])
-            cluster_total = sum(mps[j] for j, a in enumerate(self.totals) if a[2] == self.totals[i][2])\
-                / cluster_length
-            if i + 1 < len(self.totals) and self.totals[i + 1][2] == self.totals[i][2]:
-                cluster_index += 1
-            else:
-                cluster_index = 0
-            # Ask Artem for the reasoning behind this
-            if cluster_first + cluster_length > round(0.4 * self.pairs):
-                rounding_method = ceil
-            else:
-                rounding_method = round
-            self.totals[i].append(rounding_method(cluster_total))
+        # TODO: if board is not played, exclude and recalculate self.max_mp
+        d = self.boards - self.travellers.count([])
+        if AM:
+            # AM
+            # 52 is the number of cards in a board (sic!)
+            total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in self.names)
+
+            played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
+            b0 = total_rating * played_boards / 52 * CONFIG["tourney_coeff"]
+            mps = [b0]
+            for i in range(2, n):
+                mps.append(b0 / (1 + i/(n - i)) ** (i - 1))
+            mps.append(0)
+            cluster_index = 0
+            half = self.max_mp / 2 if CONFIG["scoring"] == "MPs" else 0
+            for i in range(n):
+                cluster_first = i - cluster_index
+                if cluster_first + 1 > round(0.4 * n) or self.totals[i][2] < half:
+                    self.totals[i].append(0)
+                    continue
+                cluster_length = len([a for a in self.totals if a[2] == self.totals[i][2]])
+                cluster_total = sum(mps[j] for j, a in enumerate(self.totals) if a[2] == self.totals[i][2])\
+                    / cluster_length
+                if i + 1 < len(self.totals) and self.totals[i + 1][2] == self.totals[i][2]:
+                    cluster_index += 1
+                else:
+                    cluster_index = 0
+                # Ask Artem for the reasoning behind this
+                if cluster_first + cluster_length > round(0.4 * n):
+                    rounding_method = ceil
+                else:
+                    rounding_method = round
+                self.totals[i].append(rounding_method(cluster_total))
+        else:
+            for t in self.totals:
+                t.append(0)
         # RU
         # this dragon poker rules are taken from https://www.bridgesport.ru/materials/sports-classification/
         ranks_ru = [sum(a[2] for a in p) / len(p) for p in self.names]
@@ -273,11 +279,12 @@ class ResultGetter:
                 cluster_length = len([a for a in self.totals if a[2] == self.totals[i][2]])
                 tied_mps = [mps[j] for j, a in enumerate(self.totals) if a[2] == self.totals[i][2]]
                 cluster_total = sum(tied_mps) / cluster_length
-                t.append(1 if min(tied_mps) < 0.5 and max(map(round, tied_mps)) > 0 and cluster_total < 0.5 else round(cluster_total))
-            # remove extra stuff from names
-        except:
+                t.append(1 if min(tied_mps) < 0.5 and max(map(round, tied_mps)) > 0 and cluster_total < 0.5
+                         else round(cluster_total))
+        except Exception:
             for i, t in enumerate(self.totals):
                 t.append(0)
+        # remove extra stuff from names
         self.names = [[n[0] for n in p] for p in self.names]
 
     @staticmethod
@@ -303,7 +310,7 @@ class ResultGetter:
                 "masterpoints_ru": rank[4] or ""
             }
             totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
-        self.rankings_dict = {"scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
+        self.rankings_dict = {"AM": AM, "scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
                               "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
                               "tournament_title": CONFIG["tournament_title"], "totals": totals}
         html_string = Template(open("templates/rankings_template.html").read()).render(**self.rankings_dict)
@@ -510,7 +517,8 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(20, 6)
-    CONFIG["scoring"] = "IMPs"
+    g = ResultGetter(27, 10)
+    CONFIG["scoring"] = "MPs"
     g.process()
-    # g.save()
+    #TourneyDB.to_access(800)
+    #g.save()

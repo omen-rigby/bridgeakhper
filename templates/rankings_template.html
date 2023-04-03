@@ -51,7 +51,9 @@ CAPTION {
     <th align="center">%Score</th>
     {% endif %}
     <th align="center">Master Points</th>
+    {% if AM %}
     <th align="center">Master Points (RU)</th>
+    {% endif %}
   </tr>
   {% for pair in totals %}
   <tr bgcolor="#efefef">
@@ -62,7 +64,9 @@ CAPTION {
     {% if scoring == "MPs" %}
     <td align="center">{{pair.percent}}</td>
     {% endif %}
+    {% if AM %}
     <td align="center">{{pair.masterpoints}}</td>
+    {% endif %}
     <td align="center">{{pair.masterpoints_ru}}</td>
   </tr>
   {% endfor %}
