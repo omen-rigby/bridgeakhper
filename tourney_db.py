@@ -144,9 +144,14 @@ VALUES {rows};"""
         ms_cursor.execute('delete from ReceivedData')
         for i, p in enumerate(protocols):
             number, ns, ew, contract, declarer, lead, result, score = p[:8]
+            if score == 1:
+                remarks = contract.replace('/', '%-') + '%'
+                contract = ''
+            else:
+                remarks = ''
             decl_num = ew if declarer in 'EW' else ns
             contract = contract.upper().replace('XX', ' xx').replace('X', ' x')
-            if contract[0].isdigit():
+            if contract and contract[0].isdigit():
                 contract = f"{contract[0]} {contract[1:]}"
                 if contract[2] == "N" and (len(contract) == 3 or contract[3] != "T"):
                     contract = contract.replace('N', 'NT')
@@ -162,7 +167,7 @@ VALUES {rows};"""
             ew += starting_number
             decl_num += starting_number
             rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns}, {ew}, {decl_num}, " \
-                   f"'{declarer}', '{contract}', '{result}', '{lead}', '')"
+                   f"'{declarer}', '{contract}', '{result}', '{lead}', '{remarks}')"
 
             insert = f"INSERT INTO ReceivedData (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW]," \
                      f" Contract, Result, LeadCard, Remarks) VALUES {rows};"
@@ -186,6 +191,6 @@ VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    pass
+    TourneyDB.to_access(800)
 
 

@@ -75,8 +75,9 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
             rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[len(allowed) // 7 * 7:]])
     rows.append(NAVIGATION_KEYBOARD)
     if is_director(update):
-        rows.append([InlineKeyboardButton("Remove all", callback_data=f"bm:rmall"),
-                     InlineKeyboardButton("Switch directions", callback_data="bm:wrongdirection")])
+        rows.append([InlineKeyboardButton("Remove all", callback_data=f"bm:rmall")])
+        if movement:
+            rows[-1].append(InlineKeyboardButton("Switch directions", callback_data="bm:wrongdirection"))
 
     return InlineKeyboardMarkup(rows)
 
