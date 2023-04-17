@@ -36,14 +36,15 @@ def inline_key(update: Update, context: CallbackContext):
         result_data = context.user_data["result"]
 
         if key.isdigit():
-            if int(result_data.text.split(CARET)[0].split(": ")[-1] + key) > context.bot_data["maxpair"]:
+            next_field = result_data.text.split(CARET)[1].lstrip("\n")
+            if not next_field.startswith("Lead:") and \
+                    int(result_data.text.split(CARET)[0].split(": ")[-1] + key) > context.bot_data["maxpair"]:
                 # bad number submitted
                 new_text = re.sub(f"\n([^:]+): .*{CARET}", f"\n\g<1>: {CARET}", result_data.text,
                                   flags=re.MULTILINE)
                 new_text = f"Incorrect pair number, try again\n{new_text}"
                 reply_markup = context.user_data["markups"][-1]
             else:
-                next_field = result_data.text.split(CARET)[1].lstrip("\n")
                 if next_field.startswith("Lead:"):
                     new_text = re.sub(f"{CARET}", f"{key.upper()}{CARET}", result_data.text)
                     prev, tail = new_text.split(key + CARET)

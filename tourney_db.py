@@ -124,6 +124,17 @@ VALUES {rows};"""
 
     @staticmethod
     def to_access(starting_number=0):
+        def revert_name(name):
+            chunks = name.split()
+            if len(chunks) == 2:
+                return ' '.join(reversed(chunks))
+            if len(chunks) == 3 and len(chunks[1].strip('.')) == 1:  # middle/patronymic initial: Alexander A. Ershov
+                return f'{chunks[2]} {chunks[0]} {chunks[1]}'
+            # last name prefix: Rafael van der Vaart
+            last_name = ' '.join(chunks[1:])
+            # TODO: handle asian & spanish names
+            return f'{last_name} {chunks[0]}'
+
         mdb_path = "templates/mdb.bws"
         dirpath = os.path.dirname(os.path.abspath(__file__))
         ucanaccess_jars = [f'{dirpath}/access_driver/{path}' for path in
@@ -149,7 +160,8 @@ VALUES {rows};"""
                 contract = ''
             else:
                 remarks = ''
-            decl_num = ew if declarer in 'EW' else ns
+            # PASS is played by NS
+            decl_num = ew if declarer and declarer.lower() in 'ew' else ns
             contract = contract.upper().replace('XX', ' xx').replace('X', ' x')
             if contract and contract[0].isdigit():
                 contract = f"{contract[0]} {contract[1:]}"
@@ -184,7 +196,9 @@ VALUES {rows};"""
             for number, raw_pair in enumerate(raw):
                 raw_data = Players.lookup(raw_pair[1], players)
                 rank = str((raw_data[0][2] + raw_data[1][2])/2).replace('.', ",")
-                writer.writerow([number + starting_number + 1, raw_data[0][0], raw_data[1][0], '0', rank])
+                writer.writerow([number + starting_number + 1,
+                                 revert_name(raw_data[0][0]),
+                                 revert_name(raw_data[1][0]), '0', rank])
 
         conn.close()
         return mdb_path, players_path

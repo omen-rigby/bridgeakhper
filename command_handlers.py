@@ -222,6 +222,14 @@ class CommandHandlers:
                     if not brd:
                         send(update.effective_chat.id, "Board not found", [], context)
                     else:
+                        cursor.execute(f"select count(*) from protocols where number={update.message.text}")
+                        played = cursor.fetchone()[0]
+                        if not is_director(update) or context.bot_data["maxpair"]//2 > played:
+                            send(chat_id=update.effective_chat.id,
+                                 text="Board is still in play and you don't have enough rights",
+                                 context=context)
+                            context.user_data["view_board"] = False
+                            return
                         n, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc = map(
                             lambda x: str(x).upper().replace("T", "10"), brd)
                         send(update.effective_chat.id, f"""Board {n}:

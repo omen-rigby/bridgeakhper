@@ -115,7 +115,7 @@ class ResultGetter:
     def set_scores_mp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
             mp_ns = round(self.max_mp / 100 * int(s[3].split("/")[0]), 1)
-            mp_ew = self.max_mp - mp_ns
+            mp_ew = round(self.max_mp / 100 * int(s[3].split("/")[1]), 1)
             s[8] = mp_ns
             s[9] = mp_ew
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
@@ -491,7 +491,7 @@ VALUES {rows};"""
             cursor.execute(insert)
             for t in b.tables:
                 rows = f"({self.tournament_id}, {b.b}, {t.ns}, {t.ew}, '{self._suits(t.contract)}', '{t.declarer}', " \
-                       f"'{self._suits(t.lead)}', {self._replace(t.nsplus or -t.nsminus)}, {self._replace(t.mp_ns)}," \
+                       f"'{self._suits(t.lead)}', {self._replace(t.nsplus or -int(t.nsminus or 0))}, {self._replace(t.mp_ns)}," \
                        f"{self._replace(t.mp_ew)}, '{t.bbo_url}')"
                 insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead,
 score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
@@ -517,8 +517,8 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(27, 10)
+    g = ResultGetter(28, 8)
     CONFIG["scoring"] = "MPs"
     g.process()
-    #TourneyDB.to_access(800)
-    #g.save()
+    # TourneyDB.to_access(800)
+    g.save()
