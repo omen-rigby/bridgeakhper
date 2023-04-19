@@ -397,12 +397,42 @@ class ResultGetter:
             if denomination != "n":
                 decl_trumps = len(deal.data.get(f"{declarer}{denomination}"))
                 dummy_trumps = len(deal.data.get(f"{dummy}{denomination}"))
+                # 5-0 is good, 4-1 or 3-2 or less are not
                 if decl_trumps + dummy_trumps <= 5 and abs(decl_trumps - dummy_trumps) < 5:
                     return True
                 fit = decl_trumps + dummy_trumps
             else:
                 fit = 13
-            return (abs(tricks - par) > 3 and denomination == "n") or (abs(tricks - par) >= 3 and fit < 7)
+
+            if (abs(tricks - par) > 3 and denomination == "n") or (abs(tricks - par) >= 3 and fit < 7):
+                if tricks > par:
+                    try:
+                        # check if lead gives decl that number of trick
+                        on_lead = hands[(hands.index(declarer) + 1) % 4]
+                        hand = itertools.chain(
+                            *([f'{s}{c}' for c in deal.data[f'{on_lead}{s}'].replace('10', 't')] for s in SUITS))
+                        lead_as_written = board_data[5].lower().replace('10', 't')
+                        if lead_as_written:
+                            lead_suit = lead_as_written[0]
+                            if lead_as_written[1] in deal.data[f"{on_lead}{lead_suit}"]:
+                                # lead is written correctly
+                                tricks_after_lead = deal.tricks_after_lead(denomination, on_lead, lead_as_written)
+                                return tricks_after_lead is None or tricks > tricks_after_lead
+                            else:
+                                # hope that at least suite is written correctly
+                                tricks_after_lead = [deal.tricks_after_lead(denomination, on_lead, card)
+                                                     for card in hand if card.startswith(lead_suit)]
+                                return not tricks_after_lead or \
+                                    all(tricks > t for t in tricks_after_lead if t is not None)
+                        else:
+                            # no lead available
+                            tricks_after_lead = [deal.tricks_after_lead(denomination, on_lead, card) for card in hand]
+                            # if at least 3 cards of the leading hand give declarer at least what they got, it's OK
+                            return len([t for t in tricks_after_lead if t is not None and tricks <= t]) < 2
+                    except Exception:
+                        # TODO: remove
+                        pass
+                return True
         return False
 
     def pdf_scorecards(self):

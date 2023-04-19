@@ -161,6 +161,14 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
                                  reply_markup=reply_markup,
                                  parse_mode=ParseMode.HTML
                                  )
+        elif key == "more":
+            reply_markup = contracts_keyboard(update, include_arbitral=True)
+            context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
+                                                                      message_id=result_data.message_id,
+                                                                      text=result_data.text,
+                                                                      reply_markup=reply_markup,
+                                                                      parse_mode=ParseMode.HTML)
+
         elif CARD_RE.match(key):
             key = key.replace(key[0], SUITS_UNICODE["shdc".index(key[0])])
             new_text = re.sub(f"([{SUITS_UNICODE}][0-9AQKTJ])?{CARET}\n([^:]+): ", f"{key.upper()}\n\g<2>: {CARET}", result_data.text, flags=re.MULTILINE)

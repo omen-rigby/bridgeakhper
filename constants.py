@@ -27,6 +27,7 @@ OPPS_RE = re.compile("(\d+) vs (\d+)")
 CARET = "_"  # □
 CONFIG = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
 AM = CONFIG["city"] in ("Ереван",)
+BITKIN_ID = 403784659
 
 global DIRECTORS
 

@@ -75,6 +75,12 @@ class CommandHandlers:
              text="Started session. Enter scoring",
              reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
              context=context)
+        if update.effective_chat.id != BITKIN_ID:
+            initiator = update.message.from_user.username or update.message.from_user.id
+            send(chat_id=BITKIN_ID,
+                 text=f"Session started by {initiator}",
+                 reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
+                 context=context)
 
     @staticmethod
     def clear_db(update: Update, context: CallbackContext):
@@ -224,7 +230,7 @@ class CommandHandlers:
                     else:
                         cursor.execute(f"select count(*) from protocols where number={update.message.text}")
                         played = cursor.fetchone()[0]
-                        if not is_director(update) or context.bot_data["maxpair"]//2 > played:
+                        if not is_director(update) and context.bot_data["maxpair"]//2 > played:
                             send(chat_id=update.effective_chat.id,
                                  text="Board is still in play and you don't have enough rights",
                                  context=context)

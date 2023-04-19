@@ -1,6 +1,7 @@
 from tourney_db import TourneyDB
 from ddstable import ddstable
 from constants import *
+from dds import *
 
 bbo_url_template = "https://www.bridgebase.com/tools/handviewer.html?n={n}&e={e}&s={s}&w={w}&d={d}&v={v}&b={b}&a=ppp"
 board_template = open("templates/board_template").read()
@@ -131,6 +132,28 @@ class Deal:
                         return_value = level, denomination + 'x' * (optimum_candidate < 0), declarer, optimum_candidate
         return return_value
 
+    def tricks_after_lead(self, trump, on_lead, lead_card):
+        """https://github.com/dds-bridge/dds/blob/develop/doc/dll-description.md"""
+        deal_pbn = dealPBN()
+        deal_pbn.trump = "shdcn".index(trump.lower()[0])  # sic!
+        deal_pbn.first = "nesw".index(on_lead)
+        deal_pbn.currentTrickSuit = (ctypes.c_int * 3)(0, 0, 0)
+        deal_pbn.currentTrickRank = (ctypes.c_int * 3)(0, 0, 0)
+        deal_pbn.remainCards = self.pbn.decode().replace('10', 't').upper().encode()
+        play_trace = playTracePBN()
+        play_trace.number = 1
+        play_trace.cards = lead_card.upper().encode()
+        solved_play = ctypes.pointer(solvedPlay())
+        dll = ddstable.dll
+        dll.AnalysePlayPBN.argtypes = [dealPBN, playTracePBN, POINTER(solvedPlay), c_int]
+        dll.ErrorMessage.argtypes = [c_int, POINTER(c_char)]
+        ddstable.dll.AnalysePlayPBN(deal_pbn, play_trace, solved_play, 0)
+        try:
+            return solved_play.contents.tricks[1]
+        except Exception:
+            # Don't wanna deal with c++ stuff
+            pass
+
     def get_minimax(self):
         total_points = {}
         dd = ddstable.get_ddstable(self.pbn.replace(b'10', b't')).items()
@@ -195,3 +218,12 @@ class Deal:
         self.board_html = board_html.replace(f'>{dealer}<', f'style="text-decoration:underline;"><b>{dealer}</b><')
         self.analysis_html = analysis_html
         return board_html, analysis_html
+
+
+if __name__ == "__main__":
+    import itertools
+    deal = Deal(number=1)
+    declarer = "e"
+    on_lead = hands[(hands.index(declarer) + 1) % 4]
+    hand = itertools.chain(*([f'{s}{c}' for c in deal.data[f'{on_lead}{s}'].replace('10', 't')] for s in SUITS))
+    tricks_after_lead = [deal.tricks_after_lead("c", on_lead, card) for card in hand]
