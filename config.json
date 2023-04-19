@@ -1,11 +1,15 @@
 {
-  "tournament_title": "Koghbatsi 29 Sunday",
-  "directors": ["omen_rigby", "elizaveta2810", "2032624676", "Tania5588", "Kirilloid08", "1170570249"],
+  "tournament_title": "Клубный турнир - Ереван",
+  "directors": [
+    "omen_rigby",
+    "elizaveta2810"
+  ],
   "token": "TOKEN",
   "movement": "howell",
   "full": true,
   "scoring": "MPs",
   "neuberg": true,
   "validate_lead": false,
-  "tourney_coeff": 0.25
+  "tourney_coeff": 0.25,
+  "city": "Ереван"
 }
