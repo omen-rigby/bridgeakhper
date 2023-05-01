@@ -205,13 +205,22 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             number = context.user_data["board"].number
             conn = TourneyDB.connect()
             cursor = conn.cursor()
+            statement = f"""select * from protocols where number={number}"""
+            cursor.execute(statement)
+            current_protocol = cursor.fetchall()
             statement = f"""delete from protocols where number={number}"""
             cursor.execute(statement)
             conn.commit()
             conn.close()
+            if current_protocol:
+                text = "Removed results:\n"
+                text += '\n'.join([" ".join(map(lambda x: str(x).upper(), r[1:7])) for r in current_protocol])\
+                    + '\n' + result_data.text
+            else:
+                text = result_data.text
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
                                                                       message_id=result_data.message_id,
-                                                                      text=result_data.text,
+                                                                      text=text,
                                                                       reply_markup=pairs_keyboard(update, context),
                                                                       parse_mode=ParseMode.HTML)
         elif key == "back":

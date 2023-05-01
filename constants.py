@@ -28,7 +28,7 @@ CARET = "_"  # □
 CONFIG = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
 AM = CONFIG["city"] in ("Ереван",)
 BITKIN_ID = 403784659
-
+AGGREGATOR_COMMANDS = ['/simstart', '/venuelist', '/aggregate']
 global DIRECTORS
 
 
@@ -39,7 +39,8 @@ def init_tds():
         DIRECTORS.update({
             "Ереван": ["2032624676", "Tania5588", "Kirilloid08"],  # Baloyan, Ponomareva, Egorov
             "Воронеж": ["1170570249"],  # V. Romanov
-            "Курск": ["KotObormotlap4atyi"]  # Chernyshev aka polifem
+            "Курск": ["KotObormotlap4atyi"],  # Chernyshev aka polifem
+            "Ижевск": ["Simamura", "1942315100", "YuriPalagin"] # Artur Yagudin, Stanislav Egorov
         }.get(CONFIG["city"], []))
 
 

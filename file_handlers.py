@@ -2,7 +2,7 @@ import zipfile
 from command_handlers import *
 
 
-@decorate_all_functions(not_in_group)
+@decorate_all_functions(command_eligibility)
 class FileHandlers:
     board_re = re.compile('\[Board "(\d+)"\]')
     holding = ['[0-9AKQJT]*']
@@ -23,6 +23,7 @@ class FileHandlers:
         else:
             send(chat_id=update.effective_chat.id, text="Input file type is neither pbn nor pbn.zip",
                  reply_buttons=[], context=context)
+            os.remove(filename)
             return
         number = 0
         for line in contents.split('\n'):
@@ -37,3 +38,4 @@ class FileHandlers:
                     board.save()
         send(chat_id=update.effective_chat.id, text=f"Uploaded {number} boards",
              reply_buttons=[], context=context)
+        os.remove(filename)

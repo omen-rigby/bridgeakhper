@@ -1,0 +1,18 @@
+FROM openjdk:slim
+COPY --from=python:3.8-slim / /
+EXPOSE 8080
+# install wget
+RUN apt-get -y update
+RUN apt-get -y install wget apt-utils gnupg
+
+# Cleanup
+RUN apt-get -y autoremove && \
+    apt-get clean
+
+ENV PYTHONUNBUFFERED True
+WORKDIR /app
+COPY *.txt .
+RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
+COPY . ./
+
+CMD ["python", "tg_input.py"]

@@ -53,8 +53,9 @@ class ResultGetter:
             for raw_pair in raw:
                 self.names.append(Players.lookup(raw_pair[1], players))
         except:
-            for raw_pair in raw:
-                self.names.append((raw_pair[1].split(" "), 0, 1.6))
+            for i, raw_pair in enumerate(raw):
+                if i >= len(self.names):
+                    self.names.append((raw_pair[1].split(" "), 0, 1.6))
         if not raw:
             self.names = [(f"{i}_1", f"{i}_2") for i in range(1, self.pairs + 1)]
         self._conn = self.conn.close()
@@ -94,7 +95,15 @@ class ResultGetter:
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
             self.cursor.execute(statement)
         if scores:
-            results_mean = mean(s[7] for s in scores)
+            tables = len(scores)
+            index = tables * CONFIG["imp"]["outliers_percentile"] / 100
+            fractional = CONFIG["imp"]["fractional"]
+            sorted_results = list(sorted(s[7] for s in scores))
+            weights = [0 if i + 1 < index or tables - i < index else 1 for i in range(len(scores))]
+            if fractional and tables > 2:
+                partial = int(index)
+                weights[partial] = weights[-1 - partial] = 1 - index % 1
+            results_mean = mean(w * r for w, r in zip(weights, sorted_results))
         else:
             results_mean = 0
         # datums ending in 5 are rounded towards the even number of tens
@@ -126,7 +135,7 @@ class ResultGetter:
         scores = [list(s) for s in scores]
         for s in scores:
             repeats = [s2[7] for s2 in scores].count(s[7])
-            if adjusted_scores and CONFIG["neuberg"]:
+            if adjusted_scores and CONFIG["mp"]["neuberg"]:
                 mp_ew = (self.max_mp - 2 * len(adjusted_scores) - current - (repeats - 1) + 1) \
                         * (len(scores) + len(adjusted_scores)) / len(scores) - 1
                 mp_ns = self.max_mp - mp_ew
@@ -221,7 +230,6 @@ class ResultGetter:
 
     def get_masterpoints(self):
         n = self.pairs
-        # TODO: if board is not played, exclude and recalculate self.max_mp
         d = self.boards - self.travellers.count([])
         if AM:
             # AM
@@ -259,6 +267,11 @@ class ResultGetter:
                 t.append(0)
         # RU
         # this dragon poker rules are taken from https://www.bridgesport.ru/materials/sports-classification/
+
+        # Use maximum possible number of boards played by a certain pair.
+        # The logic will change soon according to Dobrin.
+        # Yet classification 4.1 looks like we shouldn't be recalculating it as of 2023.
+        d = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
         ranks_ru = [sum(a[2] for a in p) / len(p) for p in self.names]
         team = "team" in CONFIG["scoring"].lower()
         n0 = n * (1 + team)  # number of pairs for team events also
@@ -422,8 +435,8 @@ class ResultGetter:
                                 # hope that at least suite is written correctly
                                 tricks_after_lead = [deal.tricks_after_lead(denomination, on_lead, card)
                                                      for card in hand if card.startswith(lead_suit)]
-                                return not tricks_after_lead or \
-                                    all(tricks > t for t in tricks_after_lead if t is not None)
+                                return not (tricks_after_lead and
+                                    any(tricks >= t for t in tricks_after_lead if t is not None))
                         else:
                             # no lead available
                             tricks_after_lead = [deal.tricks_after_lead(denomination, on_lead, card) for card in hand]
@@ -437,8 +450,11 @@ class ResultGetter:
 
     def pdf_scorecards(self):
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
-        boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
-
+        boards_per_round_candidates = []
+        for res in self.personals:
+            opps = [r[-1] for r in res]
+            boards_per_round_candidates.extend(sum(1 for _ in group) for _, group in itertools.groupby(opps))
+        boards_per_round = max(set(boards_per_round_candidates), key=boards_per_round_candidates.count)
         num_of_rounds = self.boards // boards_per_round
         totals = self.totals
         self.scorecards_dict = {
@@ -491,10 +507,10 @@ class ResultGetter:
             cursor.execute(f'select count(*) from tournaments')
             self.tournament_id = cursor.fetchone()[0] + 1
         if correction:
-            cursor.execute(f'remove from tournaments where tournament_id={self.tournament_id}')
-            cursor.execute(f'remove from names where tournament_id={self.tournament_id}')
-            cursor.execute(f'remove from boards where tournament_id={self.tournament_id}')
-            cursor.execute(f'remove from protocols where tournament_id={self.tournament_id}')
+            cursor.execute(f'delete from tournaments where tournament_id={self.tournament_id}')
+            cursor.execute(f'delete from names where tournament_id={self.tournament_id}')
+            cursor.execute(f'delete from boards where tournament_id={self.tournament_id}')
+            cursor.execute(f'delete from protocols where tournament_id={self.tournament_id}')
 
         num_of_rounds = self.boards // boards_per_round
         if not tourney_exists:

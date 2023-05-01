@@ -15,7 +15,10 @@ if not PDFKIT_PRESENT:
         CHROME_PATH = "C:\Program Files\Google\Chrome\Application/chrome"
         # TODO: registry lookup
     elif os.name == "posix":
-        CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]
+        try:
+            CHROME_PATH = subprocess.check_output("whereis google-chrome", shell=True).decode().split(" ")[1]
+        except IndexError:
+            CHROME_PATH = ""
 
 
 def print_to_pdf(arg, pdf_path=None, landscape=False):

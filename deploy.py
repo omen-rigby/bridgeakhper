@@ -6,7 +6,9 @@ from copy import deepcopy
 APPS = {
      "Ереван": "bridgeakhper",
      "Воронеж": "bridgeakhper-voronezh",
-     "Курск": "bridgeakhper-kursk"
+     "Курск": "bridgeakhper-kursk",
+     "Ижевск": "bridgeakhper-izhevsk",
+     "null": "bridgeakhper-mdb-aggregator"
 }
 
 config_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")
@@ -23,12 +25,15 @@ with open(config_path) as f:
     old_json = json.loads(f.read())
     new_json = deepcopy(old_json)
     for city, fly_app in APPS.items():
-        new_json["city"] = city
+        new_json["city"] = city if city != "null" else None
         new_json["tournament_title"] = f"Клубный турнир - {city}"
         with open(config_path, 'w') as g:
             g.write(json.dumps(new_json, indent=2))
+        cmd = f'flyctl deploy -a {fly_app} --force-machines'
+        if city == "null":
+            cmd += " --dockerfile Dockerfile.bws"
         try:
-            subprocess.check_output(f'flyctl deploy -a {fly_app} --force-machines'.split())
+            subprocess.check_output(cmd.split())
         except Exception as e:
             print(f"{city} deployment failed with exception")
     else:

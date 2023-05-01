@@ -54,7 +54,7 @@ class Players:
                 conn = Players.connect()
                 cursor = conn.cursor()
                 city = CONFIG['city']
-                cursor.execute(f"select {columns} from players where city='{city}'")
+                cursor.execute(f"select {columns} from players where city='{city}' order by full_name")
                 players = cursor.fetchall()
                 conn.close()
                 return [list(map(lambda x: x.strip() if type(x) == str else x, p)) for p in players]
@@ -192,7 +192,7 @@ class Players:
 
 
 global ALL_PLAYERS
-ALL_PLAYERS = Players.get_players()
+ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 
 
 if __name__ == "__main__":

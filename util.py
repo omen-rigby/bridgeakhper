@@ -1,8 +1,24 @@
+import jaydebeapi
 from difflib import ndiff
 try:
     from constants import *
 except ImportError:
     from .constants import *
+
+
+DIRPATH = os.path.dirname(os.path.abspath(__file__))
+UCANACCESS_JARS = [f'{DIRPATH}/access_driver/{path}' for path in
+                   ['ucanaccess-5.0.1.jar', 'lib/commons-lang3-3.8.1.jar', 'lib/commons-logging-1.2.jar',
+                    'lib/hsqldb-2.5.0.jar', 'lib/jackcess-3.0.1.jar']]
+
+
+def connect_mdb(mdb_path):
+    return jaydebeapi.connect(
+        "net.ucanaccess.jdbc.UcanaccessDriver",
+        f"jdbc:ucanaccess://{mdb_path};newDatabaseVersion=V2010",
+        ["", ""],
+        ":".join(UCANACCESS_JARS)
+    )
 
 
 class Dict2Class(object):
@@ -52,3 +68,16 @@ def remove_suits(string):
     for bad in SUITS_UNICODE:
         string = string.replace(bad, "")
     return string
+
+
+def revert_name(name):
+    """Converts full name to russian official style last_name first_name"""
+    chunks = name.split()
+    if len(chunks) == 2:
+        return ' '.join(reversed(chunks))
+    if len(chunks) == 3 and len(chunks[1].strip('.')) == 1:  # middle/patronymic initial: Alexander A. Ershov
+        return f'{chunks[2]} {chunks[0]} {chunks[1]}'
+    # last name prefix: Rafael van der Vaart
+    last_name = ' '.join(chunks[1:])
+    # TODO: handle asian & spanish names
+    return f'{last_name} {chunks[0]}'

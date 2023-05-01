@@ -2,6 +2,7 @@ import logging
 from inline_key import *
 from command_handlers import CommandHandlers
 from file_handlers import FileHandlers
+from sim_handlers import SimHandlers
 
 
 PORT = int(os.environ.get('PORT', 5000))
@@ -53,9 +54,17 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
     updater.dispatcher.add_handler(CommandHandler("correct", CommandHandlers.correct))
-    updater.dispatcher.add_handler(CommandHandler("bridgematedb", CommandHandlers.bridgematedb))
     updater.dispatcher.add_handler(CommandHandler("addtd", CommandHandlers.add_td))
-    updater.dispatcher.add_handler(MessageHandler(Filters.document, FileHandlers.upload_boards))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document.zip, FileHandlers.upload_boards))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('pbn'), FileHandlers.upload_boards))
+    # Synchronous tournaments
+    updater.dispatcher.add_handler(CommandHandler("bridgematedb", CommandHandlers.bridgematedb))
+    ## Integrator for synch
+    updater.dispatcher.add_handler(CommandHandler('simstart', SimHandlers.start_sim_tourney))
+    updater.dispatcher.add_handler(CommandHandler('venuelist', SimHandlers.list_venues))
+    updater.dispatcher.add_handler(CommandHandler('aggregate', SimHandlers.aggregate))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('bws'), SimHandlers.upload_mdb))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('csv'), SimHandlers.upload_csv))
     # Should go last
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), CommandHandlers.freeform))
 

@@ -3,9 +3,9 @@ import urllib.parse as up
 import sqlite3
 import os
 import csv
-import jaydebeapi
 from constants import db_path, SUITS, SUITS_UNICODE
 from players import Players
+from util import connect_mdb, revert_name
 up.uses_netloc.append("postgres")
 
 
@@ -124,28 +124,8 @@ VALUES {rows};"""
 
     @staticmethod
     def to_access(starting_number=0):
-        def revert_name(name):
-            chunks = name.split()
-            if len(chunks) == 2:
-                return ' '.join(reversed(chunks))
-            if len(chunks) == 3 and len(chunks[1].strip('.')) == 1:  # middle/patronymic initial: Alexander A. Ershov
-                return f'{chunks[2]} {chunks[0]} {chunks[1]}'
-            # last name prefix: Rafael van der Vaart
-            last_name = ' '.join(chunks[1:])
-            # TODO: handle asian & spanish names
-            return f'{last_name} {chunks[0]}'
-
         mdb_path = "templates/mdb.bws"
-        dirpath = os.path.dirname(os.path.abspath(__file__))
-        ucanaccess_jars = [f'{dirpath}/access_driver/{path}' for path in
-            ['ucanaccess-5.0.1.jar', 'lib/commons-lang3-3.8.1.jar', 'lib/commons-logging-1.2.jar',
-             'lib/hsqldb-2.5.0.jar', 'lib/jackcess-3.0.1.jar']]
-        ms_conn = jaydebeapi.connect(
-            "net.ucanaccess.jdbc.UcanaccessDriver",
-            f"jdbc:ucanaccess://{mdb_path};newDatabaseVersion=V2010",
-            ["", ""],
-            ":".join(ucanaccess_jars)
-        )
+        ms_conn = connect_mdb(mdb_path)
         conn = TourneyDB.connect()
         cursor = conn.cursor()
         cursor.execute('select * from protocols')
@@ -205,6 +185,6 @@ VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    TourneyDB.to_access(800)
+    TourneyDB.create_tables('postgres')
 
 

@@ -8,7 +8,13 @@
   "movement": "howell",
   "full": true,
   "scoring": "MPs",
-  "neuberg": true,
+  "imp": {
+    "outliers_percentile": 20,
+    "fractional": true
+  },
+  "mp": {
+    "neuberg": true
+  },
   "validate_lead": false,
   "tourney_coeff": 0.25,
   "city": "Ереван"

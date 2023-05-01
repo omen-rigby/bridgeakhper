@@ -7,6 +7,7 @@ from players import *
 from shutil import copyfile
 from inline_key import *
 from functools import wraps
+from constants import AGGREGATOR_COMMANDS
 
 
 def decorate_all_functions(function_decorator):
@@ -18,9 +19,13 @@ def decorate_all_functions(function_decorator):
     return decorator
 
 
-def not_in_group(func):
+def command_eligibility(func):
     @wraps(func)
     def wrapper(update: Update, context: CallbackContext):
+        if CONFIG["city"] and update.message.text in AGGREGATOR_COMMANDS:
+            return send(chat_id=update.effective_chat.id, text="Use @mdb_aggregator_bot", context=context)
+        elif not CONFIG["city"] and update.message.text not in AGGREGATOR_COMMANDS:
+            return send(chat_id=update.effective_chat.id, text="Use city bot for this command", context=context)
         if update.effective_chat.id < 0:
             send(chat_id=update.effective_chat.id, text="This bot shouldn't be called in groups", context=context)
             context.bot.deleteMessage(chat_id=update.effective_chat.id, message_id=update.message.message_id)
@@ -29,14 +34,19 @@ def not_in_group(func):
     return wrapper
 
 
-@decorate_all_functions(not_in_group)
+@decorate_all_functions(command_eligibility)
 class CommandHandlers:
     @staticmethod
     def start(update: Update, context: CallbackContext):
-        send(chat_id=update.effective_chat.id,
-             text="Started bridgemate. What do you want to do?",
-             reply_buttons=("/board",),
-             context=context)
+        if CONFIG["city"]:
+            send(chat_id=update.effective_chat.id,
+                 text="Started bridgemate. What do you want to do?",
+                 reply_buttons=("/board",),
+                 context=context)
+        else:
+            send(chat_id=update.effective_chat.id,
+                 text="Started BWS aggregator. Drag files to upload",
+                 context=context)
 
     @staticmethod
     def board(update: Update, context: CallbackContext):
@@ -100,7 +110,7 @@ class CommandHandlers:
                 else:
                     return CommandHandlers.init(update, context)
                 return send(chat_id=update.effective_chat.id,
-                            text="Session exists in database. Remove and start new tournament?",
+                            text="Session exists in database. Clear and start new tournament or reuse the existing data?",
                             reply_buttons=["Clear", "Reuse"],
                             context=context)
             generate()
@@ -168,9 +178,9 @@ class CommandHandlers:
         if context.user_data.get("tournament_title"):
             return CommandHandlers.title(update, context)
         if context.user_data.get("add_player"):
-            CommandHandlers.add_player(update, context)
+            return CommandHandlers.add_player(update, context)
         if context.user_data.get("update_player"):
-            CommandHandlers.update_player(update, context)
+            return CommandHandlers.update_player(update, context)
         if context.user_data.get("add_td"):
             return CommandHandlers.add_td(update, context)
         if context.user_data.get("names") is not None and \
@@ -180,6 +190,20 @@ class CommandHandlers:
 
     @staticmethod
     def names_text(update: Update, context: CallbackContext):
+        if not context.user_data["names"]:
+            conn = TourneyDB.connect()
+            cursor = conn.cursor()
+            cursor.execute("Select number from names")
+            added = list(set([c[0] for c in cursor.fetchall()]))
+            conn.close()
+            all_pairs = range(1, context.bot_data["maxpair"] + 1)
+            buttons = [l for l in all_pairs if l not in added]
+            text = "Incorrect pair number.\nPlease select pair number from the list below"
+            send(chat_id=update.effective_chat.id,
+                 text=text,
+                 reply_buttons=buttons,
+                 context=context)
+            return
         global ALL_PLAYERS
         conn = TourneyDB.connect()
         cursor = conn.cursor()
