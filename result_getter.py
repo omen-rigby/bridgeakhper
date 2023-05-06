@@ -23,6 +23,7 @@ class ResultGetter:
         self.totals = []
         self.personals = []
         self.names = []
+        self.datums = []
 
     @property
     def conn(self):
@@ -96,14 +97,17 @@ class ResultGetter:
             self.cursor.execute(statement)
         if scores:
             tables = len(scores)
-            index = tables * CONFIG["imp"]["outliers_percentile"] / 100
+            outliers_percent = CONFIG["imp"]["outliers_percentile"] / 100
+            index = tables * outliers_percent
             fractional = CONFIG["imp"]["fractional"]
             sorted_results = list(sorted(s[7] for s in scores))
             weights = [0 if i + 1 < index or tables - i < index else 1 for i in range(len(scores))]
             if fractional and tables > 2:
                 partial = int(index)
                 weights[partial] = weights[-1 - partial] = 1 - index % 1
-            results_mean = mean(w * r for w, r in zip(weights, sorted_results))
+                results_mean = sum(w * r for w, r in zip(weights, sorted_results)) / tables / (1 - 2 * outliers_percent)
+            else:
+                results_mean = mean(w * r for w, r in zip(weights, sorted_results))
         else:
             results_mean = 0
         # datums ending in 5 are rounded towards the even number of tens
@@ -112,6 +116,7 @@ class ResultGetter:
             datum = round(results_mean, -1) - 10
         else:
             datum = round(results_mean, -1)
+        self.datums.append(int(datum))
         for s in scores:
             mp_ns = imps(s[7] - datum)
             mp_ew = -mp_ns
@@ -356,7 +361,10 @@ class ResultGetter:
             score = deal.data['score']
             repl_dict['minimax_contract'] = f"{level}{den} {decl}" if level else "PASS"
             repl_dict['minimax_outcome'] = f"{result}, {score}" if level else ""
-
+            datum = self.datums[board_number - 1] if self.datums else None
+            repl_dict["datum"] = self._replace(datum) if datum is not None else ""
+            repl_dict["ns_datum"] = self._replace(datum) if datum is not None and datum >= 0 else ""
+            repl_dict["ew_datum"] = self._replace(-datum) if datum is not None and datum <= 0 else ""
             dealer_low = repl_dict["d"].lower()
             repl_dict["ns_vul"] = (deal.data["v"] in ("EW", "-")) * "non" + "vul"
             repl_dict["ew_vul"] = (deal.data["v"] in ("NS", "-")) * "non" + "vul"
@@ -455,13 +463,25 @@ class ResultGetter:
             opps = [r[-1] for r in res]
             boards_per_round_candidates.extend(sum(1 for _ in group) for _, group in itertools.groupby(opps))
         boards_per_round = max(set(boards_per_round_candidates), key=boards_per_round_candidates.count)
+        cursor = self.cursor
+        cursor.execute("select tables, movement from movements")
+        movements = cursor.fetchall()
+        tables = (self.pairs + 1) // 2
+        if all(movement[0] != tables for movement in movements):
+            movement = []
+            for b in range(1, self.boards + 1, boards_per_round):
+                board_results = self.travellers[b - 1]
+                movement.append(",".join(f"{r[0]}-{r[1]}" for r in board_results))
+            movement = ";".join(movement)
+            statement = f"""insert into movements ("tables", movement) values({tables}, '{movement}')"""
+            cursor.execute(statement)
+        self.conn.commit()
         num_of_rounds = self.boards // boards_per_round
         totals = self.totals
         self.scorecards_dict = {
             "scoring_short": scoring_short, "colspan": 9 + (CONFIG["scoring"] == "MPs"),
             "boards_per_round": boards_per_round, "pairs": []
         }
-        #TODO: handle incomplete howell
         max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
 
         for pair_number, results in enumerate(self.personals):
@@ -563,8 +583,8 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(28, 8)
-    CONFIG["scoring"] = "MPs"
+    g = ResultGetter(20, 6)
+    CONFIG["scoring"] = "IMPs"
     g.process()
     # TourneyDB.to_access(800)
-    g.save()
+    # g.save()

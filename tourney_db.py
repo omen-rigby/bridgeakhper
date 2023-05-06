@@ -123,7 +123,7 @@ VALUES {rows};"""
         return dump_path
 
     @staticmethod
-    def to_access(starting_number=0):
+    def to_access(city):
         mdb_path = "templates/mdb.bws"
         ms_conn = connect_mdb(mdb_path)
         conn = TourneyDB.connect()
@@ -155,16 +155,13 @@ VALUES {rows};"""
             # The two numbers below have no meaning yet look consistent
             table = (ns - 1) // 2 + 1
             round_n = (ns + ew - 1) % (players - 1) + 1
-            ns += starting_number
-            ew += starting_number
-            decl_num += starting_number
             rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns}, {ew}, {decl_num}, " \
                    f"'{declarer}', '{contract}', '{result}', '{lead}', '{remarks}')"
 
             insert = f"INSERT INTO ReceivedData (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW]," \
                      f" Contract, Result, LeadCard, Remarks) VALUES {rows};"
             ms_cursor.execute(insert)
-        ms_cursor.execute("select * from ReceivedData")
+        ms_cursor.execute(f'update Session set Name="{city}"')
         ms_conn.commit()
         ms_conn.close()
         cursor.execute("select * from names order by number")
@@ -176,7 +173,7 @@ VALUES {rows};"""
             for number, raw_pair in enumerate(raw):
                 raw_data = Players.lookup(raw_pair[1], players)
                 rank = str((raw_data[0][2] + raw_data[1][2])/2).replace('.', ",")
-                writer.writerow([number + starting_number + 1,
+                writer.writerow([number + 1,
                                  revert_name(raw_data[0][0]),
                                  revert_name(raw_data[1][0]), '0', rank])
 

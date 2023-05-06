@@ -1,21 +1,28 @@
+import itertools
 import os
 from itertools import chain
 from constants import CONFIG
+from tourney_db import TourneyDB
 
 
 def get_movement(max_pair):
     tables = (max_pair + 1) // 2
-    movement_letter = "H" if CONFIG["movement"] == "howell" else "M"
-    filename = f"{movement_letter}{tables:02d}{tables * 2 - 1:02d}.mov"
-    full_path = os.path.abspath(__file__).replace("parse_mov.py", filename)
-    try:
-        return parse(full_path)
-    except Exception as e:
-        print("Not found suitable movement for {} pairs, tried {}".format(max_pair, filename))
+    conn = TourneyDB.connect()
+    cursor = conn.cursor()
+    cursor.execute(f"select * from movements")
+    cursor.execute(f"select movement from movements where tables={tables}")
+    movements = cursor.fetchall()
+    conn.close()
+    if movements:
+        # list of [ns, ew, board_set (1...n_rounds)]
+        return list(itertools.chain(*[[[int(r.split('-')[0]), int(r.split('-')[1]), round_num + 1] for r in rawnd.split(',')]
+                                 for round_num, rawnd in enumerate(movements[0][0].split(';'))]))
+    else:
         return ""
 
 
 def parse(file):
+    """Deprecated"""
     movement = []
     with open(file, "rb") as f:
         mojibake = f.read().split(b"#$")[-1]
@@ -31,12 +38,3 @@ def edit_mov(file, new_pairs):
             mojibake += str(chr(r)).encode()
     with open(f"{file.split('.')[0]}_new.mov", "wb") as g:
         g.write(mojibake)
-
-
-if __name__ == "__main__":
-    arr = [[8, 1, 1], [8, 2, 2], [8, 3, 3], [8, 4, 4], [8, 5, 5], [8, 6, 6], [8, 7, 7],
-           [6, 5, 1], [7, 6, 2], [1, 7, 3], [7, 5, 4], [4, 7, 5], [2, 7, 6], [6, 2, 7],
-           [1, 4, 2], [2, 5, 3], [3, 6, 4], [6, 1, 5], [5, 1, 6], [7, 3, 1], [3, 1, 7],
-           [6, 4, 3], [2, 1, 4], [3, 2, 5], [4, 3, 6], [4, 2, 1], [5, 3, 2], [5, 4, 7]]
-    edit_mov("H0406.MOV", arr)
-    print(parse("H0406_new.MOV"))

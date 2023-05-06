@@ -1,4 +1,5 @@
 import shutil
+import transliterate
 from board import Board
 from result_getter import ResultGetter
 from generate import generate
@@ -8,6 +9,7 @@ from shutil import copyfile
 from inline_key import *
 from functools import wraps
 from constants import AGGREGATOR_COMMANDS
+from config import init_config
 
 
 def decorate_all_functions(function_decorator):
@@ -23,9 +25,11 @@ def command_eligibility(func):
     @wraps(func)
     def wrapper(update: Update, context: CallbackContext):
         if CONFIG["city"] and update.message.text in AGGREGATOR_COMMANDS:
-            return send(chat_id=update.effective_chat.id, text="Use @mdb_aggregator_bot", context=context)
+            send(chat_id=update.effective_chat.id, text="Use @mdb_aggregator_bot", context=context)
+            raise Exception("Bad command")
         elif not CONFIG["city"] and update.message.text not in AGGREGATOR_COMMANDS:
-            return send(chat_id=update.effective_chat.id, text="Use city bot for this command", context=context)
+            send(chat_id=update.effective_chat.id, text="Use city bot for this command", context=context)
+            raise Exception("Bad command")
         if update.effective_chat.id < 0:
             send(chat_id=update.effective_chat.id, text="This bot shouldn't be called in groups", context=context)
             context.bot.deleteMessage(chat_id=update.effective_chat.id, message_id=update.message.message_id)
@@ -40,7 +44,7 @@ class CommandHandlers:
     def start(update: Update, context: CallbackContext):
         if CONFIG["city"]:
             send(chat_id=update.effective_chat.id,
-                 text="Started bridgemate. What do you want to do?",
+                 text="Started bridge scorer. What do you want to do?",
                  reply_buttons=("/board",),
                  context=context)
         else:
@@ -80,7 +84,7 @@ class CommandHandlers:
         initial_config = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
         CONFIG["tournament_title"] = initial_config["tournament_title"]
         CONFIG["tourney_coeff"] = 0.25
-        init_tds()
+        init_config()
         send(chat_id=update.effective_chat.id,
              text="Started session. Enter scoring",
              reply_buttons=["MPs", "IMPs", "Cross-IMPs"],
@@ -308,10 +312,8 @@ class CommandHandlers:
             context.user_data["currentHand"] = hand
         elif context.bot_data["maxboard"]:
             context.bot_data["maxpair"] = int(update.message.text)
-            if AM:
-                context.bot_data["movement"] = get_movement(context.bot_data["maxpair"])
-            else:
-                context.bot_data["movement"] = None
+            context.bot_data["movement"] = get_movement(context.bot_data["maxpair"])
+
             send(chat_id=update.effective_chat.id,
                  text="Enter board number",
                  reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
@@ -595,12 +597,12 @@ class CommandHandlers:
     @staticmethod
     def bridgematedb(update: Update, context: CallbackContext):
         chat_id = update.message.chat_id
-        starting_number = {"Ереван": 800, "Воронеж": 600, "Курск": 700}[CONFIG['city']]
-        path, players_data = TourneyDB.to_access(starting_number)
+        path, players_data = TourneyDB.to_access(CONFIG["city"])
         date_chunk = time.strftime("%y%m%d")
         scoring = 'mp' if CONFIG["scoring"] == "MPs" else "imp"
-        room = starting_number // 100
-        context.bot.send_document(chat_id, open(path, 'rb'), f'um{date_chunk}p{scoring}1r{room}.bws')
+        room = 6
+        city = CITIES_LATIN.get(CONFIG["city"], transliterate.translit(CONFIG["city"], 'ru'))
+        context.bot.send_document(chat_id, open(path, 'rb'), f'{city}{date_chunk}p{scoring}1r{room}.bws')
         context.bot.send_document(chat_id, open(players_data, 'rb'))
 
     @staticmethod

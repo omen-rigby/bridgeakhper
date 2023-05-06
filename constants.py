@@ -27,21 +27,8 @@ OPPS_RE = re.compile("(\d+) vs (\d+)")
 CARET = "_"  # □
 CONFIG = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
 AM = CONFIG["city"] in ("Ереван",)
+CITIES_LATIN = {"Ереван": "Yerevan"}
 BITKIN_ID = 403784659
 AGGREGATOR_COMMANDS = ['/simstart', '/venuelist', '/aggregate']
 global DIRECTORS
-
-
-def init_tds():
-    global DIRECTORS
-    DIRECTORS = set(CONFIG["directors"])
-    if CONFIG.get("city"):
-        DIRECTORS.update({
-            "Ереван": ["2032624676", "Tania5588", "Kirilloid08"],  # Baloyan, Ponomareva, Egorov
-            "Воронеж": ["1170570249"],  # V. Romanov
-            "Курск": ["KotObormotlap4atyi"],  # Chernyshev aka polifem
-            "Ижевск": ["Simamura", "1942315100", "YuriPalagin"] # Artur Yagudin, Stanislav Egorov
-        }.get(CONFIG["city"], []))
-
-
-init_tds()
+DIRECTORS = set(CONFIG["directors"])

@@ -223,7 +223,11 @@ text-align: center
                 </tr>
                 <tr>
                     <td colspan="13" align="center">
+                        {% if scoring_short == "IMP" %}
+                        <b>minimax = <a class="minimax_url" href="{{board.minimax_url}}">{{board.level}}{{board.denomination}} {{board.declarer}}</a> {{board.result}}, {{board.score}}, datum = {{board.datum}}</b>
+                        {% else %}
                         <b>minimax = <a class="minimax_url" href="{{board.minimax_url}}">{{board.level}}{{board.denomination}} {{board.declarer}}</a> {{board.result}}, {{board.score}}</b>
+                        {% endif %}
                     </td>
                 </tr>
                 </tbody>

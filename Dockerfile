@@ -1,5 +1,5 @@
 FROM openjdk:slim
-COPY --from=python:3.8-slim / /
+COPY --from=python:3.10-slim / /
 EXPOSE 8080
 # install wget
 RUN apt-get -y update
