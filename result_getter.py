@@ -24,6 +24,7 @@ class ResultGetter:
         self.personals = []
         self.names = []
         self.datums = []
+        self.penalties = {}
 
     @property
     def conn(self):
@@ -70,14 +71,15 @@ class ResultGetter:
 
     def set_scores_ximp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
-            mp_ns = 0 if s[3] == 'A/A' else 3 * (-1) ** ('A+/A-' == s[3])
-            mp_ew = -mp_ns
+            ns_res, ew_res = s[3].split('/')
+            mp_ns = 0 if ns_res == 'A' else 3 * (-1) ** ('A-' == ns_res)
+            mp_ew = 0 if ew_res == 'A' else 3 * (-1) ** ('A-' == ew_res)
             s[8] = mp_ns
             s[9] = mp_ew
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
             self.cursor.execute(statement)
         for s in scores:
-            mp_ns = sum(imps(s[7] - other[7]) for other in scores) / (len(scores) - 1)
+            mp_ns = sum(imps(s[7] - other[7]) for other in scores) / (max(len(scores) - 1, 1))
             mp_ew = -mp_ns
             if abs(mp_ns) < 1/len(scores):
                 mp_ns = mp_ew = 0
@@ -89,8 +91,9 @@ class ResultGetter:
 
     def set_scores_imp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
-            mp_ns = 0 if s[3] == 'A/A' else 3 * (-1) ** ('A+/A-' == s[3]) * (len(scores) - 1)
-            mp_ew = -mp_ns
+            ns_res, ew_res = s[3].split('/')
+            mp_ns = 0 if ns_res == 'A' else 3 * (-1) ** ('A-' == ns_res)
+            mp_ew = 0 if ew_res == 'A' else 3 * (-1) ** ('A-' == ew_res)
             s[8] = mp_ns
             s[9] = mp_ew
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
@@ -101,7 +104,7 @@ class ResultGetter:
             index = tables * outliers_percent
             fractional = CONFIG["imp"]["fractional"]
             sorted_results = list(sorted(s[7] for s in scores))
-            weights = [0 if i + 1 < index or tables - i < index else 1 for i in range(len(scores))]
+            weights = [0 if i + 1 <= index or tables - i <= index else 1 for i in range(len(scores))]
             if fractional and tables > 2:
                 partial = int(index)
                 weights[partial] = weights[-1 - partial] = 1 - index % 1
@@ -172,6 +175,7 @@ class ResultGetter:
                 unique_id = protocol[1] * (self.pairs + 1) + protocol[2]
                 filtered[f"{unique_id}"] = protocol
             if len(filtered) != self.pairs // 2:
+                # TODO: add proper logging
                 print(f"Missing results for board #{board}")
             sorted_results = [list(f) for f in filtered.values()]
             adjusted_scores = [s for s in sorted_results if s[7] == 1]
@@ -192,14 +196,27 @@ class ResultGetter:
     def get_standings(self):
         max_mp = self.pairs - 2 - self.pairs % 2
         cur = self.cursor
-        for pair in range(1, self.pairs + 1):
-            cur.execute(f"select * from protocols where (ns={pair} or ew={pair}) and number > 0 order by number")
+        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair'))
+        for pair in range(first_pair, self.pairs + first_pair):
+            cur.execute(f"select * from protocols where (MOD(ns-{pair},{self.pairs})=0 "
+                        f"or MOD(ew - {pair},{self.pairs})=0) and number > 0 order by number")
             # records are duplicated sometimes
             history = list(set(cur.fetchall()))
-            results = [record[-2] if pair == record[1] else record[-1] for record in history]
-            result_in_mp = sum(results)
+            # modulo operations handle 2...n+1 enumeration for odd number of players
+            real_number = 0
+            results = []
+            for record in history:
+                if not real_number:
+                    if record[1] % self.pairs == pair % self.pairs:
+                        real_number = record[1]
+                    elif record[2] % self.pairs == pair % self.pairs:
+                        real_number = record[2]
+                results.append(record[-2] if pair % self.pairs == record[1] % self.pairs else record[-1])
+            cur.execute(f"select penalty from names where number={pair}")
+            self.penalties[str(pair)] = cur.fetchone()[0]
+            result_in_mp = sum(results) - self.penalties[str(pair)]
             mp_per_board = result_in_mp/len(results)
-            self.totals.append([pair, result_in_mp, mp_per_board])
+            self.totals.append([real_number, result_in_mp, mp_per_board])
 
             vul = {'-': "-", "n": "NS", "e": "EW", "b": "ALL"}
             self.personals.append([])
@@ -214,9 +231,9 @@ class ResultGetter:
                                                0, 0, 0])
                     continue
 
-                if pair == board[1]:
+                if pair % self.pairs == board[1] % self.pairs:
                     position = "NS"
-                elif pair == board[2]:
+                elif pair % self.pairs == board[2] % self.pairs:
                     position = "EW"
                 self.personals[-1].append([board[0], vul[VULNERABILITY[board[0] % 16]], position,
                                           escape_suits(board[3] + board[6]), board[4], escape_suits(board[5]),
@@ -235,12 +252,10 @@ class ResultGetter:
 
     def get_masterpoints(self):
         n = self.pairs
-        d = self.boards - self.travellers.count([])
         if AM:
             # AM
             # 52 is the number of cards in a board (sic!)
             total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in self.names)
-
             played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
             b0 = total_rating * played_boards / 52 * CONFIG["tourney_coeff"]
             mps = [b0]
@@ -318,11 +333,12 @@ class ResultGetter:
 
     def pdf_rankings(self):
         totals = []
+        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair'))
         for i, rank in enumerate(self.totals):
-            cluster = [i for i, r in enumerate(self.totals) if r[2] == rank[2]]
+            cluster = [i for i, r in enumerate(self.totals) if abs(r[2] - rank[2]) < 0.0001]
             repl_dict = {
                 "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0],
-                "names": self.names[int(rank[0]) - 1], "mp": round(rank[1], 2),
+                "names": self.names[int(rank[0]) - first_pair], "mp": round(rank[1], 2),
                 "percent": round(100 * rank[2]/self.max_mp, 2),
                 "masterpoints": rank[3] or "",
                 "masterpoints_ru": rank[4] or ""
@@ -336,6 +352,8 @@ class ResultGetter:
 
     def pdf_travellers(self, boards_only=False):
         boards = []
+        real_pairs = list(sorted(t[0] for t in self.totals))
+        first_pair = real_pairs[0]
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         for board_number in range(1, self.boards + 1):
             deal = self.deals[board_number - 1]
@@ -360,11 +378,9 @@ class ResultGetter:
             result = deal.data['result']
             score = deal.data['score']
             repl_dict['minimax_contract'] = f"{level}{den} {decl}" if level else "PASS"
-            repl_dict['minimax_outcome'] = f"{result}, {score}" if level else ""
+            repl_dict['minimax_outcome'] = self._replace(f"{result}, {score}") if level else ""
             datum = self.datums[board_number - 1] if self.datums else None
-            repl_dict["datum"] = self._replace(datum) if datum is not None else ""
-            repl_dict["ns_datum"] = self._replace(datum) if datum is not None and datum >= 0 else ""
-            repl_dict["ew_datum"] = self._replace(-datum) if datum is not None and datum <= 0 else ""
+            repl_dict["datum"] = self._replace(str(datum)) if datum is not None else ""
             dealer_low = repl_dict["d"].lower()
             repl_dict["ns_vul"] = (deal.data["v"] in ("EW", "-")) * "non" + "vul"
             repl_dict["ew_vul"] = (deal.data["v"] in ("NS", "-")) * "non" + "vul"
@@ -381,8 +397,11 @@ class ResultGetter:
                 repl_dict["nsminus"] = r[6]
                 repl_dict["mp_ns"] = round(r[7], 2)
                 repl_dict["mp_ew"] = round(r[8], 2)
-                repl_dict["ns_name"] = self.names[r[0] - 1]
-                repl_dict["ew_name"] = self.names[r[1] - 1]
+                # 2...8 is correct
+                if r[0] not in real_pairs or r[1] not in real_pairs:
+                    raise Exception(f"Incorrect result for board #{board_number}:\n{r[0]} vs {r[1]} {r[2]}{r[3]}")
+                repl_dict["ns_name"] = self.names[r[0] - first_pair]
+                repl_dict["ew_name"] = self.names[r[1] - first_pair]
                 repl_dict["bbo_url"] = deal.url_with_contract(r[2][0], r[2].split("=")[0].split("+")[0].split("-")[0][1:], r[3])
                 boards[-1].tables.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
 
@@ -457,6 +476,7 @@ class ResultGetter:
         return False
 
     def pdf_scorecards(self):
+        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair'))
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         boards_per_round_candidates = []
         for res in self.personals:
@@ -483,12 +503,16 @@ class ResultGetter:
             "boards_per_round": boards_per_round, "pairs": []
         }
         max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
-
-        for pair_number, results in enumerate(self.personals):
-            pair_rank = [t for t in totals if t[0] == pair_number + 1][0]
-            self.scorecards_dict["pairs"].append(Dict2Class({"name": self._replace(self.names[pair_number]), "number": pair_number + 1,
+        real_pairs = sorted(t[0] for t in self.totals)
+        for pair_number in real_pairs:
+            results = self.personals[pair_number - first_pair]
+            pair_rank = [t for t in totals if t[0] == pair_number][0]
+            self.scorecards_dict["pairs"].append(
+                Dict2Class({"name": self._replace(self.names[pair_number - first_pair]),
+                            "number": pair_number,
                             "mp_total": round(pair_rank[1], 2), "max_mp": max_mp,
                             "percent_total": round(100 * pair_rank[1] / max_mp, 2),
+                            "penalties": self.penalties[str(pair_number)],
                             "rank": totals.index(pair_rank) + 1, "boards": []
                             }))
             for r in range(num_of_rounds):
@@ -500,7 +524,7 @@ class ResultGetter:
                     if board_data[3] == "NOT PLAYED":
                         opp_names = ""
                     else:
-                        opp_names = self.names[board_data[-1] - 1]
+                        opp_names = self.names[board_data[-1] - first_pair]
                     dikt = {"number": board_data[0], "vul": board_data[1],
                             "dir": board_data[2], "contract": self._suits(board_data[3]),
                             "declarer": board_data[4].upper(), "lead": self._suits(board_data[5]),
@@ -583,8 +607,10 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(20, 6)
-    CONFIG["scoring"] = "IMPs"
+    g = ResultGetter(21, 8)
+    # from config import init_config
+    # init_config()
+    CONFIG["scoring"] = "MPs"
     g.process()
     # TourneyDB.to_access(800)
-    # g.save()
+    #g.save()

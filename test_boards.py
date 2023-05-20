@@ -25,7 +25,6 @@ class BoardTests(unittest.TestCase):
             parsed = parse.urlparse(link)
             qs = parsed[4]
             qs = {chunk.split("=")[0]: chunk.split("=")[1] for chunk in qs.split("&")}
-            print(qs)
             for k, v in qs.items():
                 if k in "nswe":
                     hands[k] = v

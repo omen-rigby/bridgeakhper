@@ -2,6 +2,8 @@ from tourney_db import TourneyDB
 from constants import *
 from copy import deepcopy
 from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
+from exceptions import *
+
 
 class Board:
     _initial_layout = []
@@ -39,13 +41,17 @@ class Board:
 
     def get_w_hand(self):
         w = []
+        cards_in_w = 0
         for i, suit in enumerate("shdc"):
             cards = "".join(CARDS).lower()
             for seat in "nes":
                 for c in self.__getattribute__(f"{seat}{suit}"):
                     cards = cards.replace(c, "")
                     self.__setattr__(f"w{suit}", cards)
+            cards_in_w += len(cards)
             w.append(SUITS_UNICODE[i] + (cards or "-"))
+        if cards_in_w != 13:
+            raise Exception(f"Wrong number of hands in W hand: {w}")
         return " ".join(w).upper()
 
     @property
@@ -128,6 +134,19 @@ class Board:
     def get_board_from_pbn(self, pbn):
         for hand in pbn.split(' '):
             self.set_hand(hand.replace(".", "\n"))
+
+    def is_valid(self):
+        current_holding = {s: "" for s in SUITS}
+        for position in hands:
+            if position == self.current_hand:
+                break
+            for s in SUITS:
+                holding = self.__getattribute__(position + s)
+                repeating_cards = [c for c in holding if c in current_holding[s]]
+                if repeating_cards:
+                    raise RepeatingCardsException(f"{s}"+"".join(s.upper() for s in repeating_cards) + " is repeating more than once")
+                else:
+                    current_holding[s] += holding
 
     def save(self):
         conn = TourneyDB.connect()

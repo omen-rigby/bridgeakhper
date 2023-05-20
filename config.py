@@ -1,6 +1,18 @@
 global DIRECTORS
 from tourney_db import TourneyDB
-from constants import CONFIG, DIRECTORS
+from constants import CONFIG, DIRECTORS, AM
+
+
+def fix_type(s):
+    if s.isdigit():
+        return int(s)
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    if s.lower() in ('true', 'false'):
+        return s == 'true'
+    return s
 
 
 def init_config():
@@ -14,9 +26,11 @@ def init_config():
             if k == "directors":
                 DIRECTORS.update(db_config["directors"].split(','))
             elif ':' in k:
-                CONFIG[k.split(':')[0]][k.split(':')[1]] = int(v) if v.isdigit() else v
+                CONFIG[k.split(':')[0]][k.split(':')[1]] = fix_type(v)
             else:
-                CONFIG[k] = int(v) if v.isdigit() else v
+                CONFIG[k] = fix_type(v)
+    global AM
+    AM = CONFIG["city"] in ("Ереван",)
 
 
 init_config()

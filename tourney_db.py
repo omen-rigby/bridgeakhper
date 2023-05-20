@@ -67,7 +67,20 @@ class TourneyDB:
             cursor.execute(constraint)
         statement = f"""CREATE TABLE "names" (
                                         "number"	{int_type}  PRIMARY KEY,
-                                        "partnership"	TEXT
+                                        "partnership"	TEXT,
+                                        "penalty"   {float_type} DEFAULT 0
+                                    )"""
+        cursor.execute(statement)
+
+        statement = f"""CREATE TABLE "config" (
+                                        "key"	TEXT  PRIMARY KEY,
+                                        "value"	TEXT
+                                    )"""
+        cursor.execute(statement)
+
+        statement = f"""CREATE TABLE "movements" (
+                                        "tables"	{int_type}  PRIMARY KEY,
+                                        "movement"	TEXT
                                     )"""
         cursor.execute(statement)
         conn.commit()
@@ -117,6 +130,16 @@ VALUES {rows};"""
 
             insert = f"INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score) VALUES {rows};"
             cursor.execute(insert)
+        cur2.execute("select key, value from config")
+        for key, value in cur2.fetchall():
+            rows = f"('{key}', '{value}')"
+            insert = f"INSERT INTO config (key, value) VALUES {rows};"
+            cursor.execute(insert)
+        cur2.execute("select tables, movement from movements")
+        for tables, movement in cur2.fetchall():
+            rows = f"({tables}, '{movement}')"
+            insert = f"INSERT INTO movements (tables, movement) VALUES {rows};"
+            cursor.execute(insert)
         conn.commit()
         conn.close()
         conn2.close()
@@ -128,7 +151,7 @@ VALUES {rows};"""
         ms_conn = connect_mdb(mdb_path)
         conn = TourneyDB.connect()
         cursor = conn.cursor()
-        cursor.execute('select * from protocols')
+        cursor.execute('select * from protocols where number > 0')
         protocols = cursor.fetchall()
         players = max(max(p[1] for p in protocols), max(p[2] for p in protocols))
         ms_cursor = ms_conn.cursor()

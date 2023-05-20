@@ -5,6 +5,8 @@ from util import remove_suits
 from keyboard import *
 from telegram.replykeyboardmarkup import ReplyKeyboardMarkup
 from tourney_db import TourneyDB
+from exceptions import *
+
 
 def send(chat_id, text, reply_buttons=None, context=None):
     if isinstance(reply_buttons, InlineKeyboardMarkup):
@@ -23,10 +25,16 @@ def send(chat_id, text, reply_buttons=None, context=None):
 
 
 def result(update: Update, context: CallbackContext):
-    context.user_data["result"] = send(chat_id=update.effective_chat.id,
-                                       text=f"Enter result:\nNS: {CARET}\nEW: \nContract: \nLead: \nResult: \nScore: ",
-                                       reply_buttons=pairs_keyboard(update, context),
-                                       context=context)
+    board = context.user_data.get("board")
+    if board:
+        context.user_data["result"] = send(
+            chat_id=update.effective_chat.id,
+            text=f"Enter result:\nNS: {CARET}\nEW: \nContract: \nLead: \nResult: \nScore: ",
+            reply_buttons=pairs_keyboard(update, context),
+            context=context)
+    else:
+        from command_handlers import CommandHandlers
+        return CommandHandlers.board(update, context)
 
 
 def inline_key(update: Update, context: CallbackContext):
@@ -38,7 +46,13 @@ def inline_key(update: Update, context: CallbackContext):
         if key.isdigit():
             next_field = result_data.text.split(CARET)[1].lstrip("\n")
             if not next_field.startswith("Lead:") and \
-                    int(result_data.text.split(CARET)[0].split(": ")[-1] + key) > context.bot_data["maxpair"]:
+                    (
+                        # pair number out of range
+                        int(result_data.text.split(CARET)[0].split(": ")[-1] + key) > context.bot_data["maxpair"] or
+                        # ns == ew
+                        result_data.text.split(CARET)[0].split("\n")[-1] == "EW: " and
+                        int(key) == int(result_data.text.split(CARET)[0].split("\n")[-2].split(': ')[-1])
+                    ):
                 # bad number submitted
                 new_text = re.sub(f"\n([^:]+): .*{CARET}", f"\n\g<1>: {CARET}", result_data.text,
                                   flags=re.MULTILINE)

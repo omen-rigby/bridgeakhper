@@ -1,0 +1,2 @@
+class RepeatingCardsException(Exception):
+    pass

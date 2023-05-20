@@ -103,6 +103,7 @@ class SimHandlers:
         agg_cur = agg_conn.cursor()
         agg_cur.execute('select section, PairNS, PairEW from ReceivedData')
         results = agg_cur.fetchall()
+        agg_conn.close()
         max_session = max([r[0] for r in results]) if results else 0
         city = context.bot_data["venues"][-1]
         with open(filename, encoding='cp1251') as players_file:

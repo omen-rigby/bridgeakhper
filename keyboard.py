@@ -19,13 +19,16 @@ def contracts_keyboard(update, include_arbitral=False):
         adj_results = ['50/50', '60/40', '40/60'] if CONFIG["scoring"] == "MPs" else ['A/A', 'A+/A-', 'A-/A+']
         if include_arbitral:
             if CONFIG["scoring"] == "MPs":
-                adj_results = ['60/60', '40/40', '50/40', '40/50', '60/50', '50/60']
+                adj_results = [['60/60', '40/40', '50/40'], ['40/50', '60/50', '50/60']]
             else:
-                adj_results = ['A+/A+', 'A-/A-', 'A/A-', 'A-/A', 'A+/A', 'A/A+']
+                adj_results = [['A+/A+', 'A-/A-', 'A/A-'], ['A-/A', 'A+/A', 'A/A+']]
+            adjs = [[InlineKeyboardButton(text=r, callback_data=f"bm:{r}") for r in row] for row in adj_results]
+            lists.extend(adjs + [NAVIGATION_KEYBOARD])
+
         else:
             adj_results.append('more')
-        adjs = [InlineKeyboardButton(text=r, callback_data=f"bm:{r}") for r in adj_results]
-        lists.append(adjs + NAVIGATION_KEYBOARD)
+            adjs = [InlineKeyboardButton(text=r, callback_data=f"bm:{r}") for r in adj_results]
+            lists.append(adjs + NAVIGATION_KEYBOARD)
     else:
         lists.append(NAVIGATION_KEYBOARD)
     return InlineKeyboardMarkup(lists)
@@ -48,7 +51,6 @@ def lead_keyboard(update):
 def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False):
     pairs = context.bot_data["maxpair"]
     movement = context.bot_data["movement"] if use_movement else ''
-
     board = context.user_data["board"].number
     n_rounds = max(m[2] for m in movement) if movement else pairs - 1 + (pairs % 2)
     boards_per_round = int(context.bot_data["maxboard"]) // n_rounds
@@ -58,7 +60,8 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
     cursor.execute(f"Select ns,ew from protocols where number={board}")
     denied = list(set(chain(*[c for c in cursor.fetchall()])))
     conn.close()
-    allowed = [b for b in range(1, pairs + 1) if b not in denied and b != int(exclude)]
+    first_pair = 1 + (pairs % 2 and CONFIG.get('no_first_pair'))
+    allowed = [b for b in range(first_pair, pairs + first_pair) if b not in denied and b != int(exclude)]
     rows = []
     if movement:
         allowed_tuples = [f"{ew if reverted else ns} vs {ns if reverted else ew}"

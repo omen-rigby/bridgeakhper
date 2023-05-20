@@ -1,8 +1,11 @@
+import datetime
 import logging
+import pytz
 from inline_key import *
 from command_handlers import CommandHandlers
 from file_handlers import FileHandlers
 from sim_handlers import SimHandlers
+from monthly_jobs import MonthlyJobs
 
 
 PORT = int(os.environ.get('PORT', 5000))
@@ -18,8 +21,14 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 if __name__ == '__main__':
     updater = Updater(token=TOKEN)
+    updater.job_queue.run_monthly(MonthlyJobs.update_ranks, day=2, when=datetime.time(hour=18, minute=24,
+                                                                                      tzinfo=pytz.UTC))
+    updater.job_queue.run_monthly(MonthlyJobs.masterpoints_report, day=31, when=datetime.time(hour=18, minute=24,
+                                                                                              tzinfo=pytz.UTC),
+                                  day_is_strict=False)
     updater.dispatcher.add_handler(CommandHandler('start', CommandHandlers.start))
     updater.dispatcher.add_handler(CommandHandler('help', CommandHandlers.help_command))
+    updater.dispatcher.add_handler(CommandHandler('manual', CommandHandlers.manual))
     updater.dispatcher.add_handler(CommandHandler('session', CommandHandlers.start_session))
     updater.dispatcher.add_handler(CommandHandler('board', CommandHandlers.board))
     updater.dispatcher.add_handler(CommandHandler('names', CommandHandlers.names))
@@ -31,6 +40,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('custommovement', CommandHandlers.custom_movement))
     updater.dispatcher.add_handler(CommandHandler('monthlyreport', CommandHandlers.monthly_report))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^0\.2?5$"), CommandHandlers.tourney_coeff))
+    updater.dispatcher.add_handler(CommandHandler('config', CommandHandlers.config))
+    updater.dispatcher.add_handler(CommandHandler('config_update', CommandHandlers.config_update))
 
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Clear"), CommandHandlers.clear_db))
@@ -55,6 +66,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
     updater.dispatcher.add_handler(CommandHandler("correct", CommandHandlers.correct))
     updater.dispatcher.add_handler(CommandHandler("addtd", CommandHandlers.add_td))
+    updater.dispatcher.add_handler(CommandHandler('penalty', CommandHandlers.penalty))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.zip, FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('pbn'), FileHandlers.upload_boards))
     # Synchronous tournaments

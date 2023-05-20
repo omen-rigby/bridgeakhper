@@ -87,6 +87,12 @@ background-color: #aa7777;
       {% endif %}
     </tr>
     {% endfor %}
+    {% if pair.penalties %}
+    <tr>
+      <th colspan="7" align="center" bgcolor="#ffb0b0">Penalties</th>
+      <td bgcolor="#ffb0b0">−{{pair.penalties}}</td>
+    </tr>
+    {% endif %}
   </tbody></table>
 </div>
 {% endfor %}

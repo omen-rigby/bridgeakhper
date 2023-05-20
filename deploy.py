@@ -8,7 +8,7 @@ APPS = {
      "Воронеж": "bridgeakhper-voronezh",
      "Курск": "bridgeakhper-kursk",
      "Ижевск": "bridgeakhper-izhevsk",
-     "null": "bridgeakhper-mdb-aggregator"
+     #"null": "bridgeakhper-mdb-aggregator"
 }
 
 config_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")

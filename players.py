@@ -3,10 +3,13 @@ import urllib.parse as up
 import sqlite3
 import re
 import time
+import requests
 from util import levenshtein
 from constants import PLAYERS_DB, CONFIG
+from lxml import html, etree
 
 up.uses_netloc.append("postgres")
+RU_DB = "https://db.bridgesport.ru/rate/fulllist/"
 
 
 class Players:
@@ -54,7 +57,7 @@ class Players:
                 conn = Players.connect()
                 cursor = conn.cursor()
                 city = CONFIG['city']
-                cursor.execute(f"select {columns} from players where city='{city}' order by full_name")
+                cursor.execute(f"select {columns} from players where city='{city}' order by last_name")
                 players = cursor.fetchall()
                 conn.close()
                 return [list(map(lambda x: x.strip() if type(x) == str else x, p)) for p in players]
@@ -168,6 +171,57 @@ class Players:
         return [(c[2], c[4] or 0, c[5] if c[5] is not None else 5) if type(c) != str else (c, 0, 1.6) for c in candidates]
 
     @staticmethod
+    def synch():
+        res = requests.get(RU_DB)
+        players = etree.fromstring(res.content)
+        conn = Players.connect()
+        cursor = conn.cursor()
+        cursor.execute("select id_ru,rank_ru,full_name from players")
+        digest = []
+        for player_id, rank, full_name in cursor.fetchall():
+            if not player_id:
+                continue
+            db_rank = players.find(f'.//player[@id="{player_id}"]').find('razr').text
+            if float(db_rank) != rank:
+                digest.append(f"{full_name} {rank} -> {db_rank}")
+                cursor.execute(f"update players set rank_ru={db_rank} where id_ru={player_id}")
+        conn.commit()
+        conn.close()
+        return "\n".join(digest)
+
+    @staticmethod
+    def find_ru_ids():
+        res = requests.get(RU_DB)
+        players = etree.fromstring(res.content)
+        conn = Players.connect()
+        cursor = conn.cursor()
+        cursor.execute("select first_name,last_name,city from players where id_ru is NULL")
+        digest = []
+        for first, last, city in cursor.fetchall():
+            candidates = [p for p in players.findall(f'.//player') if p.find('.firstname').text == first.strip() and
+                          p.find('.lastname').text == last.strip()]
+            if not candidates:
+                digest.append(f"No people found for criteria {first.strip()} {last.strip()}")
+                continue
+            if len(candidates) > 1:
+                candidates = [c for c in candidates if c.find('city').text == city]
+                if not candidates:
+                    digest.append(f"No people found for criteria {first.strip()} {last.strip()} {city}")
+                    continue
+                if len(candidates) > 1:
+                    digest.append(f"More than one person found for criteria {first.strip()} {last.strip()} {city}\n" +
+                                  '\n'.join(f'https://www.bridgesport.ru/players-and-ratings/search-player/{c.get("id")}'
+                                            for c in candidates))
+                    continue
+            ru_id = candidates[0].get('id')
+            digest.append(f'{first.strip()} {last.strip()} id is set to {ru_id}')
+            cursor.execute(f"update players set id_ru={ru_id} where first_name='{first}' and last_name='{last}'"
+                           f" and city='{city}'")
+        conn.commit()
+        conn.close()
+        return '\n'.join(digest)
+
+    @staticmethod
     def monthly_report():
         current = time.localtime()
         month = current[1] if current[2] > 24 else (current[1] - 2) % 12 + 1
@@ -196,4 +250,4 @@ ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 
 
 if __name__ == "__main__":
-    print(Players.lookup("Вахранева Биткин", ALL_PLAYERS))
+    print(Players.find_ru_ids())

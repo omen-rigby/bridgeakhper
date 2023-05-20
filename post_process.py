@@ -77,11 +77,12 @@ FONT-SIZE: 20pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #000000; TEXT-ALI
 H2 {
 FONT-SIZE: 16pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #0000a0; TEXT-ALIGN: center
 }
-table.deal, table.deal td {
+table.deal, table.deal td, .minimax {
 border: none;
 font-family: Verdana;
 font-size: 13px;
 }
+
 
 table.deal th{
 font-family: Verdana;

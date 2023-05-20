@@ -24,13 +24,13 @@ def decorate_all_functions(function_decorator):
 def command_eligibility(func):
     @wraps(func)
     def wrapper(update: Update, context: CallbackContext):
-        if CONFIG["city"] and update.message.text in AGGREGATOR_COMMANDS:
+        if CONFIG["city"] and update.message and update.message.text in AGGREGATOR_COMMANDS:
             send(chat_id=update.effective_chat.id, text="Use @mdb_aggregator_bot", context=context)
             raise Exception("Bad command")
-        elif not CONFIG["city"] and update.message.text not in AGGREGATOR_COMMANDS:
+        elif not CONFIG["city"] and update.message and update.message.text not in AGGREGATOR_COMMANDS:
             send(chat_id=update.effective_chat.id, text="Use city bot for this command", context=context)
             raise Exception("Bad command")
-        if update.effective_chat.id < 0:
+        if update.effective_chat.id < 0 and update.message.text != "/end":
             send(chat_id=update.effective_chat.id, text="This bot shouldn't be called in groups", context=context)
             context.bot.deleteMessage(chat_id=update.effective_chat.id, message_id=update.message.message_id)
             raise Exception("Bad command")
@@ -50,6 +50,62 @@ class CommandHandlers:
         else:
             send(chat_id=update.effective_chat.id,
                  text="Started BWS aggregator. Drag files to upload",
+                 context=context)
+
+    @staticmethod
+    def config(update: Update, context: CallbackContext):
+        conn = TourneyDB.connect()
+        cursor = conn.cursor()
+        cursor.execute("select key,value from config order by key")
+
+        if is_director(update):
+            string_config = '\n'.join(f'{k} = {v}' for (k, v) in cursor.fetchall())
+            send(chat_id=update.effective_chat.id,
+                 text=f"Current global parameters:\n{string_config}",
+                 context=context)
+        else:
+            send(chat_id=update.effective_chat.id,
+                 text="Not enough permissions",
+                 context=context)
+        conn.close()
+
+    @staticmethod
+    def config_update(update: Update, context: CallbackContext):
+        if is_director(update):
+            if context.user_data.get("config_update"):
+
+                try:
+                    k, v = update.message.text.split('=')
+                    k = k.strip()
+                    v = v.strip()
+                except (IndexError, ValueError):
+                    return send(chat_id=update.effective_chat.id,
+                                text="Incorrect invocation, try mp:neuberg=false",
+                                context=context)
+                conn = TourneyDB.connect()
+                cursor = conn.cursor()
+                cursor.execute("select key from config order by key")
+                keys = [c[0] for c in cursor.fetchall()]
+                if k not in keys:
+                    return send(chat_id=update.effective_chat.id,
+                                text=f"No such config key {k}, should be one of {','.join(keys)}",
+                                context=context)
+                cursor.execute(f"update config set value='{v}' where key='{k}'")
+                send(chat_id=update.effective_chat.id,
+                     text=f"{k} is set to {v}",
+                     context=context)
+                conn.commit()
+                init_config()
+                context.user_data["config_update"] = False
+                conn.close()
+            else:
+                send(chat_id=update.effective_chat.id,
+                     text=f"""Type in the desired parameter to update, e.g. imp:fractional=true.""",
+                     context=context)
+                context.user_data["config_update"] = True
+        else:
+            send(chat_id=update.effective_chat.id,
+                 text="Not enough permissions",
                  context=context)
 
     @staticmethod
@@ -79,7 +135,7 @@ class CommandHandlers:
         context.user_data["result"] = None
         context.user_data["names"] = None
         for key in ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
-                    'rounds', 'add_td'):
+                    'rounds', 'add_td', 'config_update', 'penalty'):
             context.user_data[key] = False
         initial_config = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
         CONFIG["tournament_title"] = initial_config["tournament_title"]
@@ -112,7 +168,9 @@ class CommandHandlers:
                     if cursor.fetchall():
                         break
                 else:
+                    conn.close()
                     return CommandHandlers.init(update, context)
+                conn.close()
                 return send(chat_id=update.effective_chat.id,
                             text="Session exists in database. Clear and start new tournament or reuse the existing data?",
                             reply_buttons=["Clear", "Reuse"],
@@ -169,7 +227,9 @@ class CommandHandlers:
         cursor.execute("Select number from names")
         added = list(set([c[0] for c in cursor.fetchall()]))
         conn.close()
-        all_pairs = range(1, context.bot_data["maxpair"] + 1)
+        pairs = context.bot_data["maxpair"]
+        skip_first = pairs % 2 and CONFIG["no_first_pair"]
+        all_pairs = range(1 + skip_first, pairs + skip_first + 1)
         buttons = [l for l in all_pairs if l not in added]
         send(chat_id=update.effective_chat.id,
              text="Enter pair number",
@@ -187,6 +247,10 @@ class CommandHandlers:
             return CommandHandlers.update_player(update, context)
         if context.user_data.get("add_td"):
             return CommandHandlers.add_td(update, context)
+        if context.user_data.get("penalty"):
+            return CommandHandlers.penalty(update, context)
+        if context.user_data.get('config_update'):
+            return CommandHandlers.config_update(update, context)
         if context.user_data.get("names") is not None and \
                 re.match('[\w ]+[-–—][\w ]+', text) or re.match('[\w ]+ [\w ]+', text):
             return CommandHandlers.names_text(update, context)
@@ -230,6 +294,23 @@ class CommandHandlers:
         if len(update.message.text) > 3:
             # Telegram ID
             return CommandHandlers.freeform(update, context)
+        if context.user_data.get("penalty"):
+            if context.user_data.get("penalized_pair"):
+                return CommandHandlers.penalty(update, context)
+            pair_number = int(update.message.text)
+            context.user_data["penalized_pair"] = pair_number
+            instruction = f"""
+    1 for default value ({CONFIG['mp']['base_penalty']} * board MAX), or
+    any other number for the respective multiple of the base penalty, or 
+    40% for the specific value in %""" if CONFIG["scoring"] == "MPs" else f"""
+    1 for default value ({CONFIG['imp']['base_penalty']} IMPs), or
+    any other number for the respective multiple of the base penalty
+"""
+            send(chat_id=update.effective_chat.id,
+                 text=f"Enter penalty value for pair {pair_number}. Type:{instruction}",
+                 reply_buttons=[],
+                 context=context)
+            return
         if context.user_data.get("names", -1) == 0:
             pair_number = int(update.message.text)
             context.user_data["names"] = pair_number
@@ -285,8 +366,6 @@ class CommandHandlers:
                 elif context.user_data.get("remove_board"):
                     context.user_data["remove_board"] = False
                     board_number = update.message.text.strip()
-                    conn = TourneyDB.connect()
-                    cursor = conn.cursor()
                     cursor.execute(f"delete from boards where number={board_number}")
                     conn.commit()
                     conn.close()
@@ -310,6 +389,7 @@ class CommandHandlers:
                         reply_buttons=context.user_data["board"].get_remaining_cards(),
                         context=context)
             context.user_data["currentHand"] = hand
+            conn.close()
         elif context.bot_data["maxboard"]:
             context.bot_data["maxpair"] = int(update.message.text)
             context.bot_data["movement"] = get_movement(context.bot_data["maxpair"])
@@ -339,10 +419,17 @@ class CommandHandlers:
                                                     reply_buttons=board.get_remaining_cards(),
                                                     context=context)
             return
-
         board.set_hand(context.user_data["currentHand"]["text"])
+        try:
+            context.user_data["board"].is_valid()
+        except RepeatingCardsException as e:
+            send(chat_id=update.effective_chat.id,
+                 text=str(e),
+                 context=context)
+            return CommandHandlers.restart(update, context)
         if board.current_hand == "w":
-            w = board.get_w_hand().replace("T", "10")
+            w_hand = board.get_w_hand()
+            w = w_hand.replace("T", "10")
             send(chat_id=update.effective_chat.id,
                  text=f"W hand should be: {w}",
                  reply_buttons=[],
@@ -459,6 +546,53 @@ class CommandHandlers:
             send(chat_id=update.effective_chat.id,
                  text=f"Enter new tounrey coeff (0.25 is the default)",
                  reply_buttons=[], context=context)
+
+    @staticmethod
+    def penalty(update: Update, context: CallbackContext):
+        if context.user_data.get("penalized_pair", 0) > 0:
+            context.user_data["penalty"] = False
+            pair_number = context.user_data.get("penalized_pair")
+            context.user_data["penalized_pair"] = False
+            scoring = CONFIG["scoring"]
+            pairs = context.bot_data["maxpair"]
+            raw_penalty = update.message.text
+            max_per_board = pairs - 2 - pairs % 2
+            if raw_penalty.endswith('%'):
+                mp = max_per_board * float(raw_penalty.strip('%')) / 100
+            else:
+                # number of base penalties
+                try:
+                    if scoring == "MPs":
+                        mp = float(raw_penalty) * max_per_board * CONFIG['mp']['base_penalty']
+                    else:
+                        mp = float(raw_penalty) * CONFIG['imp']['base_penalty']
+                except Exception:
+                    send(chat_id=update.effective_chat.id, text="Cannot parse penalty value, try /penalty again",
+                         reply_buttons=[], context=context)
+                    return
+            conn = TourneyDB.connect()
+            cursor = conn.cursor()
+            cursor.execute(
+                f"select penalty from names where penalty is not NULL and penalty > 0 and number={pair_number}")
+            result = cursor.fetchone()
+            old_penalty = result[0] if result else 0
+            cursor.execute(f"update names set penalty={old_penalty + mp} where number={pair_number}")
+            rounded_mp = round(mp, 2)
+            send(chat_id=update.effective_chat.id,
+                 text=f"""Pair #{pair_number} has been penalized by {rounded_mp} {scoring}
+Total penalty: {old_penalty + mp} {scoring}""",
+                 reply_buttons=[], context=context)
+            conn.commit()
+            conn.close()
+        else:
+            context.user_data["penalty"] = True
+            context.user_data["penalized_pair"] = 0
+            pairs = context.bot_data["maxpair"]
+            skip_first = pairs % 2 and CONFIG["no_first_pair"]
+            all_pairs = range(1 + skip_first, pairs + skip_first + 1)
+            send(chat_id=update.effective_chat.id,
+                 text=f"Enter pair number to apply penalty to",
+                 reply_buttons=all_pairs, context=context)
 
     @staticmethod
     def add_player(update: Update, context: CallbackContext):
@@ -612,10 +746,11 @@ class CommandHandlers:
     /board: starts deal entry flow
     /names: starts names entry flow"""
         if is_director(update):
-            text = text.replace('shows session info', 'starts new session without db cleanup')
+            text = text.replace('shows session info', 'starts new session, will ask for db cleanup')
             text += """
 
-    TD only commands:
+TD only commands:
+    /manual: link to manual for TDs
     /tdlist: prints all TDs for the session
     /title: adds turney title""" + """
     /tourneycoeff: updates tournament coefficient""" * AM + """
@@ -625,17 +760,26 @@ class CommandHandlers:
     /rmboard: removes all hands for the specified board
     /restart: when submitting hands, reset all hands and starts again from N
     /result: starts board result entry flow
+    /penalty: penalizes a player by a certain number of (I)MPs
     /missing: shows session info
     /viewboard: shows 4 hands for specified board
     /addplayer: adds a new player to players DB
     /updateplayer: updates existing player record in players DB
     /playerslist: prints list of all players associated with the club
     /boards: gets boards without results as pdf
-    /end: gets tourney results, sends you raw db file & resulting pdfs, clears all data
+    /end: gets tourney results, sends you raw db file & resulting pdfs
     /bridgematedb: convert to bridgemate format""" + """
     /store: saves tourney results to yerevanbridge site db
     /correct: resaves last tourney results to yerevanbridge site db""" * AM + """
-    /addtd: adds director to current tourney. To add a permanent TD, ask devs in DM""" + """
+    /config: lists current global parameters
+    /config_update: updates global parameter
+    /addtd: adds director to current tourney. To add a permanent TD, edit config (see above)""" + """
     /monthlyreport: generates table with monthly MPs for RU players""" * AM
 
         send(chat_id=update.message.chat_id, text=text, context=context)
+
+    @staticmethod
+    def manual(update: Update, context: CallbackContext):
+        send(chat_id=update.message.chat_id,
+             text="https://telegra.ph/Instrukciya-dlya-telegram-bota-dlya-provedeniya-turnira-po-bridzhu-04-24",
+             context=context)
