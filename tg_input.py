@@ -65,6 +65,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
     updater.dispatcher.add_handler(CommandHandler("correct", CommandHandlers.correct))
+    updater.dispatcher.add_handler(CommandHandler("addsession", CommandHandlers.add_session))
     updater.dispatcher.add_handler(CommandHandler("addtd", CommandHandlers.add_td))
     updater.dispatcher.add_handler(CommandHandler('penalty', CommandHandlers.penalty))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.zip, FileHandlers.upload_boards))

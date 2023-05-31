@@ -60,7 +60,7 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
     cursor.execute(f"Select ns,ew from protocols where number={board}")
     denied = list(set(chain(*[c for c in cursor.fetchall()])))
     conn.close()
-    first_pair = 1 + (pairs % 2 and CONFIG.get('no_first_pair'))
+    first_pair = 1 + (pairs % 2 and CONFIG.get('no_first_pair', False))
     allowed = [b for b in range(first_pair, pairs + first_pair) if b not in denied and b != int(exclude)]
     rows = []
     if movement:

@@ -687,6 +687,10 @@ Total penalty: {old_penalty + mp} {scoring}""",
         context.bot_data['result_getter'].save(correction=True)
 
     @staticmethod
+    def add_session(update: Update, context: CallbackContext):
+        context.bot_data['reult_getter'].add_session()
+
+    @staticmethod
     def load_db(update: Update, context: CallbackContext):
         path = f'{date}/boards.db'
         if os.stat(path):
@@ -770,7 +774,8 @@ TD only commands:
     /end: gets tourney results, sends you raw db file & resulting pdfs
     /bridgematedb: convert to bridgemate format""" + """
     /store: saves tourney results to yerevanbridge site db
-    /correct: resaves last tourney results to yerevanbridge site db""" * AM + """
+    /correct: resaves last tourney results to yerevanbridge site db
+    /addsession: adds next session for long tournament to current results""" * AM + """
     /config: lists current global parameters
     /config_update: updates global parameter
     /addtd: adds director to current tourney. To add a permanent TD, edit config (see above)""" + """

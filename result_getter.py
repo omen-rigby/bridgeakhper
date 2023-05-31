@@ -9,7 +9,7 @@ from deal import Deal
 from imps import imps
 from statistics import mean
 from tourney_db import TourneyDB
-
+from copy import deepcopy
 
 class ResultGetter:
     _conn = None
@@ -196,7 +196,7 @@ class ResultGetter:
     def get_standings(self):
         max_mp = self.pairs - 2 - self.pairs % 2
         cur = self.cursor
-        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair'))
+        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
         for pair in range(first_pair, self.pairs + first_pair):
             cur.execute(f"select * from protocols where (MOD(ns-{pair},{self.pairs})=0 "
                         f"or MOD(ew - {pair},{self.pairs})=0) and number > 0 order by number")
@@ -250,13 +250,18 @@ class ResultGetter:
                 self.totals[i].append(0)
             self.names = [[n[0] for n in p] for p in self.names]
 
-    def get_masterpoints(self):
+    def get_masterpoints(self, played_boards=None, totals=None, names=None):
         n = self.pairs
+        if not names:
+            names = self.names
+        if not totals:
+            totals = self.totals
+        if not played_boards:
+            played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
         if AM:
             # AM
+            total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in names)
             # 52 is the number of cards in a board (sic!)
-            total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in self.names)
-            played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
             b0 = total_rating * played_boards / 52 * CONFIG["tourney_coeff"]
             mps = [b0]
             for i in range(2, n):
@@ -266,13 +271,13 @@ class ResultGetter:
             half = self.max_mp / 2 if CONFIG["scoring"] == "MPs" else 0
             for i in range(n):
                 cluster_first = i - cluster_index
-                if cluster_first + 1 > round(0.4 * n) or self.totals[i][2] < half:
-                    self.totals[i].append(0)
+                if cluster_first + 1 > round(0.4 * n) or totals[i][2] < half:
+                    totals[i].append(0)
                     continue
-                cluster_length = len([a for a in self.totals if a[2] == self.totals[i][2]])
-                cluster_total = sum(mps[j] for j, a in enumerate(self.totals) if a[2] == self.totals[i][2])\
+                cluster_length = len([a for a in totals if a[2] == totals[i][2]])
+                cluster_total = sum(mps[j] for j, a in enumerate(totals) if a[2] == totals[i][2])\
                     / cluster_length
-                if i + 1 < len(self.totals) and self.totals[i + 1][2] == self.totals[i][2]:
+                if i + 1 < len(totals) and totals[i + 1][2] == totals[i][2]:
                     cluster_index += 1
                 else:
                     cluster_index = 0
@@ -281,9 +286,9 @@ class ResultGetter:
                     rounding_method = ceil
                 else:
                     rounding_method = round
-                self.totals[i].append(rounding_method(cluster_total))
+                totals[i].append(rounding_method(cluster_total))
         else:
-            for t in self.totals:
+            for t in totals:
                 t.append(0)
         # RU
         # this dragon poker rules are taken from https://www.bridgesport.ru/materials/sports-classification/
@@ -291,7 +296,7 @@ class ResultGetter:
         # Use maximum possible number of boards played by a certain pair.
         # The logic will change soon according to Dobrin.
         # Yet classification 4.1 looks like we shouldn't be recalculating it as of 2023.
-        d = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
+        # played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
         ranks_ru = [sum(a[2] for a in p) / len(p) for p in self.names]
         team = "team" in CONFIG["scoring"].lower()
         n0 = n * (1 + team)  # number of pairs for team events also
@@ -303,19 +308,19 @@ class ResultGetter:
         kq = sum(q2[:last]) / 2 ** (typ - 1)
         kq1 = 1 if kq >= 1 else 1 - 0.7 * log10(kq)
         kqn = 0.6 * (kq + log10(n0) - 1.5) * kq1 if n0 >= 32 else 0.4 * kq * log10(n0) * kq1
-        kd = 2.2 * log10(d) - 2
+        kd = 2.2 * log10(played_boards) - 2
         t = n / 8 * max(0.5, 3 + kq - 0.5 * log10(n))
         r = 1.1 * (100 * kd * kqn) ** (1 / t)
-        mps = [50 * kqn * kd / r ** i for i in range(self.pairs)]
+        mps = [50 * kqn * kd / r ** i for i in range(len(totals))]
         try:
-            for i, t in enumerate(self.totals):
-                cluster_length = len([a for a in self.totals if a[2] == self.totals[i][2]])
-                tied_mps = [mps[j] for j, a in enumerate(self.totals) if a[2] == self.totals[i][2]]
+            for i, t in enumerate(totals):
+                cluster_length = len([a for a in totals if a[2] == totals[i][2]])
+                tied_mps = [mps[j] for j, a in enumerate(totals) if a[2] == totals[i][2]]
                 cluster_total = sum(tied_mps) / cluster_length
                 t.append(1 if min(tied_mps) < 0.5 and max(map(round, tied_mps)) > 0 and cluster_total < 0.5
                          else round(cluster_total))
         except Exception:
-            for i, t in enumerate(self.totals):
+            for i, t in enumerate(totals):
                 t.append(0)
         # remove extra stuff from names
         self.names = [[n[0] for n in p] for p in self.names]
@@ -333,9 +338,9 @@ class ResultGetter:
 
     def pdf_rankings(self):
         totals = []
-        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair'))
+        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
         for i, rank in enumerate(self.totals):
-            cluster = [i for i, r in enumerate(self.totals) if abs(r[2] - rank[2]) < 0.0001]
+            cluster = [j for j, r in enumerate(self.totals) if abs(r[2] - rank[2]) < 0.0001]
             repl_dict = {
                 "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0],
                 "names": self.names[int(rank[0]) - first_pair], "mp": round(rank[1], 2),
@@ -476,7 +481,7 @@ class ResultGetter:
         return False
 
     def pdf_scorecards(self):
-        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair'))
+        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         boards_per_round_candidates = []
         for res in self.personals:
@@ -589,6 +594,71 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         conn.commit()
         conn.close()
 
+    def add_session(self):
+        conn = Players.connect()
+        cursor = conn.cursor()
+        max_mp = self.scorecards_dict["pairs"][0].max_mp
+        boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
+        cursor.execute(f'select count(*) from tournaments')
+        self.tournament_id = self.tournament_id or cursor.fetchone()[0]
+        cursor.execute(f"select boards,max,rounds from tournaments where tournament_id={self.tournament_id}")
+        old_boards, old_max, old_rounds = cursor.fetchone()
+        boards = old_boards + self.boards
+        new_max_mp = max_mp + old_max
+        rounds = old_rounds + self.boards / boards_per_round
+        cursor.execute(f"""update tournaments set boards={boards}, max={new_max_mp},rounds={rounds}
+                           where tournament_id={self.tournament_id}""")
+        cursor.execute(
+            f"select number,mps,percent from names where tournament_id={self.tournament_id} order by number")
+        old_results = cursor.fetchall()
+        self.totals.sort(key=lambda x: x[0])
+        new_totals = [deepcopy(t[:3]) for t in self.totals]
+
+        played_old_boards_candidates = []
+        played_boards_candidates = []
+        for i, (result, total) in enumerate(zip(old_results, self.totals)):
+            # result: pair_number, mp, percent
+            # total:  pair_number, mp, mp_per_board
+            new_totals[i][1] += result[1]
+            played_old_boards = round(result[1] / result[2] * 100 / ((self.pairs // 2 - 1) * 2))
+            played_old_boards_candidates.append(played_old_boards)
+            played_boards_candidates.append(round(total[1] / total[2]))
+            new_totals[i][2] = new_totals[i][1] / round(played_old_boards + total[1] / total[2])
+        new_totals.sort(key=lambda x: -x[2])
+        played_boards_old = max(played_old_boards_candidates)
+        played_boards_new = max(played_boards_candidates)
+        total_boards = round(played_boards_old + played_boards_new)
+        self.names = []
+        self.get_names()
+        self.get_masterpoints(total_boards, new_totals, self.names)
+        for i, pair in enumerate(new_totals):
+            mps = pair[1]
+            cluster = [j for j, m in enumerate(new_totals) if abs(m[2] - pair[2]) < 0.0001]
+            rank = i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}"
+            percent = round(mps/new_max_mp * 100, 2)
+            insert = f"""UPDATE names SET rank='{self._replace(rank)}', mps={mps}, percent={percent}, masterpoints={pair[3]}, 
+                         masterpoints_ru={pair[4]} where number={pair[0]} and tournament_id={self.tournament_id}"""
+            cursor.execute(insert)
+        hands_columns = ["".join(p) for p in itertools.product(hands, SUITS)]
+        par_columns = ["_par_".join(p) for p in itertools.product(hands, reversed(DENOMINATIONS))]
+        for b in self.travellers_dict["boards"]:
+            hand_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in hands_columns) + "'"
+            par_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in par_columns) + "'"
+            rows = f"({self.tournament_id}, {b.b + 32}, {hand_values}, {par_values}, '{self._suits(b.minimax_contract)}', " \
+                   f"'{self._replace(b.minimax_outcome)}', '{b.minimax_url}')"
+            insert = f"""INSERT INTO boards (tournament_id, number, {", ".join(hands_columns)},
+    {", ".join(par_columns)}, minimax_contract, minimax_outcome, minimax_url) VALUES {rows};"""
+            cursor.execute(insert)
+            for t in b.tables:
+                rows = f"({self.tournament_id}, {b.b + 32}, {t.ns}, {t.ew}, '{self._suits(t.contract)}', '{t.declarer}', " \
+                       f"'{self._suits(t.lead)}', {self._replace(t.nsplus or -int(t.nsminus or 0))}, {self._replace(t.mp_ns)}," \
+                       f"{self._replace(t.mp_ew)}, '{t.bbo_url}')"
+                insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead,
+    score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
+                cursor.execute(insert)
+        conn.commit()
+        conn.close()
+
     def boards_only(self):
         self.get_hands()
         return self.pdf_travellers(boards_only=True)
@@ -602,15 +672,16 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         paths.append(self.pdf_rankings())
         paths.append(self.pdf_travellers())
         paths.append(self.pdf_scorecards())
-        self.conn.close()
+        self._conn = self.conn.close()
         return paths
 
 
 if __name__ == "__main__":
-    g = ResultGetter(21, 8)
-    # from config import init_config
-    # init_config()
+    g = ResultGetter(21, 7, 59)
+    from config import init_config
+    init_config()
     CONFIG["scoring"] = "MPs"
     g.process()
+    g.add_session()
     # TourneyDB.to_access(800)
     #g.save()
