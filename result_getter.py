@@ -237,14 +237,14 @@ class ResultGetter:
                     position = "EW"
                 self.personals[-1].append([board[0], vul[VULNERABILITY[board[0] % 16]], position,
                                           escape_suits(board[3] + board[6]), board[4], escape_suits(board[5]),
-                                          board[7] * (-1) ** (pair != board[1]),
+                                          board[7] * (-1) ** (pair != board[1] and board[7] != 1),
                                           board[8 + (pair != board[1])],
                                           round(board[8 + (pair != board[1])] * 100 / max_mp, 2),
                                           board[1 + (pair == board[1])]])
         self.totals.sort(key=lambda x: -x[2])
         try:
             self.get_masterpoints()
-        except:
+        except Exception:
             for i in range(self.pairs):
                 self.totals[i].append(0)
                 self.totals[i].append(0)
@@ -489,16 +489,20 @@ class ResultGetter:
             boards_per_round_candidates.extend(sum(1 for _ in group) for _, group in itertools.groupby(opps))
         boards_per_round = max(set(boards_per_round_candidates), key=boards_per_round_candidates.count)
         cursor = self.cursor
-        cursor.execute("select tables, movement from movements")
+        cursor.execute("select tables, movement,is_mitchell from movements") # add //
         movements = cursor.fetchall()
         tables = (self.pairs + 1) // 2
-        if all(movement[0] != tables for movement in movements):
+        is_mitchell = CONFIG.get('is_mitchell')
+        if all(movement[0] != tables or is_mitchell != movements[2] for movement in movements):
             movement = []
             for b in range(1, self.boards + 1, boards_per_round):
                 board_results = self.travellers[b - 1]
                 movement.append(",".join(f"{r[0]}-{r[1]}" for r in board_results))
             movement = ";".join(movement)
-            statement = f"""insert into movements ("tables", movement) values({tables}, '{movement}')"""
+            is_mitchell = str(is_mitchell).lower()
+            statement = f"""
+            insert into movements ("tables", movement, is_mitchell) values({tables}, '{movement}', {is_mitchell})
+"""
             cursor.execute(statement)
         self.conn.commit()
         num_of_rounds = self.boards // boards_per_round
@@ -594,7 +598,7 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         conn.commit()
         conn.close()
 
-    def add_session(self):
+    def add_session(self, number=1):
         conn = Players.connect()
         cursor = conn.cursor()
         max_mp = self.scorecards_dict["pairs"][0].max_mp
@@ -644,13 +648,13 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         for b in self.travellers_dict["boards"]:
             hand_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in hands_columns) + "'"
             par_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in par_columns) + "'"
-            rows = f"({self.tournament_id}, {b.b + 32}, {hand_values}, {par_values}, '{self._suits(b.minimax_contract)}', " \
+            rows = f"({self.tournament_id}, {b.b + 32 * number}, {hand_values}, {par_values}, '{self._suits(b.minimax_contract)}', " \
                    f"'{self._replace(b.minimax_outcome)}', '{b.minimax_url}')"
             insert = f"""INSERT INTO boards (tournament_id, number, {", ".join(hands_columns)},
     {", ".join(par_columns)}, minimax_contract, minimax_outcome, minimax_url) VALUES {rows};"""
             cursor.execute(insert)
             for t in b.tables:
-                rows = f"({self.tournament_id}, {b.b + 32}, {t.ns}, {t.ew}, '{self._suits(t.contract)}', '{t.declarer}', " \
+                rows = f"({self.tournament_id}, {b.b + 32 * number}, {t.ns}, {t.ew}, '{self._suits(t.contract)}', '{t.declarer}', " \
                        f"'{self._suits(t.lead)}', {self._replace(t.nsplus or -int(t.nsminus or 0))}, {self._replace(t.mp_ns)}," \
                        f"{self._replace(t.mp_ew)}, '{t.bbo_url}')"
                 insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead,
@@ -677,11 +681,10 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(21, 7, 59)
+    g = ResultGetter(22, 11)
     from config import init_config
     init_config()
     CONFIG["scoring"] = "MPs"
     g.process()
-    g.add_session()
     # TourneyDB.to_access(800)
     #g.save()

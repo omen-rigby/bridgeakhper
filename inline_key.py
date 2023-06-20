@@ -159,7 +159,8 @@ def inline_key(update: Update, context: CallbackContext):
             statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
                 VALUES({board_number}, '{ns}', '{ew}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
 ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE 
-  SET contract = excluded.contract, lead = excluded.lead, result = excluded.result, score = excluded.score;"""
+  SET contract = excluded.contract, lead = excluded.lead, result = excluded.result, score = excluded.score, 
+  declarer=excluded.declarer;"""
             cursor.execute(statement)
             conn.commit()
             conn.close()
@@ -184,6 +185,24 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
                                                                       parse_mode=ParseMode.HTML)
 
         elif CARD_RE.match(key):
+            if key and CONFIG.get("validate_lead"):
+                conn = TourneyDB.connect()
+                cursor = conn.cursor()
+                declarer = result_data.text.split(CARET)[0].split('\n')[-2][-1].lower()
+                on_lead = hands[(hands.index(declarer) + 1) % 4]
+                board_number = context.user_data["board"].number
+                cursor.execute(f'select {on_lead}{key[0]} from boards where number={board_number}')
+                expected = cursor.fetchone()[0].lower()
+                conn.close()
+                if key[1:].replace('10', 't').lower() not in expected:
+                    new_text = f"Incorrect card, try again\n{result_data.text}"
+                    reply_markup = context.user_data["markups"][-1]
+                    context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
+                                                                              message_id=result_data.message_id,
+                                                                              text=new_text,
+                                                                              reply_markup=reply_markup,
+                                                                              parse_mode=ParseMode.HTML)
+                    return
             key = key.replace(key[0], SUITS_UNICODE["shdc".index(key[0])])
             new_text = re.sub(f"([{SUITS_UNICODE}][0-9AQKTJ])?{CARET}\n([^:]+): ", f"{key.upper()}\n\g<2>: {CARET}", result_data.text, flags=re.MULTILINE)
             reply_markup = results_keyboard(context)

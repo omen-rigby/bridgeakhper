@@ -603,10 +603,10 @@ Total penalty: {old_penalty + mp} {scoring}""",
             else:
                 first, last, gender, rank_ru = update.message.text.split(" ")
                 rank = 0
-            Players.add_new_player(first, last, gender, rank or 0, rank_ru)
+            message = Players.add_new_player(first, last, gender, rank or 0, rank_ru)
             global ALL_PLAYERS
             ALL_PLAYERS = Players.get_players()
-            send(update.effective_chat.id, f"Added player {first} {last}", [], context)
+            send(update.effective_chat.id, f"Added player {first} {last}. {message}", [], context)
         else:
             context.user_data["add_player"] = True
             send(chat_id=update.effective_chat.id,

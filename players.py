@@ -76,11 +76,16 @@ class Players:
         conn = Players.connect()
         cursor = conn.cursor()
         full = f"{first} {last}"
-        insert = f"""INSERT INTO players (first_name, last_name, rank, gender, full_name, rating, rank_ru, city) 
-                     VALUES ('{first or ""}', '{last}', {rank}, '{gender}', '{full}', 0, {rank_ru}, '{CONFIG["city"]}');"""
+        res = requests.get(RU_DB)
+        players = etree.fromstring(res.content)
+        ru_id, message = Players.find_ru_id(first, last ,CONFIG["city"], players)
+        insert = f"""INSERT INTO players (first_name, last_name, rank, gender, full_name, rating, rank_ru, city, id_ru) 
+                     VALUES ('{first or ""}', '{last}', {rank}, '{gender}', '{full}', 0, {rank_ru}, '{CONFIG["city"]}',
+                     {ru_id});"""
         cursor.execute(insert)
         conn.commit()
         conn.close()
+        return message
 
     @staticmethod
     def update(last_name, rank=None, rank_ru=None, first_name=None):
@@ -190,6 +195,23 @@ class Players:
         return "\n".join(digest)
 
     @staticmethod
+    def find_ru_id(first, last, city, players):
+        candidates = [p for p in players.findall(f'.//player') if p.find('.firstname').text == first.strip() and
+                      p.find('.lastname').text == last.strip()]
+        if not candidates:
+            return 0, f"No people found for criteria {first.strip()} {last.strip()}"
+        if len(candidates) > 1:
+            candidates = [c for c in candidates if c.find('city').text == city]
+            if not candidates:
+                return 0, f"No people found for criteria {first.strip()} {last.strip()} {city}"
+            if len(candidates) > 1:
+                return 0, f"More than one person found for criteria {first.strip()} {last.strip()} {city}\n" + \
+                    '\n'.join(f'https://www.bridgesport.ru/players-and-ratings/search-player/{c.get("id")}'
+                                for c in candidates)
+        ru_id = candidates[0].get('id')
+        return ru_id, f'{first.strip()} {last.strip()} id is set to {ru_id}'
+
+    @staticmethod
     def find_ru_ids():
         res = requests.get(RU_DB)
         players = etree.fromstring(res.content)
@@ -198,25 +220,11 @@ class Players:
         cursor.execute("select first_name,last_name,city from players where id_ru is NULL")
         digest = []
         for first, last, city in cursor.fetchall():
-            candidates = [p for p in players.findall(f'.//player') if p.find('.firstname').text == first.strip() and
-                          p.find('.lastname').text == last.strip()]
-            if not candidates:
-                digest.append(f"No people found for criteria {first.strip()} {last.strip()}")
-                continue
-            if len(candidates) > 1:
-                candidates = [c for c in candidates if c.find('city').text == city]
-                if not candidates:
-                    digest.append(f"No people found for criteria {first.strip()} {last.strip()} {city}")
-                    continue
-                if len(candidates) > 1:
-                    digest.append(f"More than one person found for criteria {first.strip()} {last.strip()} {city}\n" +
-                                  '\n'.join(f'https://www.bridgesport.ru/players-and-ratings/search-player/{c.get("id")}'
-                                            for c in candidates))
-                    continue
-            ru_id = candidates[0].get('id')
-            digest.append(f'{first.strip()} {last.strip()} id is set to {ru_id}')
-            cursor.execute(f"update players set id_ru={ru_id} where first_name='{first}' and last_name='{last}'"
-                           f" and city='{city}'")
+            ru_id, message = Players.find_ru_id(first, last, city, players)
+            digest.append(message)
+            if ru_id:
+                cursor.execute(f"update players set id_ru={ru_id} where first_name='{first}' and last_name='{last}'"
+                               f" and city='{city}'")
         conn.commit()
         conn.close()
         return '\n'.join(digest)

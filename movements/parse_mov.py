@@ -9,8 +9,8 @@ def get_movement(max_pair):
     tables = (max_pair + 1) // 2
     conn = TourneyDB.connect()
     cursor = conn.cursor()
-    cursor.execute(f"select * from movements")
-    cursor.execute(f"select movement from movements where tables={tables}")
+    is_mitchell = CONFIG.get("is_mitchell")
+    cursor.execute(f"select movement from movements where tables={tables} and is_mitchell={is_mitchell}")
     movements = cursor.fetchall()
     conn.close()
     if movements:

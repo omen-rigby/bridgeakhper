@@ -5,7 +5,7 @@
     "elizaveta2810"
   ],
   "token": "TOKEN",
-  "movement": "howell",
+  "is_mitchell": false,
   "full": true,
   "scoring": "MPs",
   "imp": {
@@ -17,5 +17,5 @@
   },
   "validate_lead": false,
   "tourney_coeff": 0.25,
-  "city": "Ереван"
+  "city": "\u0415\u0440\u0435\u0432\u0430\u043d"
 }

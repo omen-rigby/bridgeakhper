@@ -35,7 +35,7 @@ directors: list of directors. They will be able to start session and generate th
 
 token: Enter token of your bot. You can find in chat history for @BotFather.
 
-movement: "mitchell"  (not implemented) or "howell"
+is_mitchell: mitchell or howell
 
 scoring: MPs or IMPs or Cross-IMPs. Changed on the fly, config value is used for debugging purposes.
 
