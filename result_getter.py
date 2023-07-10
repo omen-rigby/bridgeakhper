@@ -361,7 +361,7 @@ class ResultGetter:
         first_pair = real_pairs[0]
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X")
         for board_number in range(1, self.boards + 1):
-            deal = self.deals[board_number - 1]
+            deal = Deal(no_data=True) if CONFIG.get("no_hands") else self.deals[board_number - 1]
             if not boards_only:
                 res = self.travellers[board_number - 1]
             # Dealer and vul improvements
@@ -370,9 +370,9 @@ class ResultGetter:
                 for j, s in enumerate(SUITS):
                     repl_dict[f"{h}{s}"] = deal.data[f"{h}{s}"].upper().replace("T", "10")
                 for j, d in enumerate(DENOMINATIONS):
-                    repl_dict[f"{h}_par_{d}"] = deal.data[f"{h}_par_{d}"]
+                    repl_dict[f"{h}_par_{d}"] = deal.data.get(f"{h}_par_{d}", 0)
             for key in ('level', 'denomination', 'declarer', 'score', 'minimax_url', 'result'):
-                repl_dict[key] = deal.data[key]
+                repl_dict[key] = deal.data.get(key)
             if repl_dict['denomination'] == "n":
                 repl_dict['denomination'] = "NT"
             else:
@@ -407,7 +407,10 @@ class ResultGetter:
                     raise Exception(f"Incorrect result for board #{board_number}:\n{r[0]} vs {r[1]} {r[2]}{r[3]}")
                 repl_dict["ns_name"] = self.names[r[0] - first_pair]
                 repl_dict["ew_name"] = self.names[r[1] - first_pair]
-                repl_dict["bbo_url"] = deal.url_with_contract(r[2][0], r[2].split("=")[0].split("+")[0].split("-")[0][1:], r[3])
+                if not CONFIG.get("no_hands"):
+                    repl_dict["bbo_url"] = deal.url_with_contract(r[2][0],
+                                                                  r[2].split("=")[0].split("+")[0].split("-")[0][1:],
+                                                                  r[3])
                 boards[-1].tables.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
 
         self.travellers_dict = {"scoring_short": scoring_short, "boards": boards}
@@ -431,7 +434,8 @@ class ResultGetter:
 
     @staticmethod
     def suspicious_result(deal, board_data):
-        if board_data[3].lower() not in ("pass", "not played") and '/' not in board_data[3]:
+        if not CONFIG.get("no_hands") and board_data[3].lower() not in ("pass", "not played")\
+                and '/' not in board_data[3]:
             level = board_data[3][0]
             denomination = board_data[3][1].lower()
             declarer = board_data[4].lower()
@@ -459,16 +463,16 @@ class ResultGetter:
                         lead_as_written = board_data[5].lower().replace('10', 't')
                         if lead_as_written:
                             lead_suit = lead_as_written[0]
-                            if lead_as_written[1] in deal.data[f"{on_lead}{lead_suit}"]:
+                            if lead_as_written[1] in deal.data[f"{on_lead}{lead_suit}"].lower():
                                 # lead is written correctly
                                 tricks_after_lead = deal.tricks_after_lead(denomination, on_lead, lead_as_written)
                                 return tricks_after_lead is None or tricks > tricks_after_lead
                             else:
                                 # hope that at least suite is written correctly
-                                tricks_after_lead = [deal.tricks_after_lead(denomination, on_lead, card)
-                                                     for card in hand if card.startswith(lead_suit)]
+                                tricks_after_lead = list(set(deal.tricks_after_lead(denomination, on_lead, card)
+                                                             for card in hand if card.startswith(lead_suit)))
                                 return not (tricks_after_lead and
-                                    any(tricks >= t for t in tricks_after_lead if t is not None))
+                                    any(tricks <= t for t in tricks_after_lead if t is not None))
                         else:
                             # no lead available
                             tricks_after_lead = [deal.tricks_after_lead(denomination, on_lead, card) for card in hand]
@@ -489,11 +493,11 @@ class ResultGetter:
             boards_per_round_candidates.extend(sum(1 for _ in group) for _, group in itertools.groupby(opps))
         boards_per_round = max(set(boards_per_round_candidates), key=boards_per_round_candidates.count)
         cursor = self.cursor
-        cursor.execute("select tables, movement,is_mitchell from movements") # add //
+        cursor.execute("select tables, movement, is_mitchell from movements")
         movements = cursor.fetchall()
         tables = (self.pairs + 1) // 2
         is_mitchell = CONFIG.get('is_mitchell')
-        if all(movement[0] != tables or is_mitchell != movements[2] for movement in movements):
+        if all(movement[0] != tables or is_mitchell != movement[2] for movement in movements):
             movement = []
             for b in range(1, self.boards + 1, boards_per_round):
                 board_results = self.travellers[b - 1]
@@ -528,7 +532,7 @@ class ResultGetter:
                 mp_for_round = sum(results[r * boards_per_round + b][7] for b in range(boards_per_round))
                 for i in range(boards_per_round):
                     board_data = results[r * boards_per_round + i]
-                    deal = self.deals[r * boards_per_round + i]
+                    deal = Deal(no_data=True) if CONFIG.get("no_hands") else self.deals[r * boards_per_round + i]
                     suspicious = self.suspicious_result(deal, board_data)
                     if board_data[3] == "NOT PLAYED":
                         opp_names = ""
@@ -674,17 +678,18 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         self.get_hands()
         self.get_standings()
         paths.append(self.pdf_rankings())
-        paths.append(self.pdf_travellers())
+        if not CONFIG.get("no_hands"):
+            paths.append(self.pdf_travellers())
         paths.append(self.pdf_scorecards())
         self._conn = self.conn.close()
         return paths
 
 
 if __name__ == "__main__":
-    g = ResultGetter(22, 11)
+    g = ResultGetter(27, 10)
     from config import init_config
     init_config()
     CONFIG["scoring"] = "MPs"
     g.process()
     # TourneyDB.to_access(800)
-    #g.save()
+    g.save()

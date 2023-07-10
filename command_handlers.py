@@ -1,9 +1,10 @@
 import shutil
 import transliterate
+import datetime
 from board import Board
 from result_getter import ResultGetter
 from generate import generate
-from movements.parse_mov import get_movement
+from movement import Movement
 from players import *
 from shutil import copyfile
 from inline_key import *
@@ -135,7 +136,7 @@ class CommandHandlers:
         context.user_data["result"] = None
         context.user_data["names"] = None
         for key in ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
-                    'rounds', 'add_td', 'config_update', 'penalty'):
+                    'rounds', 'add_td', 'config_update', 'penalty', 'table_card', 'move_card'):
             context.user_data[key] = False
         initial_config = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
         CONFIG["tournament_title"] = initial_config["tournament_title"]
@@ -237,6 +238,40 @@ class CommandHandlers:
              context=context)
 
     @staticmethod
+    def move_card(update: Update, context: CallbackContext):
+        if not context.bot_data["movement"]:
+            send(chat_id=update.effective_chat.id,
+                 text="Movement not set",
+                 context=context)
+        elif context.user_data.get("move_card"):
+            context.user_data["move_card"] = False
+            send(chat_id=update.effective_chat.id,
+                 text=context.bot_data["movement"].move_card(int(update.message.text)),
+                 context=context)
+        else:
+            context.user_data["move_card"] = True
+            send(chat_id=update.effective_chat.id,
+                 text="Enter pair number",
+                 context=context)
+
+    @staticmethod
+    def table_card(update: Update, context: CallbackContext):
+        if not context.bot_data["movement"]:
+            send(chat_id=update.effective_chat.id,
+                 text="Movement not set",
+                 context=context)
+        elif context.user_data.get("table_card"):
+            context.user_data["table_card"] = False
+            send(chat_id=update.effective_chat.id,
+                 text=context.bot_data["movement"].table_card(int(update.message.text)),
+                 context=context)
+        else:
+            context.user_data["table_card"] = True
+            send(chat_id=update.effective_chat.id,
+                 text="Enter table number",
+                 context=context)
+
+    @staticmethod
     def freeform(update: Update, context: CallbackContext):
         text = update.message.text
         if context.user_data.get("tournament_title"):
@@ -254,7 +289,8 @@ class CommandHandlers:
         if context.user_data.get("names") is not None and \
                 re.match('[\w ]+[-–—][\w ]+', text) or re.match('[\w ]+ [\w ]+', text):
             return CommandHandlers.names_text(update, context)
-        send(update.effective_chat.id, "Unknown command", [], context)
+        if update.effective_chat.id > 0:
+            send(update.effective_chat.id, "Unknown command", [], context)
 
     @staticmethod
     def names_text(update: Update, context: CallbackContext):
@@ -294,6 +330,10 @@ class CommandHandlers:
         if len(update.message.text) > 3:
             # Telegram ID
             return CommandHandlers.freeform(update, context)
+        if context.user_data.get('table_card'):
+            return CommandHandlers.table_card(update, context)
+        if context.user_data.get('move_card'):
+            return CommandHandlers.move_card(update, context)
         if context.user_data.get("penalty"):
             if context.user_data.get("penalized_pair"):
                 return CommandHandlers.penalty(update, context)
@@ -331,20 +371,21 @@ class CommandHandlers:
             cursor = conn.cursor()
             cursor.execute(f"Select * from boards where number={update.message.text}")
             brd = cursor.fetchall()
-            if brd:
+            if brd or CONFIG.get('no_hands', False):
                 brd = brd[0]
                 if context.user_data.get("view_board"):
                     if not brd:
                         send(update.effective_chat.id, "Board not found", [], context)
                     else:
-                        cursor.execute(f"select count(*) from protocols where number={update.message.text}")
-                        played = cursor.fetchone()[0]
-                        if not is_director(update) and context.bot_data["maxpair"]//2 > played:
+                        cursor.execute(f"select ns, ew, contract, declarer, lead, result, score from protocols where number={update.message.text}")
+                        board_results_raw = cursor.fetchall()
+                        if not is_director(update) and context.bot_data["maxpair"]//2 > len(board_results_raw):
                             send(chat_id=update.effective_chat.id,
                                  text="Board is still in play and you don't have enough rights",
                                  context=context)
                             context.user_data["view_board"] = False
                             return
+                        board_results = '\n'.join(' '.join(r) for r in board_results_raw)
                         n, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc = map(
                             lambda x: str(x).upper().replace("T", "10"), brd)
                         send(update.effective_chat.id, f"""Board {n}:
@@ -360,6 +401,8 @@ class CommandHandlers:
 {sh:^24}
 {sd:^24}
 {sc:^24}
+Results:
+{board_results}
     """, [], context)
                     context.user_data["view_board"] = False
                     return
@@ -392,7 +435,7 @@ class CommandHandlers:
             conn.close()
         elif context.bot_data["maxboard"]:
             context.bot_data["maxpair"] = int(update.message.text)
-            context.bot_data["movement"] = get_movement(context.bot_data["maxpair"])
+            context.bot_data["movement"] = Movement(context.bot_data["maxboard"], context.bot_data["maxpair"]).movement
 
             send(chat_id=update.effective_chat.id,
                  text="Enter board number",
@@ -489,6 +532,11 @@ class CommandHandlers:
         if not is_director(update):
             send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
             return
+        try:
+            context.bot.deleteMessage(chat_id, update.message.message_id)
+        except Exception:
+            pass
+        header = send(chat_id, "Calculating results...", None, context)
         if 'BOT_TOKEN' in os.environ:
             path = TourneyDB.dump() if 'CURRENT_TOURNEY' in os.environ else db_path
             context.bot.send_document(update.message.from_user.id, open(path, 'rb'))
@@ -498,6 +546,24 @@ class CommandHandlers:
             context.bot_data['result_getter'] = ResultGetter(boards=context.bot_data["maxboard"],
                                                              pairs=context.bot_data["maxpair"])
             paths = context.bot_data['result_getter'].process()
+            if CONFIG.get('site_db_autoadd'):
+                conn = Players.connect()
+                cursor = conn.cursor()
+                cursor.execute("select tournament_id, boards, players, date from tournaments order by tournament_id desc")
+                last = cursor.fetchone()[0]
+                last_date = datetime.datetime(year=last[3].year, month=last[3].month, day=last[3].day)
+
+                if last[1] == context.bot_data["maxboard"] and last[2] == context.bot_data["maxpair"]\
+                        and last_date < datetime.datetime.now() - datetime.timedelta(hours=7):
+                    cursor.execute(f"select partnership from names where tournament_id={last[0]} order by number")
+                    old_names = cursor.fetchall()
+                    new_names = [" & ".join(n[0]) for n in context.bot_data['result_getter'].names]
+                    correction = old_names == new_names
+                else:
+                    correction = False
+                conn.close()
+                context.bot_data['result_getter'].save(correction=correction)
+            context.bot.editMessageText(f"Tournament results:", chat_id, header.message_id)
             for path in paths:
                 context.bot.send_document(chat_id, open(path, 'rb'))
                 os.remove(path)

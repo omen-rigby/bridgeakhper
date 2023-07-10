@@ -32,6 +32,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('session', CommandHandlers.start_session))
     updater.dispatcher.add_handler(CommandHandler('board', CommandHandlers.board))
     updater.dispatcher.add_handler(CommandHandler('names', CommandHandlers.names))
+    updater.dispatcher.add_handler(CommandHandler('movecard', CommandHandlers.move_card))
+    updater.dispatcher.add_handler(CommandHandler('tablecard', CommandHandlers.table_card))
     updater.dispatcher.add_handler(CommandHandler('tdlist', CommandHandlers.td_list))
     updater.dispatcher.add_handler(CommandHandler('loaddb', CommandHandlers.load_db))
     updater.dispatcher.add_handler(CommandHandler('rmboard', CommandHandlers.remove_board))

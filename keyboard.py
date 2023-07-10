@@ -81,9 +81,9 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
             rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[7 * i:7 + 7 * i]])
         if len(allowed) % 7:
             rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[len(allowed) // 7 * 7:]])
-    rows.append(NAVIGATION_KEYBOARD)
+    rows.append(NAVIGATION_KEYBOARD[0: None if exclude else 1])
     if is_director(update):
-        rows.append([InlineKeyboardButton("Remove all", callback_data=f"bm:rmall")])
+        rows.append([InlineKeyboardButton("Remove results", callback_data=f"bm:rmall")])
         if movement:
             rows[-1].append(InlineKeyboardButton("Switch directions", callback_data="bm:wrongdirection"))
 

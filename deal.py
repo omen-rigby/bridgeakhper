@@ -1,3 +1,4 @@
+import itertools
 from tourney_db import TourneyDB
 from ddstable import ddstable
 from constants import *
@@ -32,6 +33,11 @@ class Deal:
             self.data["v"] = VULNERABILITY[raw_hands[0] % 16]
             self.url = bbo_url_template.format(n=self.data["n"], s=self.data["s"], e=self.data["e"], w=self.data["w"],
                                                v=self.data["v"], d=self.data["d"], b=self.data["b"])
+        elif no_data:
+            self.data = {"v": "-", "d": "", "b": ""}
+            empty_fields = list("".join(p) for p in itertools.product(hands, SUITS)) + ["d", "b"]
+            for field in empty_fields:
+                self.data[field] = ""
 
         self.get_html()
 
@@ -155,6 +161,9 @@ class Deal:
             pass
 
     def get_minimax(self):
+        if CONFIG.get("no_hands", False):
+            self.data.update({"level": "PASS", "denomination": "", "declarer": "", "score": 0, "result": ''})
+            return
         total_points = {}
         dd = ddstable.get_ddstable(self.pbn.replace(b'10', b't')).items()
         for declarer, contracts in dd:

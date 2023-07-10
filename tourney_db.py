@@ -79,9 +79,10 @@ class TourneyDB:
         cursor.execute(statement)
 
         statement = f"""CREATE TABLE "movements" (
-                                        "tables"	{int_type}  PRIMARY KEY,
+                                        "tables"	{int_type},
                                         "movement"	TEXT,
-                                        "is_mitchell  {int_type if flavor != 'postgres' else 'bool'}  NOT NULL DEFAULT 0 
+                                        "is_mitchell"  {int_type if flavor != 'postgres' else 'bool'}  NOT NULL DEFAULT 0,
+                                        "initial_board_sets"  TEXT,
                                     )"""
         cursor.execute(statement)
         conn.commit()
@@ -136,10 +137,10 @@ VALUES {rows};"""
             rows = f"('{key}', '{value}')"
             insert = f"INSERT INTO config (key, value) VALUES {rows};"
             cursor.execute(insert)
-        cur2.execute("select tables, movement, is_mitchell from movements")
-        for tables, movement, is_mitchell in cur2.fetchall():
-            rows = f"({tables}, '{movement}', {is_mitchell})"
-            insert = f"INSERT INTO movements (tables, movement, is_mitchell) VALUES {rows};"
+        cur2.execute("select tables, movement, is_mitchell, initial_board_sets from movements")
+        for tables, movement, is_mitchell, board_sets in cur2.fetchall():
+            rows = f"({tables}, '{movement}', {is_mitchell}, '{board_sets}')"
+            insert = f"INSERT INTO movements (tables, movement, is_mitchell, initial_board_sets) VALUES {rows};"
             cursor.execute(insert)
         conn.commit()
         conn.close()

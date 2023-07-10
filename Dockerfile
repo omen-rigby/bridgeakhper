@@ -1,5 +1,8 @@
-FROM openjdk:slim
-COPY --from=python:3.10-slim / /
+FROM openjdk:17.0.1-jdk-slim
+
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    apt-get install -y python3-pip
 EXPOSE 8080
 # install wget
 RUN apt-get -y update
@@ -40,4 +43,4 @@ COPY *.txt .
 RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
 COPY . ./
 
-CMD ["python", "tg_input.py"]
+CMD ["python3", "tg_input.py"]
