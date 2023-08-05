@@ -1,5 +1,4 @@
 import itertools
-from itertools import chain
 from constants import CONFIG
 from tourney_db import TourneyDB
 from players import Players, ALL_PLAYERS
@@ -11,11 +10,15 @@ class Movement:
         self.tables = (pairs + 1) // 2
         self.boards = boards
         self.movement, self.initial_board_sets = self.get_movement()
-        self._names = self.get_names()
+        self._names = []
+
+    def __iter__(self):
+        return self.movement.__iter__()
 
     def move_card(self, pair):
         if not self.initial_board_sets:
             return
+        self._names = self.get_names()
         rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
         data = [None] * rounds
         boards_per_round = self.boards // rounds
@@ -43,17 +46,17 @@ class Movement:
                         boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
                         opps_no = str(t[0] + t[1] - pair)
                         data[i] = [str(j + 1), position, self.names(opps_no), boards]
-
-        return "Round\tTable\tPosition\tOpp\tBoards\n" + '\n'.join('\t'.join([str(i + 1)] + d)
+        return "Round\tTable\tPosition\tOpp\tBoards\n" + '\n'.join('\t'.join([str(i + 1)] + (d or []))
                                                                    for i, d in enumerate(data))
 
-    def names(self, number, short=False):
+    def names(self, number, short=True):
         return " & ".join(o[0].strip().split(' ')[-1] if short else o[0] for o in self._names[str(number)]) or number
 
     def table_card(self, table):
         if not self.initial_board_sets:
             return
-        boards_per_round = self.boards / CONFIG.get('rounds', len(self.movement) / self.tables)
+        self._names = self.get_names()
+        boards_per_round = self.boards // CONFIG.get('rounds', len(self.movement) / self.tables)
         data = []
         if len(self.initial_board_sets) == self.tables:
             for i, m in enumerate(self.movement[table - 1::self.tables]):
@@ -74,7 +77,7 @@ class Movement:
             for t in tables_data[rounds * (table - 1) : rounds * table]:
                 first_board = (t[2] - 1) * boards_per_round + 1
                 boards = f"{int(first_board)}-{int(first_board + boards_per_round - 1)}"
-                data.append(list(map(lambda x: self.names(x, short=True), t[:-1])) + [boards])
+                data.append(list(map(lambda x: self.names(x), t[:-1])) + [boards])
         return "Round\tNS\tEW\tBoards\n" + '\n'.join('\t'.join([str(r + 1)] + d) for
                                                      r, d in enumerate(data))
 
@@ -88,7 +91,7 @@ class Movement:
         if movements:
             raw_data = [[[int(r.split('-')[0]), int(r.split('-')[1]), round_num + 1] for r in rawnd.split(',')]
                         for round_num, rawnd in enumerate(movements[0][0].split(';'))]
-            initial_sets = list(map(int, movements[0][1].split(','))) or list(range(1, self.tables + 1))
+            initial_sets = list(map(int, movements[0][1].split(','))) if movements[0][1] else list(range(1, self.tables + 1))
             # list of [ns, ew, board_set (1...n_rounds)]
             return list(itertools.chain(*raw_data)), initial_sets
 
@@ -101,12 +104,12 @@ class Movement:
         cur.execute("select number, partnership from names order by number")
         return_value = {str(res[0]): Players.lookup(res[1], ALL_PLAYERS) for res in cur.fetchall()}
         if self.bye:
-            return_value[str(self.bye)] = "BYE"
+            return_value[str(self.bye)] = [["BYE"]]
         conn.close()
         return return_value
 
 
 if __name__ == "__main__":
-    m = Movement(20, 6)
+    m = Movement(27, 9)
     print(m.move_card(3))
     print(m.table_card(2))

@@ -23,9 +23,8 @@ if __name__ == '__main__':
     updater = Updater(token=TOKEN)
     updater.job_queue.run_monthly(MonthlyJobs.update_ranks, day=2, when=datetime.time(hour=18, minute=24,
                                                                                       tzinfo=pytz.UTC))
-    updater.job_queue.run_monthly(MonthlyJobs.masterpoints_report, day=31, when=datetime.time(hour=18, minute=24,
-                                                                                              tzinfo=pytz.UTC),
-                                  day_is_strict=False)
+    updater.job_queue.run_daily(MonthlyJobs.masterpoints_report, time=datetime.time(hour=18, minute=24,
+                                                                                    tzinfo=pytz.UTC))
     updater.dispatcher.add_handler(CommandHandler('start', CommandHandlers.start))
     updater.dispatcher.add_handler(CommandHandler('help', CommandHandlers.help_command))
     updater.dispatcher.add_handler(CommandHandler('manual', CommandHandlers.manual))
@@ -53,9 +52,12 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.text("OK"), CommandHandlers.ok))
     updater.dispatcher.add_handler(CommandHandler('restart', CommandHandlers.restart))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), CommandHandlers.cancel))
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex("^(Cross-)?I?MPs$"), CommandHandlers.scoring))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex("^(Cross-)?(Swiss )?I?MPs$"), CommandHandlers.scoring))
 
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
+    # Swiss
+    updater.dispatcher.add_handler(CommandHandler('startround', CommandHandlers.start_round))
+    updater.dispatcher.add_handler(CommandHandler('restartswiss', CommandHandlers.restart_swiss))
     # Results
     updater.dispatcher.add_handler(CommandHandler("result", result))
     updater.dispatcher.add_handler(CommandHandler("missing", CommandHandlers.missing))

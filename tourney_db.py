@@ -82,7 +82,7 @@ class TourneyDB:
                                         "tables"	{int_type},
                                         "movement"	TEXT,
                                         "is_mitchell"  {int_type if flavor != 'postgres' else 'bool'}  NOT NULL DEFAULT 0,
-                                        "initial_board_sets"  TEXT,
+                                        "initial_board_sets"  TEXT
                                     )"""
         cursor.execute(statement)
         conn.commit()

@@ -52,7 +52,7 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
     pairs = context.bot_data["maxpair"]
     movement = context.bot_data["movement"] if use_movement else ''
     board = context.user_data["board"].number
-    n_rounds = max(m[2] for m in movement) if movement else pairs - 1 + (pairs % 2)
+    n_rounds = CONFIG.get('rounds', max(m[2] for m in movement) if movement else pairs - 1 + (pairs % 2))
     boards_per_round = int(context.bot_data["maxboard"]) // n_rounds
     board_set = (int(board) - 1) // boards_per_round + 1
     conn = TourneyDB.connect()
@@ -83,7 +83,7 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
             rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[len(allowed) // 7 * 7:]])
     rows.append(NAVIGATION_KEYBOARD[0: None if exclude else 1])
     if is_director(update):
-        rows.append([InlineKeyboardButton("Remove results", callback_data=f"bm:rmall")])
+        rows.append([InlineKeyboardButton("Remove results", callback_data=f"bm:rmresults")])
         if movement:
             rows[-1].append(InlineKeyboardButton("Switch directions", callback_data="bm:wrongdirection"))
 
@@ -102,3 +102,13 @@ def results_keyboard(context):
             ]
     return InlineKeyboardMarkup(rows)
 
+
+def remove_results_keyboard(pairs):
+    rows = [[InlineKeyboardButton(text="ALL", callback_data=f"bm:rmall")]]
+    for i in range(len(pairs) // 3):
+        rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:rm{p}")
+                     for p in pairs[3 * i:3 + 3 * i]])
+    if len(pairs) % 3:
+        rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:rm{p}")
+                     for p in pairs[len(pairs) // 3 * 3:]])
+    return InlineKeyboardMarkup(rows)

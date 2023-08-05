@@ -41,7 +41,7 @@ def inline_key(update: Update, context: CallbackContext):
     key = update["callback_query"]["data"]
     if key.startswith("bm:"):
         key = key.split("bm:")[1]
-        result_data = context.user_data["result"]
+        result_data = context.user_data.get("result")
 
         if key.isdigit():
             next_field = result_data.text.split(CARET)[1].lstrip("\n")
@@ -226,7 +226,6 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             previous_result = context.user_data["result"]
             board_number = context.user_data["board"].number
             ns = previous_result.text.split("NS: ")[1].split("\n")[0]
-            ew = previous_result.text.split("EW: ")[1].split("\n")[0]
             conn = TourneyDB.connect()
             cursor = conn.cursor()
             statement = f"""delete from protocols where number={board_number} and ns={ns}"""
@@ -234,26 +233,43 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             conn.commit()
             conn.close()
             return result(update, context)
-        elif key == "rmall":
+        elif key == "rmresults":
             number = context.user_data["board"].number
             conn = TourneyDB.connect()
             cursor = conn.cursor()
             statement = f"""select * from protocols where number={number}"""
             cursor.execute(statement)
             current_protocol = cursor.fetchall()
+            reply_markup = remove_results_keyboard([f'{p[1]} vs {p[2]}' for p in current_protocol])
+            context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
+                                                                      message_id=result_data.message_id,
+                                                                      text=result_data.text,
+                                                                      reply_markup=reply_markup,
+                                                                      parse_mode=ParseMode.HTML)
+            conn.close()
+        elif match := re.match("rm(\d+) vs \d+", key):
+            number = context.user_data["board"].number
+            conn = TourneyDB.connect()
+            cursor = conn.cursor()
+            cursor.execute(f"delete from protocols where number={number} and ns={match.group(1)}")
+            conn.commit()
+            conn.close()
+            context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
+                                                                      message_id=result_data.message_id,
+                                                                      text=result_data.text,
+                                                                      reply_markup=pairs_keyboard(update, context),
+                                                                      parse_mode=ParseMode.HTML)
+        elif key == "rmall":
+            number = context.user_data["board"].number
+            conn = TourneyDB.connect()
+            cursor = conn.cursor()
             statement = f"""delete from protocols where number={number}"""
             cursor.execute(statement)
             conn.commit()
             conn.close()
-            if current_protocol:
-                text = "Removed results:\n"
-                text += '\n'.join([" ".join(map(lambda x: str(x).upper(), r[1:7])) for r in current_protocol])\
-                    + '\n' + result_data.text
-            else:
-                text = result_data.text
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
                                                                       message_id=result_data.message_id,
-                                                                      text=text,
+                                                                      text=result_data.text,
                                                                       reply_markup=pairs_keyboard(update, context),
                                                                       parse_mode=ParseMode.HTML)
         elif key == "back":

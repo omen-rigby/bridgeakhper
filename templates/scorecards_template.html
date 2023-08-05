@@ -50,6 +50,8 @@ background-color: #aa7777;
     <tr bgcolor="#ffb0b0">
         {% if scoring == "MPs" %}
       <th colspan="10" align="left">{{scoring_short}} {{pair.mp_total}} MaxMPs {{max_mp}} Score {{pair.percent_total}}% Rank {{pair.rank}}</th>
+        {% elif scoring == "Swiss IMPs" %}
+      <th colspan="10" align="left">VPs {{pair.mp_total}} Rank {{pair.rank}}</th>
         {% else %}
       <th colspan="10" align="left">{{scoring_short}} {{pair.mp_total}} Rank {{pair.rank}}</th>
         {% endif %}
@@ -67,15 +69,18 @@ background-color: #aa7777;
       {% endif %}
       <th>{{scoring_short}}s</th>
       <th>{{scoring_short}}s per round</th>
+      {% if scoring == "Swiss IMPs" %}
+      <th>VPs per round</th>
+      {% endif %}
       <th>Opps</th></tr>
     {% for board in pair.boards %}
     <tr bgcolor="#efefef">
       <td>{{board.number}}</td>
       <td>{{board.vul}}</td>
       <td>{{board.dir}}</td>
-      <td class="{{board.suspicious}}">{{board.contract|safe}}</td>
+      <td class="{{board.suspicious_result}}">{{board.contract|safe}}</td>
       <td>{{board.declarer}}</td>
-      <td>{{board.lead|safe}}</td>
+      <td class="{{board.suspicious_lead}}">{{board.lead|safe}}</td>
       <td>{{board.score}}</td>
       {% if scoring == "MPs" %}
       <td>{{board.percent}}</td>
@@ -83,6 +88,9 @@ background-color: #aa7777;
       <td>{{board.mp}}</td>
       {% if loop.index0 % boards_per_round == 0 %}
       <td rowspan="{{boards_per_round}}">{{board.mp_per_round}}</td>
+      {% if scoring == "Swiss IMPs" %}
+      <td rowspan="{{boards_per_round}}">{{board.vp_per_round}}</td>
+      {% endif %}
       <td rowspan="{{boards_per_round}}" align="left">{{board.opp_names}}</td>
       {% endif %}
     </tr>
