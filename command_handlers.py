@@ -381,7 +381,7 @@ Enter /names, then use /startround or /restartswiss to proceed.""",
             cursor.execute(f"Select * from boards where number={update.message.text}")
             brd = cursor.fetchall()
             if brd or CONFIG.get('no_hands', False):
-                brd = brd[0]
+                brd = brd[0] if brd else None
                 if context.user_data.get("view_board"):
                     if not brd:
                         send(update.effective_chat.id, "Board not found", [], context)

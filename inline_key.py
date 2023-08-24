@@ -340,10 +340,24 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
                                                                        parse_mode=ParseMode.HTML)
 
         if len(text.replace("10", "T")) == 20:
+            if board.current_hand == "n":
+                conn = TourneyDB.connect()
+                cursor = conn.cursor()
+                ns, nh, nd, nc = map(lambda s: s.replace('10', 't').lower(),
+                                     re.sub(f'[{SUITS_UNICODE}]', '', text).split('\n'))
+                cursor.execute(f"select number from boards where ns='{ns}' and nh='{nh}' and nd='{nd}' and nc='{nc}'")
+                if found := cursor.fetchone():
+                    send(chat_id=update.effective_chat.id,
+                         text=f"This hand is already submitted for board {found[0]}. Next hand?",
+                         reply_buttons=("OK", "Cancel"),
+                         context=context)
+                    return
+                conn.close()
             send(chat_id=update.effective_chat.id,
                  text=f"Next hand?",
                  reply_buttons=("OK", "Cancel"),
                  context=context)
+
     elif key == "board":
         from command_handlers import CommandHandlers
         CommandHandlers.board(update, context)

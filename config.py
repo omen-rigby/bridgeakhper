@@ -16,12 +16,12 @@ def fix_type(s):
 
 
 def init_config():
-    conn = TourneyDB.connect()
-    cur = conn.cursor()
-    cur.execute("select key,value from config")
-    db_config = {c[0]: c[1] for c in cur.fetchall()}
-    conn.close()
     if CONFIG.get("city"):
+        conn = TourneyDB.connect()
+        cur = conn.cursor()
+        cur.execute("select key,value from config")
+        db_config = {c[0]: c[1] for c in cur.fetchall()}
+        conn.close()
         for k, v in db_config.items():
             if k == "directors":
                 DIRECTORS.update(db_config["directors"].split(','))
