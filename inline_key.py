@@ -8,6 +8,10 @@ from tourney_db import TourneyDB
 from exceptions import *
 
 
+def current_session(context):
+    return context.user_data.get('current_session', context.bot_data.get('current_session', 0))
+
+
 def send(chat_id, text, reply_buttons=None, context=None):
     if isinstance(reply_buttons, InlineKeyboardMarkup):
         markup = reply_buttons
@@ -39,6 +43,7 @@ def result(update: Update, context: CallbackContext):
 
 def inline_key(update: Update, context: CallbackContext):
     key = update["callback_query"]["data"]
+    first = current_session(context)
     if key.startswith("bm:"):
         key = key.split("bm:")[1]
         result_data = context.user_data.get("result")
@@ -156,8 +161,9 @@ def inline_key(update: Update, context: CallbackContext):
 
             conn = TourneyDB.connect()
             cursor = conn.cursor()
+            first = current_session(context) * 100
             statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
-                VALUES({board_number}, '{ns}', '{ew}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
+                VALUES({board_number + first}, '{int(ns) + first}', '{int(ew) + first}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
 ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE 
   SET contract = excluded.contract, lead = excluded.lead, result = excluded.result, score = excluded.score, 
   declarer=excluded.declarer;"""
@@ -228,7 +234,8 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             ns = previous_result.text.split("NS: ")[1].split("\n")[0]
             conn = TourneyDB.connect()
             cursor = conn.cursor()
-            statement = f"""delete from protocols where number={board_number} and ns={ns}"""
+            first = 100 * current_session(context)
+            statement = f"""delete from protocols where number={board_number} and ns={ns + first}"""
             cursor.execute(statement)
             conn.commit()
             conn.close()
@@ -251,7 +258,8 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             number = context.user_data["board"].number
             conn = TourneyDB.connect()
             cursor = conn.cursor()
-            cursor.execute(f"delete from protocols where number={number} and ns={match.group(1)}")
+            ns = int(match.group(1)) + first
+            cursor.execute(f"delete from protocols where number={number} and ns={ns}")
             conn.commit()
             conn.close()
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
@@ -345,7 +353,7 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
                 cursor = conn.cursor()
                 ns, nh, nd, nc = map(lambda s: s.replace('10', 't').lower(),
                                      re.sub(f'[{SUITS_UNICODE}]', '', text).split('\n'))
-                cursor.execute(f"select number from boards where ns='{ns}' and nh='{nh}' and nd='{nd}' and nc='{nc}'")
+                cursor.execute(f"select MOD(number, 100) from boards where ns='{ns}' and nh='{nh}' and nd='{nd}' and nc='{nc}'")
                 if found := cursor.fetchone():
                     send(chat_id=update.effective_chat.id,
                          text=f"This hand is already submitted for board {found[0]}. Next hand?",

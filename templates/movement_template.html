@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta content="text/html; charset='UTF-8'">
+    <title>Movement</title>
+    <style type="Text/css">@media print {
+    @page { margin: 0mm 0mm 0mm 0mm; size: landscape; }
+    @bottom-right-corner { ... } }
+    * {
+        FONT-FAMILY: Arial;
+    }
+    .movement {
+        align: center;
+        width: 67%;
+        margin-left: 16%;
+        text-align: center;
+    };
+
+    </style>
+</head>
+<body bgcolor="#ffffff">
+<h2 align="center">{{tables}} Table {{boards}} boards {{type}} Movement</h2>
+<table class="movement">
+    <tbody>
+
+    {% for pair in pairs %}
+        <tr class="rounds">
+            <td colspan="1">
+                <table width="100%"><tbody>
+                    <tr>
+                        <th colspan="5"><br/><b>#{{pair.number}} — {{pair.names}}</b></th>
+                    </tr>
+                    <tr>
+                        <th>Round</th>
+                        <th>Table</th>
+                        <th>Direction</th>
+                        <th>Opps</th>
+                        <th>Boards</th>
+                    </tr>
+                    {% for round in pair.rounds %}
+                    <tr>
+                        <td>{{round.number}}</td>
+                        <td>{{round.table}}</td>
+                        <td>{{round.position}}</td>
+                        <td>{{round.opps}}</td>
+                        <td>{{round.boards}}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody></table>
+            </td>
+        </tr>
+
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

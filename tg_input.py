@@ -21,16 +21,24 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 if __name__ == '__main__':
     updater = Updater(token=TOKEN)
+    # RU masterpoints
     updater.job_queue.run_monthly(MonthlyJobs.update_ranks, day=2, when=datetime.time(hour=18, minute=24,
                                                                                       tzinfo=pytz.UTC))
     updater.job_queue.run_daily(MonthlyJobs.masterpoints_report, time=datetime.time(hour=18, minute=24,
                                                                                     tzinfo=pytz.UTC))
+    # AM masterpoints
+    updater.job_queue.run_daily(MonthlyJobs.update_ratings_am, time=datetime.time(hour=0, minute=0, tzinfo=pytz.UTC))
+    # Common commands
     updater.dispatcher.add_handler(CommandHandler('start', CommandHandlers.start))
     updater.dispatcher.add_handler(CommandHandler('help', CommandHandlers.help_command))
     updater.dispatcher.add_handler(CommandHandler('manual', CommandHandlers.manual))
     updater.dispatcher.add_handler(CommandHandler('session', CommandHandlers.start_session))
+    updater.dispatcher.add_handler(CommandHandler('multisession', CommandHandlers.start_multi_session))
+    updater.dispatcher.add_handler(CommandHandler('editsession', CommandHandlers.edit_session))
+    updater.dispatcher.add_handler(CommandHandler('endmultisession', CommandHandlers.end_multi_session))
     updater.dispatcher.add_handler(CommandHandler('board', CommandHandlers.board))
     updater.dispatcher.add_handler(CommandHandler('names', CommandHandlers.names))
+    updater.dispatcher.add_handler(CommandHandler('movecards', CommandHandlers.move_cards))
     updater.dispatcher.add_handler(CommandHandler('movecard', CommandHandlers.move_card))
     updater.dispatcher.add_handler(CommandHandler('tablecard', CommandHandlers.table_card))
     updater.dispatcher.add_handler(CommandHandler('tdlist', CommandHandlers.td_list))
@@ -39,6 +47,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('title', CommandHandlers.title))
     updater.dispatcher.add_handler(CommandHandler('tourneycoeff', CommandHandlers.tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('custommovement', CommandHandlers.custom_movement))
+    updater.dispatcher.add_handler(CommandHandler('addmatch', CommandHandlers.add_match))
+    updater.dispatcher.add_handler(CommandHandler('savematch', CommandHandlers.save_match))
     updater.dispatcher.add_handler(CommandHandler('monthlyreport', CommandHandlers.monthly_report))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^0\.2?5$"), CommandHandlers.tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('config', CommandHandlers.config))
@@ -69,7 +79,6 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
     updater.dispatcher.add_handler(CommandHandler("correct", CommandHandlers.correct))
-    updater.dispatcher.add_handler(CommandHandler("addsession", CommandHandlers.add_session))
     updater.dispatcher.add_handler(CommandHandler("addtd", CommandHandlers.add_td))
     updater.dispatcher.add_handler(CommandHandler('penalty', CommandHandlers.penalty))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.zip, FileHandlers.upload_boards))

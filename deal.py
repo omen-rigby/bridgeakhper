@@ -54,9 +54,9 @@ class Deal:
             self.data[seat] = ""
             for suit in "shdc":
                 self.data[seat] += suit + self.data[f"{seat}{suit}"]
-        self.data["b"] = number
+        self.data["b"] = number % 100
         self.data["d"] = "wnes"[number % 4]
-        self.data["v"] = VULNERABILITY[number % 16]
+        self.data["v"] = VULNERABILITY[number % 100 % 16]
         self.url = bbo_url_template.format(n=self.data["n"], s=self.data["s"], e=self.data["e"], w=self.data["w"],
                                            v=self.data["v"], d=self.data["d"], b=self.data["b"])
 

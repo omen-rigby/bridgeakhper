@@ -27,6 +27,7 @@ class ResultGetter:
         self.names = []
         self.datums = []
         self.penalties = {}
+        self.current_session = 0
 
     @property
     def conn(self):
@@ -50,7 +51,8 @@ class ResultGetter:
 
     def get_names(self):
         cur = self.cursor
-        cur.execute("select * from names order by number")
+        first = 100 * self.current_session
+        cur.execute(f"select * from names where {first} < number and number < {first + 100} order by number")
         raw = cur.fetchall()
         try:
             players = Players.get_players()
@@ -67,38 +69,41 @@ class ResultGetter:
     def get_hands(self):
         self.hands = []
         cur = self.cursor
-        cur.execute(f"select distinct * from boards order by number")
+        first = self.current_session * 100
+        cur.execute(f"select distinct * from boards where {first} < number and number < {first + 100} order by number")
         # board #0 can be erroneously submitted
         self.hands = [h for h in cur.fetchall() if h[0]]
 
     def set_scores_ximp(self, board, scores, adjusted_scores):
+        first = self.current_session * 100
         for s in adjusted_scores:
             ns_res, ew_res = s[3].split('/')
             mp_ns = 0 if ns_res == 'A' else 3 * (-1) ** ('A-' == ns_res)
             mp_ew = 0 if ew_res == 'A' else 3 * (-1) ** ('A-' == ew_res)
             s[8] = mp_ns
             s[9] = mp_ew
-            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board + first} and ns={s[1] + first}"
             self.cursor.execute(statement)
         for s in scores:
             mp_ns = sum(imps(s[7] - other[7]) for other in scores) / (max(len(scores) - 1, 1))
             mp_ew = -mp_ns
             if abs(mp_ns) < 1/len(scores):
                 mp_ns = mp_ew = 0
-            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board + first} and ns={s[1] + first}"
             s[8] = mp_ns
             s[9] = mp_ew
             self.cursor.execute(statement)
         return scores
 
     def set_scores_imp(self, board, scores, adjusted_scores):
+        first = self.current_session * 100
         for s in adjusted_scores:
             ns_res, ew_res = s[3].split('/')
             mp_ns = 0 if ns_res == 'A' else 3 * (-1) ** ('A-' == ns_res)
             mp_ew = 0 if ew_res == 'A' else 3 * (-1) ** ('A-' == ew_res)
             s[8] = mp_ns
             s[9] = mp_ew
-            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board + first} and ns={s[1] + first}"
             self.cursor.execute(statement)
         if scores:
             tables = len(scores)
@@ -122,19 +127,20 @@ class ResultGetter:
         for s in scores:
             mp_ns = imps(s[7] - datum)
             mp_ew = -mp_ns
-            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board + first} and ns={s[1] + first}"
             s[8] = mp_ns
             s[9] = mp_ew
             self.cursor.execute(statement)
         return scores
 
     def set_scores_mp(self, board, scores, adjusted_scores):
+        first = self.current_session * 100
         for s in adjusted_scores:
             mp_ns = round(self.max_mp / 100 * int(s[3].split("/")[0]), 1)
             mp_ew = round(self.max_mp / 100 * int(s[3].split("/")[1]), 1)
             s[8] = mp_ns
             s[9] = mp_ew
-            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board + first} and ns={s[1] + first}"
             self.cursor.execute(statement)
         scores.sort(key=lambda x: x[7])
         current = 0
@@ -154,7 +160,7 @@ class ResultGetter:
                 cluster_index = 0
             else:
                 cluster_index += 1
-            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
+            statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board + first} and ns={s[1] + first}"
             s[8] = mp_ns
             s[9] = mp_ew
             self.cursor.execute(statement)
@@ -168,7 +174,8 @@ class ResultGetter:
         cur = self.cursor
         self.travellers = []
         for board in range(1, self.boards + 1):
-            cur.execute(f"select * from protocols where number={board}")
+            first = 100 * self.current_session
+            cur.execute(f"select * from protocols where number={board + first}")
             filtered = {}
             for protocol in cur.fetchall():
                 unique_id = protocol[1] * (self.pairs + 1) + protocol[2]
@@ -196,12 +203,11 @@ class ResultGetter:
     def get_standings(self):
         max_mp = self.pairs - 2 - self.pairs % 2
         cur = self.cursor
-        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
-        cur.execute("select * from protocols where number > 0 order by number")
+        first = 100 * self.current_session
+        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False)) + first
+        cur.execute(f"select * from protocols where {first} < number and number < {first + 100} order by number")
         all_protocols = list(set(cur.fetchall()))
         for pair in range(first_pair, self.pairs + first_pair):
-            cur.execute(f"select * from protocols where (MOD(ns-{pair},{self.pairs})=0 "
-                        f"or MOD(ew - {pair},{self.pairs})=0) and number > 0 order by number")
             # records are duplicated sometimes
             history = [r for r in all_protocols if (r[1] - pair) % self.pairs == 0 or (r[2] - pair) % self.pairs == 0]
             # modulo operations handle 2...n+1 enumeration for odd number of players
@@ -228,13 +234,13 @@ class ResultGetter:
                 for record in history:
                     if not real_number:
                         if record[1] % self.pairs == pair % self.pairs:
-                            real_number = record[1]
+                            real_number = record[1] % 100
                         elif record[2] % self.pairs == pair % self.pairs:
-                            real_number = record[2]
+                            real_number = record[2] % 100
                     results.append(record[-2] if pair % self.pairs == record[1] % self.pairs else record[-1])
             cur.execute(f"select penalty from names where number={pair}")
-            self.penalties[str(pair)] = cur.fetchone()[0]
-            result_in_mp = sum(results) - self.penalties[str(pair)]
+            self.penalties[str(pair % 100)] = cur.fetchone()[0]
+            result_in_mp = sum(results) - self.penalties[str(pair % 100)]
             mp_per_board = result_in_mp/(len(results) or 1)
             self.totals.append([real_number or pair, result_in_mp, mp_per_board])
 
@@ -242,7 +248,7 @@ class ResultGetter:
             self.personals.append([])
             for i in range(1, self.boards + 1):
                 try:
-                    board = [b for b in history if b[0] == i][0]
+                    board = [b for b in history if b[0] % 100 == i][0]
                 except IndexError:
                     # ADDING NOT PLAYED
                     self.personals[-1].append([i, vul[VULNERABILITY[i % 16]], "-",
@@ -255,7 +261,7 @@ class ResultGetter:
                     position = "NS"
                 elif pair % self.pairs == board[2] % self.pairs:
                     position = "EW"
-                self.personals[-1].append([board[0], vul[VULNERABILITY[board[0] % 16]], position,
+                self.personals[-1].append([board[0] % 100, vul[VULNERABILITY[board[0] % 100 % 16]], position,
                                           escape_suits(board[3] + board[6]), board[4], escape_suits(board[5]),
                                           board[7] * (-1) ** (pair != board[1] and board[7] != 1),
                                           board[8 + (pair != board[1])],
@@ -354,6 +360,34 @@ class ResultGetter:
             return string
         string = string.replace("-", minus)
         return string
+
+    def pdf_sessions(self):
+        totals = []
+        first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
+        final_standings = []
+        for s in self.standings:
+            boards = sum(round(s[1] / s[2]) for ss in s)
+            new_list = [s[0], sum(ss[1] for ss in s)]
+            new_list.append(new_list[-1] / boards)
+            final_standings.append(new_list)
+        final_standings.sort(key=lambda x: -x[2])
+        # TODO: self.get_masterpoints()
+        # TODO: render
+        for i, rank in enumerate(final_standings):
+            cluster = [j for j, r in enumerate(final_standings) if abs(r[2] - rank[2]) < 0.0001]
+            repl_dict = {
+                "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0],
+                "names": self.names[int(rank[0]) - first_pair], "mp": round(rank[1], 2),
+                "percent": round(100 * rank[2] / self.max_mp, 2),
+                "masterpoints": rank[3] or "",
+                "masterpoints_ru": rank[4] or ""
+            }
+            totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
+        self.sessions_dict = {"AM": AM, "scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
+                               "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
+                               "tournament_title": CONFIG["tournament_title"], "totals": totals}
+        html_string = Template(open("templates/sessions_template.html").read()).render(**self.rankings_dict)
+        return print_to_pdf(html_string, "Sessions.pdf")
 
     def pdf_rankings(self):
         totals = []
@@ -597,7 +631,7 @@ class ResultGetter:
         max_mp = self.scorecards_dict["pairs"][0].max_mp
         boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
         if not self.tournament_id:
-            cursor.execute(f'select count(*) from tournaments')
+            cursor.execute(f'select max(tournament_id) from tournaments')
             self.tournament_id = cursor.fetchone()[0] + 1
         if correction:
             self.tournament_id -= 1
@@ -640,71 +674,6 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         conn.commit()
         conn.close()
 
-    def add_session(self, number=1):
-        conn = Players.connect()
-        cursor = conn.cursor()
-        max_mp = self.scorecards_dict["pairs"][0].max_mp
-        boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
-        cursor.execute(f'select count(*) from tournaments')
-        self.tournament_id = self.tournament_id or cursor.fetchone()[0]
-        cursor.execute(f"select boards,max,rounds from tournaments where tournament_id={self.tournament_id}")
-        old_boards, old_max, old_rounds = cursor.fetchone()
-        boards = old_boards + self.boards
-        new_max_mp = max_mp + old_max
-        rounds = old_rounds + self.boards / boards_per_round
-        cursor.execute(f"""update tournaments set boards={boards}, max={new_max_mp},rounds={rounds}
-                           where tournament_id={self.tournament_id}""")
-        cursor.execute(
-            f"select number,mps,percent from names where tournament_id={self.tournament_id} order by number")
-        old_results = cursor.fetchall()
-        self.totals.sort(key=lambda x: x[0])
-        new_totals = [deepcopy(t[:3]) for t in self.totals]
-
-        played_old_boards_candidates = []
-        played_boards_candidates = []
-        for i, (result, total) in enumerate(zip(old_results, self.totals)):
-            # result: pair_number, mp, percent
-            # total:  pair_number, mp, mp_per_board
-            new_totals[i][1] += result[1]
-            played_old_boards = round(result[1] / result[2] * 100 / ((self.pairs // 2 - 1) * 2))
-            played_old_boards_candidates.append(played_old_boards)
-            played_boards_candidates.append(round(total[1] / total[2]))
-            new_totals[i][2] = new_totals[i][1] / round(played_old_boards + total[1] / total[2])
-        new_totals.sort(key=lambda x: -x[2])
-        played_boards_old = max(played_old_boards_candidates)
-        played_boards_new = max(played_boards_candidates)
-        total_boards = round(played_boards_old + played_boards_new)
-        self.names = []
-        self.get_names()
-        self.get_masterpoints(total_boards, new_totals, self.names)
-        for i, pair in enumerate(new_totals):
-            mps = pair[1]
-            cluster = [j for j, m in enumerate(new_totals) if abs(m[2] - pair[2]) < 0.0001]
-            rank = i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}"
-            percent = round(mps/new_max_mp * 100, 2)
-            insert = f"""UPDATE names SET rank='{self._replace(rank)}', mps={mps}, percent={percent}, masterpoints={pair[3]}, 
-                         masterpoints_ru={pair[4]} where number={pair[0]} and tournament_id={self.tournament_id}"""
-            cursor.execute(insert)
-        hands_columns = ["".join(p) for p in itertools.product(hands, SUITS)]
-        par_columns = ["_par_".join(p) for p in itertools.product(hands, reversed(DENOMINATIONS))]
-        for b in self.travellers_dict["boards"]:
-            hand_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in hands_columns) + "'"
-            par_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in par_columns) + "'"
-            rows = f"({self.tournament_id}, {b.b + 32 * number}, {hand_values}, {par_values}, '{self._suits(b.minimax_contract)}', " \
-                   f"'{self._replace(b.minimax_outcome)}', '{b.minimax_url}')"
-            insert = f"""INSERT INTO boards (tournament_id, number, {", ".join(hands_columns)},
-    {", ".join(par_columns)}, minimax_contract, minimax_outcome, minimax_url) VALUES {rows};"""
-            cursor.execute(insert)
-            for t in b.tables:
-                rows = f"({self.tournament_id}, {b.b + 32 * number}, {t.ns}, {t.ew}, '{self._suits(t.contract)}', '{t.declarer}', " \
-                       f"'{self._suits(t.lead)}', {self._replace(t.nsplus or -int(t.nsminus or 0))}, {self._replace(t.mp_ns)}," \
-                       f"{self._replace(t.mp_ew)}, '{t.bbo_url}')"
-                insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead,
-    score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
-                cursor.execute(insert)
-        conn.commit()
-        conn.close()
-
     def boards_only(self):
         self.get_hands()
         return self.pdf_travellers(boards_only=True)
@@ -722,9 +691,40 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         self._conn = self.conn.close()
         return paths
 
+    def process_multisession(self):
+        paths = []
+        self.current_session = self.current_session
+        self.get_results()
+        self.get_names()
+        self.get_hands()
+        self.get_standings()
+        self.standings = [[self.names[t[0] - 1], [[]] * self.current_session + [t]] for t in self.totals]
+        for i in range(self.current_session):
+            self.current_session = i
+            self.get_results()
+            self.get_names()
+            self.get_hands()
+            self.get_standings()
+
+            for total in self.totals:
+                try:
+                    current_sum = [s[1] for s in self.standings if s[0] == self.names[total[0]]][0]
+                except IndexError:
+                    current_sum = [self.names[total[0]], [[]] * self.current_session + [total]]
+                    self.standings.append(current_sum)
+                current_sum[1][i] = total
+        self.standings.sort(key=lambda x: -x[2])
+        paths.append(self.pdf_sessions())
+
+        paths.append(self.pdf_rankings())
+        if not CONFIG.get("no_hands"):
+            paths.append(self.pdf_travellers())
+        paths.append(self.pdf_scorecards())
+        self._conn = self.conn.close()
+
 
 if __name__ == "__main__":
-    g = ResultGetter(27, 10)
+    g = ResultGetter(28, 7)
     from config import init_config
     init_config()
     CONFIG["scoring"] = "MPs"

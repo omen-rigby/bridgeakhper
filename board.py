@@ -85,7 +85,7 @@ class Board:
         return InlineKeyboardMarkup(rows)
 
     def is_vul(self, declarer):
-        vul_text = VULNERABILITY[int(self.number) % 16]
+        vul_text = VULNERABILITY[int(self.number) % 100 % 16]
         return declarer.lower() in {"n": "ns", "e": "ew", "b": "nsew", "-": ""}[vul_text.lower()]
 
     def sac_score(self, declarer, undertricks):

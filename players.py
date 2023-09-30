@@ -107,10 +107,10 @@ class Players:
         conn.close()
 
     @staticmethod
-    def lookup(raw_pair, players):
+    def lookup(raw_pair, players, single=False):
         players = [p for p in players if any(p)]
         partners = re.split("[^\w\s]", raw_pair, 2)
-        if len(partners) < 2:
+        if len(partners) < 2 - single:
             partners = raw_pair.split("  ")
             if len(partners) < 2:
                 chunks = raw_pair.split(" ")
@@ -199,11 +199,11 @@ class Players:
         candidates = [p for p in players.findall(f'.//player') if p.find('.firstname').text == first.strip() and
                       p.find('.lastname').text == last.strip()]
         if not candidates:
-            return 0, f"No people found for criteria {first.strip()} {last.strip()}"
+            return 0, f"No people found in RU DB for criteria {first.strip()} {last.strip()}"
         if len(candidates) > 1:
             candidates = [c for c in candidates if c.find('city').text == city]
             if not candidates:
-                return 0, f"No people found for criteria {first.strip()} {last.strip()} {city}"
+                return 0, f"No people found in RU DB for criteria {first.strip()} {last.strip()} {city}"
             if len(candidates) > 1:
                 return 0, f"More than one person found for criteria {first.strip()} {last.strip()} {city}\n" + \
                     '\n'.join(f'https://www.bridgesport.ru/players-and-ratings/search-player/{c.get("id")}'
@@ -232,7 +232,7 @@ class Players:
     @staticmethod
     def monthly_report():
         current = time.localtime()
-        month = current[1] if current[2] > 24 else (current[1] - 2) % 12 + 1
+        month = current[1] if current[2] > 21 else (current[1] - 2) % 12 + 1
         year = current[0]
         conn = Players.connect()
         cursor = conn.cursor()
