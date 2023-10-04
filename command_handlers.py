@@ -17,6 +17,8 @@ from swiss import SwissMovement
 CHANGE_FLOWS = ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
                 'rounds', 'add_td', 'config_update', 'penalty', 'table_card', 'move_card', 'select_session'
                 )
+ALLOWED_IN_GROUP = ('/end', '/movecards', '/start_round', '/restartswiss')
+
 
 def decorate_all_functions(function_decorator):
     def decorator(cls):
@@ -40,7 +42,7 @@ def command_eligibility(func):
             send(chat_id=update.effective_chat.id, text="Use city bot for this command", context=context)
             raise Exception("Bad command")
         if update.effective_chat.id < 0 and update.message.text.startswith('/') and \
-                update.message.text != "/end":
+                update.message.text not in ALLOWED_IN_GROUP:
             send(chat_id=update.effective_chat.id, text="This bot shouldn't be called in groups", context=context)
             context.bot.deleteMessage(chat_id=update.effective_chat.id, message_id=update.message.message_id)
             raise Exception("Bad command")
@@ -61,7 +63,6 @@ class CommandHandlers:
             send(chat_id=update.effective_chat.id,
                  text="Started BWS aggregator. Drag files to upload",
                  context=context)
-
 
     @staticmethod
     def start_multi_session(update: Update, context: CallbackContext):
@@ -291,6 +292,19 @@ class CommandHandlers:
              context=context)
 
     @staticmethod
+    def players(update: Update, context: CallbackContext):
+        conn = TourneyDB.connect()
+        cursor = conn.cursor()
+        first = 100 * current_session(context)
+        cursor.execute(f"Select number,partnership from names where {first} < number and number < {first + 100}")
+        found_pair_data = [(number, Players.lookup(raw_pair, ALL_PLAYERS)) for number, raw_pair in cursor.fetchall()]
+        found_pairs = [f'{p[0]}: ' + ' & '.join(pp[0] for pp in p[1]) for p in found_pair_data]
+        send(chat_id=update.effective_chat.id,
+             text='\n'.join(found_pairs),
+             context=context)
+        conn.close()
+
+    @staticmethod
     def move_card(update: Update, context: CallbackContext):
         if not context.bot_data["movement"]:
             send(chat_id=update.effective_chat.id,
@@ -516,8 +530,11 @@ Results:
                      reply_buttons=list(range(1, context.bot_data["maxpair"])),
                      context=context)
             else:
-                context.bot_data["movement"] = Movement(context.bot_data["maxboard"], context.bot_data["maxpair"],
-                                                        current_session(context))
+                try:
+                    context.bot_data["movement"] = Movement(context.bot_data["maxboard"], context.bot_data["maxpair"],
+                                                            current_session(context))
+                except ValueError:
+                    pass
                 send(chat_id=update.effective_chat.id,
                      text="Enter board number",
                      reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
@@ -644,6 +661,36 @@ Results:
             send(chat_id=update.effective_chat.id,
                  text=pairings,
                  reply_buttons=[], context=context)
+
+    @staticmethod
+    def testend(update: Update, context: CallbackContext):
+        chat_id = update.message.chat_id
+        if not is_director(update):
+            send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
+            return
+        try:
+            context.bot.deleteMessage(chat_id, update.message.message_id)
+        except Exception:
+            pass
+        header = send(chat_id, "Calculating results...", None, context)
+        if 'BOT_TOKEN' in os.environ:
+            path = TourneyDB.dump() if 'CURRENT_TOURNEY' in os.environ else db_path
+            context.bot.send_document(update.message.from_user.id, open(path, 'rb'))
+            if 'CURRENT_TOURNEY' in os.environ:
+                os.remove(path)
+        try:
+            context.bot_data['result_getter'] = ResultGetter(boards=context.bot_data["maxboard"],
+                                                             pairs=context.bot_data["maxpair"])
+            if context.bot_data.get('current_session'):
+                context.bot_data['result_getter'].current_session = context.bot_data.get('current_session')
+            paths = context.bot_data['result_getter'].process()
+            context.bot.editMessageText(f"Tournament results:", chat_id, header.message_id)
+            for path in paths:
+                context.bot.send_document(chat_id, open(path, 'rb'))
+                os.remove(path)
+        except Exception as e:
+            send(chat_id=chat_id, text=f"Result getter failed with error: {e}", context=context)
+            raise
 
     @staticmethod
     def end(update: Update, context: CallbackContext):
@@ -993,23 +1040,24 @@ Total penalty: {old_penalty + mp} {scoring}""",
         text = """General commands:
     /session: shows session info
     /board: starts deal entry flow
-    /names: starts names entry flow"""
+    /names: starts names entry flow
+    /tablecard: prints movement card for specified table
+    /movecard: prints personal movement
+    /movecards: generates PDF with all movement data
+    /players: prints list of participants of current tournament with numbers"""
         if is_director(update):
             text = text.replace('shows session info', 'starts new session, will ask for db cleanup')
             text += """
 
 TD only commands:
+
     /manual: link to manual for TDs
     /tdlist: prints all TDs for the session
-    /title: adds turney title
+    /title: customizes tourney title
     /startround: starts round (swiss movement)
     /restartswiss: starts 'italian' round (swiss movement)""" + """
     /tourneycoeff: updates tournament coefficient""" * AM + """
-    /rounds: adjust the number of rounds
     /custommovement: turns off preset movement
-    /tablecard: prints movement card for specified table
-    /movecard: prints personal movement
-    /movecards: generates PDF with all movement data
     /loaddb: (debug only) loads test set of boards and results from repo
     /rmboard: removes all hands for the specified board
     /restart: when submitting hands, reset all hands and starts again from N

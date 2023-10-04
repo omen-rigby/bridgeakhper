@@ -413,9 +413,9 @@ class ResultGetter:
         real_pairs = list(sorted(t[0] for t in self.totals))
         first_pair = real_pairs[0]
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X").replace("Swiss ", "")
-        for board_number in range(1, len(self.deals) + 1):
+        for board_number in range(1, min(len(self.deals), self.boards) + 1):
             deal = Deal(no_data=True) if CONFIG.get("no_hands") else self.deals[board_number - 1]
-            if not boards_only:
+            if not boards_only and len(self.travellers) > board_number - 1:
                 res = self.travellers[board_number - 1]
             # Dealer and vul improvements
             repl_dict = {"d": deal.data["d"].upper(), "b": board_number, "v": deal.data["v"]}
@@ -724,7 +724,7 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(28, 7)
+    g = ResultGetter(2, 10)
     from config import init_config
     init_config()
     CONFIG["scoring"] = "MPs"

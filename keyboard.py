@@ -50,10 +50,10 @@ def lead_keyboard(update):
 
 def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False):
     pairs = context.bot_data["maxpair"]
-    movement = context.bot_data["movement"] if use_movement else ''
+    movement = context.bot_data.get('movement') if use_movement else ''
     board = context.user_data["board"].number
     n_rounds = CONFIG.get('rounds', max(m[2] for m in movement) if movement else pairs - 1 + (pairs % 2))
-    boards_per_round = int(context.bot_data["maxboard"]) // n_rounds
+    boards_per_round = int(context.bot_data["maxboard"]) // n_rounds or 2
     board_set = (int(board) - 1) // boards_per_round + 1
     conn = TourneyDB.connect()
     cursor = conn.cursor()
