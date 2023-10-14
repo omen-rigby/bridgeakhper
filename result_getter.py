@@ -7,9 +7,7 @@ from jinja2 import Template
 from print import *
 from deal import Deal
 from imps import imps
-from statistics import mean
 from tourney_db import TourneyDB
-from copy import deepcopy
 from imps import vp
 
 
@@ -52,16 +50,9 @@ class ResultGetter:
     def get_names(self):
         cur = self.cursor
         first = 100 * self.current_session
-        cur.execute(f"select * from names where {first} < number and number < {first + 100} order by number")
+        cur.execute(f"select partnership, rank, rank_ru from names where {first} < number and number < {first + 100} order by number")
         raw = cur.fetchall()
-        try:
-            players = Players.get_players()
-            for raw_pair in raw:
-                self.names.append(Players.lookup(raw_pair[1], players))
-        except Exception:
-            for i, raw_pair in enumerate(raw):
-                if i >= len(self.names):
-                    self.names.append((raw_pair[1].split(" "), 0, 1.6))
+        self.names = raw
         if not raw:
             self.names = [(f"{i}_1", f"{i}_2") for i in range(1, self.pairs + 1)]
         self._conn = self.conn.close()
@@ -285,7 +276,7 @@ class ResultGetter:
             played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
         if AM:
             # AM
-            total_rating = sum(sum(a[1] for a in p) / len(p) * 2 for p in names)
+            total_rating = sum(p[1] * 2 for p in names)
             # 52 is the number of cards in a board (sic!)
             b0 = total_rating * played_boards / 52 * CONFIG["tourney_coeff"]
             mps = [b0]
@@ -322,7 +313,7 @@ class ResultGetter:
         # The logic will change soon according to Dobrin.
         # Yet classification 4.1 looks like we shouldn't be recalculating it as of 2023.
         # played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
-        ranks_ru = [sum(a[2] for a in p) / len(p) for p in self.names]
+        ranks_ru = [p[2] for p in self.names]
         team = "team" in CONFIG["scoring"].lower()
         n0 = n * (1 + team)  # number of pairs for team events also
         kp = 0.9 if team else 0.95
@@ -348,7 +339,7 @@ class ResultGetter:
             for i, t in enumerate(totals):
                 t.append(0)
         # remove extra stuff from names
-        self.names = [[n[0] for n in p] for p in self.names]
+        self.names = [p[0] for p in self.names]
 
     @staticmethod
     def _replace(string):

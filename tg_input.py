@@ -84,6 +84,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("addtd", CommandHandlers.add_td))
     updater.dispatcher.add_handler(CommandHandler('penalty', CommandHandlers.penalty))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.zip, FileHandlers.upload_boards))
+    # updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('rar'), FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('pbn'), FileHandlers.upload_boards))
     # Synchronous tournaments
     updater.dispatcher.add_handler(CommandHandler("bridgematedb", CommandHandlers.bridgematedb))
@@ -91,6 +92,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('simstart', SimHandlers.start_sim_tourney))
     updater.dispatcher.add_handler(CommandHandler('venuelist', SimHandlers.list_venues))
     updater.dispatcher.add_handler(CommandHandler('aggregate', SimHandlers.aggregate))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('db'), SimHandlers.upload_sqlite))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('bws'), SimHandlers.upload_mdb))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('csv'), SimHandlers.upload_csv))
     # Should go last

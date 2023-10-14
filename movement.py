@@ -1,7 +1,6 @@
 import itertools
 from constants import CONFIG
 from tourney_db import TourneyDB
-from players import Players, ALL_PLAYERS
 from jinja2 import Template
 from print import *
 from util import Dict2Class
@@ -63,7 +62,9 @@ class Movement:
 
     def names(self, number, short=True):
         if str(number) in self._names.keys():
-            return " & ".join(o[0].strip().split(' ')[-1] if short else o[0] for o in self._names[str(number)])
+            if short:
+                return " & ".join(o[0].strip().split(' ')[-1] for o in self._names[str(number)].split(' & '))
+            return self._names[str(number)]
         return str(number)
 
     def table_card(self, table):
@@ -121,7 +122,7 @@ class Movement:
         cur = conn.cursor()
         cur.execute(f"select number, partnership from names where {first} < number and number < {first + 100} order by number")
         all_players = cur.fetchall()
-        return_value = {str(res[0]): Players.lookup(res[1], ALL_PLAYERS) for res in all_players}
+        return_value = {str(res[0]): res[1] for res in all_players}
         if self.bye:
             return_value[str(self.bye)] = [["BYE"]]
         conn.close()
@@ -130,23 +131,32 @@ class Movement:
     def pdf(self):
         rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
         self._names = self.get_names()
-        movement_dict = {'tables': self.tables, 'boards': self.boards, 'type': 'Howell', 'pairs': [Dict2Class({
-            'number': i, 'names': self.names(i),
-            'rounds': [None] * rounds}) for i in range(1, self.tables * 2 + 1)]}
+        movement_dict = {'tables': self.tables, 'boards': self.boards,
+                         'type': 'Mitchell' if CONFIG.get("is_mitchell") else 'Howell',
+                         'pairs': [Dict2Class({'number': i, 'names': self.names(i),
+                                               'rounds': [None] * rounds}) for i in range(1, self.tables * 2 + 1)],
+                         'tablecards': [Dict2Class({'number': i, 'instruction_ns': None,
+                                                    'instruction_ew': None,
+                                                    'rounds': [None] * rounds}) for i in range(1, self.tables + 1)]}
         boards_per_round = self.boards // rounds
         if len(self.initial_board_sets) == self.tables:
             # assumes that board sets change +1, otherwise whole movement is written in initial_board_sets column
             for i, r in enumerate(self.movement):
                 for pair in r[:1]:
                     table = i % self.tables
-                    data = [p for p in movement_dict['pairs'] if p.number == pair][0].rounds
+                    table_data = [t for t in movement_dict['tablecards'] if t.number == table + 1][0].rounds
+                    pair_data = [p for p in movement_dict['pairs'] if p.number == pair][0].rounds
                     position = "NS" if r[0] == pair else "EW"
                     first_board = int((r[2] - 1) * boards_per_round + 1)
                     boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
                     opps_no = str(r[0] + r[1] - pair)
                     round_index = (r[2] - self.initial_board_sets[table]) % rounds
+                    if table_data[round_index] is None:
+                        table_data[round_index] = Dict2Class({'number': round_index + 1, 'ns': pair, 'ew': opps_no,
+                                                              'boardset': r[2]})
                     opps_data = [p for p in movement_dict['pairs'] if str(p.number) == opps_no][0].rounds
-                    data[round_index] = Dict2Class({
+
+                    pair_data[round_index] = Dict2Class({
                         'number': round_index + 1, 'table': str(table + 1), 'position': position,
                         'opps': self.names(opps_no).replace(' ', '&nbsp;'), 'boards': boards})
                     opps_data[round_index] = Dict2Class({
@@ -177,6 +187,6 @@ class Movement:
 
 
 if __name__ == "__main__":
-    m = Movement(18, 4)
+    m = Movement(24, 9)
     print(m.pdf())
     #print(m.table_card(2))

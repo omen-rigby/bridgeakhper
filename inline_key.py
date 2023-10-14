@@ -50,10 +50,12 @@ def inline_key(update: Update, context: CallbackContext):
 
         if key.isdigit():
             next_field = result_data.text.split(CARET)[1].lstrip("\n")
+            skip_first = context.bot_data["maxpair"] % 2 and CONFIG.get('no_first_pair')
             if not next_field.startswith("Lead:") and \
                     (
                         # pair number out of range
-                        int(result_data.text.split(CARET)[0].split(": ")[-1] + key) > context.bot_data["maxpair"] or
+                        int(result_data.text.split(CARET)[0].split(": ")[-1] + key) >
+                        context.bot_data["maxpair"] + skip_first or
                         # ns == ew
                         result_data.text.split(CARET)[0].split("\n")[-1] == "EW: " and
                         int(key) == int(result_data.text.split(CARET)[0].split("\n")[-2].split(': ')[-1])

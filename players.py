@@ -6,7 +6,7 @@ import time
 import requests
 from util import levenshtein
 from constants import PLAYERS_DB, CONFIG
-from lxml import html, etree
+from lxml import etree
 
 up.uses_netloc.append("postgres")
 RU_DB = "https://db.bridgesport.ru/rate/fulllist/"
@@ -169,10 +169,11 @@ class Players:
                     continue
             # Otherwise, use name as given
             candidates.append(partner)
-        if len(set(map(lambda p: p[3], candidates))) == 2:
-            candidates.sort(key=lambda p: p[3])
-        else:
-            candidates.sort(key=lambda p: players.index(p))
+        if all(type(c) == tuple for c in candidates):
+            if len(set(map(lambda p: p[3], candidates))) == 2:
+                candidates.sort(key=lambda p: p[3])
+            else:
+                candidates.sort(key=lambda p: players.index(p))
         return [(c[2], c[4] or 0, c[5] if c[5] is not None else 5) if type(c) != str else (c, 0, 1.6) for c in candidates]
 
     @staticmethod

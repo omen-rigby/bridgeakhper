@@ -2,10 +2,7 @@ import psycopg2
 import urllib.parse as up
 import sqlite3
 import os
-import csv
-from constants import db_path, SUITS, SUITS_UNICODE
-from players import Players
-from util import connect_mdb, revert_name
+from constants import db_path
 up.uses_netloc.append("postgres")
 
 
@@ -68,7 +65,9 @@ class TourneyDB:
         statement = f"""CREATE TABLE "names" (
                                         "number"	{int_type}  PRIMARY KEY,
                                         "partnership"	TEXT,
-                                        "penalty"   {float_type} DEFAULT 0
+                                        "penalty"   {float_type} DEFAULT 0,
+                                        "rank"  {float_type},
+                                        "rank_ru"  {float_type}
                                     )"""
         cursor.execute(statement)
 
@@ -103,8 +102,8 @@ class TourneyDB:
         conn.close()
 
     @staticmethod
-    def dump():
-        dump_path = "boards.db"
+    def dump(name=None):
+        dump_path = f'{name or "boards"}.db'
         if os.path.exists(dump_path):
             os.remove(dump_path)
         conn = TourneyDB.connect(local=dump_path)
@@ -112,11 +111,11 @@ class TourneyDB:
         TourneyDB._create_tables(conn)
         conn2 = TourneyDB.connect()
         cur2 = conn2.cursor()
-        cur2.execute("select * from names")
+        cur2.execute("select number,partnership,rank,rank_ru from names")
         names = cur2.fetchall()
         for d in names:
-            rows = f"({d[0]}, '{d[1]}')"
-            insert = f"""INSERT INTO names (number, partnership) VALUES {rows};"""
+            rows = f"({d[0]}, '{d[1]}', {d[2]}, {d[3]})"
+            insert = f"""INSERT INTO names (number, partnership, rank, rank_ru) VALUES {rows};"""
             cursor.execute(insert)
         cur2.execute("select * from boards")
         boards = cur2.fetchall()
@@ -146,64 +145,6 @@ VALUES {rows};"""
         conn.close()
         conn2.close()
         return dump_path
-
-    @staticmethod
-    def to_access(city):
-        mdb_path = "templates/mdb.bws"
-        ms_conn = connect_mdb(mdb_path)
-        conn = TourneyDB.connect()
-        cursor = conn.cursor()
-        cursor.execute('select * from protocols where number > 0')
-        protocols = cursor.fetchall()
-        players = max(max(p[1] for p in protocols), max(p[2] for p in protocols))
-        ms_cursor = ms_conn.cursor()
-        ms_cursor.execute('delete from ReceivedData')
-        for i, p in enumerate(protocols):
-            number, ns, ew, contract, declarer, lead, result, score = p[:8]
-            if score == 1:
-                remarks = contract.replace('/', '%-') + '%'
-                contract = ''
-            else:
-                remarks = ''
-            # PASS is played by NS
-            decl_num = ew if declarer and declarer.lower() in 'ew' else ns
-            contract = contract.upper().replace('XX', ' xx').replace('X', ' x')
-            if contract and contract[0].isdigit():
-                contract = f"{contract[0]} {contract[1:]}"
-                if contract[2] == "N" and (len(contract) == 3 or contract[3] != "T"):
-                    contract = contract.replace('N', 'NT')
-            for new, old in zip(SUITS, SUITS_UNICODE):
-                lead = lead.replace(old, new)
-                contract = contract.replace(old, new.upper())
-            lead = lead.upper()
-            declarer = declarer.upper()
-            # The two numbers below have no meaning yet look consistent
-            table = (ns - 1) // 2 + 1
-            round_n = (ns + ew - 1) % (players - 1) + 1
-            rows = f"({i + 1}, 1, {table}, {round_n}, {number}, {ns}, {ew}, {decl_num}, " \
-                   f"'{declarer}', '{contract}', '{result}', '{lead}', '{remarks}')"
-
-            insert = f"INSERT INTO ReceivedData (ID, Section, Table, Round, Board, PairNS, PairEW, Declarer, [NS/EW]," \
-                     f" Contract, Result, LeadCard, Remarks) VALUES {rows};"
-            ms_cursor.execute(insert)
-        ms_cursor.execute(f'update Session set Name="{city}"')
-        ms_conn.commit()
-        ms_conn.close()
-        cursor.execute("select * from names order by number")
-        raw = cursor.fetchall()
-        players = Players.get_players()
-        players_path = 'players.csv'
-        with open(players_path, 'w', newline='', encoding="cp1251") as csvfile:
-            writer = csv.writer(csvfile, delimiter=';', quotechar='"')
-            for number, raw_pair in enumerate(raw):
-                raw_data = Players.lookup(raw_pair[1], players)
-                rank = str((raw_data[0][2] + raw_data[1][2])/2).replace('.', ",")
-                writer.writerow([number + 1,
-                                 revert_name(raw_data[0][0]),
-                                 revert_name(raw_data[1][0]), '0', rank])
-
-        conn.close()
-        return mdb_path, players_path
 
 
 if __name__ == "__main__":

@@ -15,15 +15,15 @@ from swiss import SwissMovement
 
 
 CHANGE_FLOWS = ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
-                'rounds', 'add_td', 'config_update', 'penalty', 'table_card', 'move_card', 'select_session'
+                'rounds', 'add_td', 'config_update', 'penalty', 'table_card', 'move_card', 'select_session',
                 )
-ALLOWED_IN_GROUP = ('/end', '/movecards', '/start_round', '/restartswiss')
+ALLOWED_IN_GROUP = ('/end', '/movecards', '/startround', '/restartswiss')
 
 
 def decorate_all_functions(function_decorator):
     def decorator(cls):
         for name, obj in vars(cls).items():
-            if callable(obj) and name not in ('end', 'startround', 'restartswiss'):
+            if callable(obj) and name not in ('end', 'start_round', 'restart_swiss', 'move_cards'):
                 setattr(cls, name, function_decorator(obj))
         return cls
     return decorator
@@ -35,6 +35,7 @@ def command_eligibility(func):
         if update.message and update.message.text and update.message.text.startswith('/'):
             for key in CHANGE_FLOWS:
                 context.user_data[key] = False
+            context.user_data['names'] = None
         if CONFIG["city"] and update.message and update.message.text in AGGREGATOR_COMMANDS:
             send(chat_id=update.effective_chat.id, text="Use @mdb_aggregator_bot", context=context)
             raise Exception("Bad command")
@@ -296,9 +297,9 @@ class CommandHandlers:
         conn = TourneyDB.connect()
         cursor = conn.cursor()
         first = 100 * current_session(context)
-        cursor.execute(f"Select number,partnership from names where {first} < number and number < {first + 100}")
-        found_pair_data = [(number, Players.lookup(raw_pair, ALL_PLAYERS)) for number, raw_pair in cursor.fetchall()]
-        found_pairs = [f'{p[0]}: ' + ' & '.join(pp[0] for pp in p[1]) for p in found_pair_data]
+        cursor.execute(f"Select number,partnership from names where {first} < number and number < {first + 100} "
+                       f"order by number")
+        found_pairs = [f'{p[0]}: {p[1]}' for p in cursor.fetchall()]
         send(chat_id=update.effective_chat.id,
              text='\n'.join(found_pairs),
              context=context)
@@ -306,7 +307,7 @@ class CommandHandlers:
 
     @staticmethod
     def move_card(update: Update, context: CallbackContext):
-        if not context.bot_data["movement"]:
+        if not context.bot_data.get("movement"):
             send(chat_id=update.effective_chat.id,
                  text="Movement not set",
                  context=context)
@@ -323,7 +324,7 @@ class CommandHandlers:
 
     @staticmethod
     def table_card(update: Update, context: CallbackContext):
-        if not context.bot_data["movement"]:
+        if not context.bot_data.get("movement"):
             send(chat_id=update.effective_chat.id,
                  text="Movement not set",
                  context=context)
@@ -340,7 +341,7 @@ class CommandHandlers:
 
     @staticmethod
     def move_cards(update: Update, context: CallbackContext):
-        if not context.bot_data["movement"]:
+        if not context.bot_data.get("movement"):
             send(chat_id=update.effective_chat.id,
                  text="Movement not set",
                  context=context)
@@ -381,7 +382,8 @@ class CommandHandlers:
             cursor.execute(f"Select number from names where {first} < number and number < {first + 100}")
             added = list(set([c[0] for c in cursor.fetchall()]))
             conn.close()
-            all_pairs = range(1, context.bot_data["maxpair"] + 1)
+            skip_first = context.bot_data["maxpair"] % 2 and CONFIG["no_first_pair"]
+            all_pairs = range(1 + skip_first, skip_first + context.bot_data["maxpair"] + 1)
             buttons = [l for l in all_pairs if l not in added]
             text = "Incorrect pair number.\nPlease select pair number from the list below"
             send(chat_id=update.effective_chat.id,
@@ -392,15 +394,19 @@ class CommandHandlers:
         global ALL_PLAYERS
         conn = TourneyDB.connect()
         cursor = conn.cursor()
-        statement = f"""INSERT INTO names (number, partnership)
-                        VALUES({first + context.user_data["names"]}, '{update.message.text}') ON CONFLICT (number) DO UPDATE 
-      SET partnership = excluded.partnership;"""
+        pair_number = context.user_data['names']
+        context.user_data["names"] = None
+        found_pair_data = Players.lookup(update.message.text, ALL_PLAYERS)
+        found_pair = " & ".join(p[0] for p in found_pair_data)
+        rank = sum(p[1] for p in found_pair_data) / len(found_pair_data)
+        rank_ru = sum(p[2] for p in found_pair_data) / len(found_pair_data)
+        statement = f"""INSERT INTO names (number, partnership, rank, rank_ru)
+                        VALUES({first + pair_number}, '{found_pair}', {rank}, {rank_ru}) 
+                        ON CONFLICT (number) DO UPDATE 
+      SET partnership = excluded.partnership,rank=excluded.rank,rank_ru=excluded.rank_ru"""
         cursor.execute(statement)
         conn.commit()
         conn.close()
-        context.user_data["names"] = None
-        found_pair_data = Players.lookup(update.message.text, ALL_PLAYERS)
-        found_pair = " - ".join(p[0] for p in found_pair_data)
         send(chat_id=update.effective_chat.id,
              text=f"Identified as {found_pair}. What's next?",
              reply_buttons=("/names", "/board"),
@@ -674,7 +680,8 @@ Results:
             pass
         header = send(chat_id, "Calculating results...", None, context)
         if 'BOT_TOKEN' in os.environ:
-            path = TourneyDB.dump() if 'CURRENT_TOURNEY' in os.environ else db_path
+            city_en = CITIES_LATIN.get(CONFIG["city"], transliterate.translit(CONFIG["city"], 'ru'))
+            path = TourneyDB.dump(city_en) if 'CURRENT_TOURNEY' in os.environ else db_path
             context.bot.send_document(update.message.from_user.id, open(path, 'rb'))
             if 'CURRENT_TOURNEY' in os.environ:
                 os.remove(path)
@@ -704,7 +711,8 @@ Results:
             pass
         header = send(chat_id, "Calculating results...", None, context)
         if 'BOT_TOKEN' in os.environ:
-            path = TourneyDB.dump() if 'CURRENT_TOURNEY' in os.environ else db_path
+            city_en = CITIES_LATIN.get(CONFIG["city"], transliterate.translit(CONFIG["city"], 'ru'))
+            path = TourneyDB.dump(city_en) if 'CURRENT_TOURNEY' in os.environ else db_path
             context.bot.send_document(update.message.from_user.id, open(path, 'rb'))
             if 'CURRENT_TOURNEY' in os.environ:
                 os.remove(path)

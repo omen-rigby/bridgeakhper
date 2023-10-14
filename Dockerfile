@@ -1,4 +1,4 @@
-FROM openjdk:17.0.1-jdk-slim
+FROM python:3.10-slim
 
 RUN apt-get update && \
     apt-get install -y software-properties-common && \
@@ -10,9 +10,12 @@ RUN apt-get -y install wget apt-utils gnupg
 RUN apt-get update && \
     apt-get -y install \
         curl && \
-    ## Install wkhtmltopdf
+    ## Download wkhtmltopdf
     curl -L https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.stretch_amd64.deb \
         -o wkhtmltox_0.12.6-1.stretch_amd64.deb && \
+    ## Install wkhtmltopdf dependency
+    wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb && \
+    dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends     \
         xorg \
         xvfb \

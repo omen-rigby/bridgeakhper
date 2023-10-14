@@ -2,7 +2,6 @@ import itertools
 import random
 from copy import deepcopy
 from tourney_db import TourneyDB
-from players import Players, ALL_PLAYERS
 
 
 class SwissMovement:
@@ -22,8 +21,7 @@ class SwissMovement:
         cur.execute("select number, partnership from names order by number")
         return_value = {}
         for i, res in enumerate(cur.fetchall()):
-            players = [p[0].split(' ')[-1] for p in Players.lookup(res[1], ALL_PLAYERS)]
-            return_value[str(i)] = " & ".join(players)
+            return_value[str(i)] = res[1]
         if self.adj > self.pairs:
             return_value[str(self.pairs)] = "BYE"
         conn.close()
