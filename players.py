@@ -231,6 +231,32 @@ class Players:
         return '\n'.join(digest)
 
     @staticmethod
+    def synch_city(city):
+        res = requests.get(RU_DB)
+        players = etree.fromstring(res.content)
+        city_players = [p for p in players.findall(f'.//player') if p.find('.city').text == city]
+        conn = Players.connect()
+        cursor = conn.cursor()
+        for c in city_players:
+            player_id = c.get('id')
+            first = c.find('.firstname').text
+            last = c.find('.lastname').text
+            patronymic = c.find('.fathername').text
+            rank = c.find('.razr').text
+            if patronymic:
+                gender = 'F' if patronymic.endswith('а') else 'M'
+            else:
+                # TODO: improve gender detection
+                # This condition gives false females which is not really bad since all this data is used for sorting
+                # player names within a partnership
+                gender = 'F'
+            cursor.execute(
+                f"""insert into players (id_ru, first_name, last_name, full_name, rank_ru, "rank", gender, city) 
+                    VALUES({player_id}, '{first}', '{last}', '{first} {last}', {rank}, 0, '{gender}', '{city}')""")
+        conn.commit()
+        conn.close()
+
+    @staticmethod
     def monthly_report():
         current = time.localtime()
         month = current[1] if current[2] > 21 else (current[1] - 2) % 12 + 1
@@ -259,4 +285,5 @@ ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 
 
 if __name__ == "__main__":
-    print(Players.find_ru_ids())
+    #print(Players.find_ru_ids())
+    Players.synch_city("Воронеж")
