@@ -11,3 +11,4 @@ JayDeBeApi==1.2.3
 transliterate==1.10.2
 requests==2.30.0
 pytz==2023.3
+rarfile==4.1

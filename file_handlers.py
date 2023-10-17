@@ -1,5 +1,6 @@
 import zipfile
 from command_handlers import *
+import rarfile
 
 
 @decorate_all_functions(command_eligibility)
@@ -18,6 +19,11 @@ class FileHandlers:
                 path_list = zip_object.namelist()
                 pbn = [f for f in path_list if f.endswith('.pbn')][0]
                 contents = zip_object.read(pbn).decode()
+        elif rarfile.is_rarfile(filename):
+            rar = rarfile.RarFile(filename)
+            path_list = rar.namelist()
+            pbn = [f for f in path_list if f.endswith('.pbn')][0]
+            contents = rar.read(pbn).decode()
         elif filename.lower().endswith('.pbn'):
             contents = open(filename).read()
         else:

@@ -84,7 +84,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("addtd", CommandHandlers.add_td))
     updater.dispatcher.add_handler(CommandHandler('penalty', CommandHandlers.penalty))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.zip, FileHandlers.upload_boards))
-    # updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('rar'), FileHandlers.upload_boards))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('rar'), FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('pbn'), FileHandlers.upload_boards))
     # Synchronous tournaments
     updater.dispatcher.add_handler(CommandHandler("bridgematedb", CommandHandlers.bridgematedb))

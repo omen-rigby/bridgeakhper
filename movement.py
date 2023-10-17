@@ -60,7 +60,7 @@ class Movement:
         return "Round\tTable\tPosition\tOpp\tBoards\n" + '\n'.join('\t'.join([str(i + 1)] + (d or []))
                                                                    for i, d in enumerate(data))
 
-    def names(self, number, short=True):
+    def names(self, number, short=False):
         if str(number) in self._names.keys():
             if short:
                 return " & ".join(o[0].strip().split(' ')[-1] for o in self._names[str(number)].split(' & '))
@@ -124,7 +124,7 @@ class Movement:
         all_players = cur.fetchall()
         return_value = {str(res[0]): res[1] for res in all_players}
         if self.bye:
-            return_value[str(self.bye)] = [["BYE"]]
+            return_value[str(self.bye)] = "BYE"
         conn.close()
         return return_value
 
