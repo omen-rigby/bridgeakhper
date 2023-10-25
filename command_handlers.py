@@ -12,6 +12,7 @@ from functools import wraps
 from constants import AGGREGATOR_COMMANDS
 from config import init_config
 from swiss import SwissMovement
+from match_handlers import MatchHandlers
 
 
 CHANGE_FLOWS = ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
@@ -252,10 +253,10 @@ class CommandHandlers:
         names = len(cursor.fetchall())
         if boards_num and pairs_num:
             send(chat_id=update.effective_chat.id,
-                 text=f"""Active session: {pairs_num} pairs
-    Missing boards: {boards}
-    Missing results for boards: {boards_with_missing_results}
-    Submitted {names} names""",
+                 text=f"""Active session: {pairs_num} pairs {CONFIG['scoring']}
+Missing boards: {boards}
+Missing results for boards: {boards_with_missing_results}
+Submitted {names} names""",
                  reply_buttons=[],
                  context=context)
         else:
@@ -352,7 +353,7 @@ class CommandHandlers:
     def freeform(update: Update, context: CallbackContext):
         text = update.message.text
         if context.user_data.get("match_result"):
-            return CommandHandlers.add_match(update, context)
+            return MatchHandlers.add_match(update, context)
         if context.user_data.get("tournament_title"):
             return CommandHandlers.title(update, context)
         if context.user_data.get("add_player"):
@@ -414,6 +415,15 @@ class CommandHandlers:
 
     @staticmethod
     def number(update: Update, context: CallbackContext):
+        if context.user_data.get("match_result"):
+            if context.user_data["match_result"]['boards'] is None:
+                context.user_data["match_result"]['boards'] = int(update.message.text)
+                context.user_data["match_result"]['players']['A'] = []
+                send(update.effective_chat.id, 'Submit members of team A one by one', context=context)
+                return
+            else:
+                return MatchHandlers.calculate(update, context)
+            # boards will be handled below
         if len(update.message.text) > 3:
             # Telegram ID
             return CommandHandlers.freeform(update, context)
@@ -688,6 +698,7 @@ Results:
         try:
             context.bot_data['result_getter'] = ResultGetter(boards=context.bot_data["maxboard"],
                                                              pairs=context.bot_data["maxpair"])
+            context.bot_data['result_getter'].debug = True
             if context.bot_data.get('current_session'):
                 context.bot_data['result_getter'].current_session = context.bot_data.get('current_session')
             paths = context.bot_data['result_getter'].process()
@@ -972,76 +983,10 @@ Total penalty: {old_penalty + mp} {scoring}""",
                  reply_buttons=[], context=context)
 
     @staticmethod
-    def add_match(update: Update, context: CallbackContext):
-        if not context.user_data.get("match_result"):
-            context.user_data["match_result"] = {'date': '', 'players': []}
-            # TODO: add telegram date selector widget
-            send(chat_id=update.effective_chat.id,
-                 text=f"Enter match date, e.g. 2023/09/28",
-                 reply_buttons=[], context=context)
-        elif not context.user_data["match_result"]['date']:
-            if re.match('\d{4}/\d{2}/\d{2}', update.message.text):
-                context.user_data["match_result"]['date'] = update.message.text
-                send(chat_id=update.effective_chat.id,
-                     text=f"Type players names and results in separate messages, each containing space-separated name masterpoints",
-                     reply_buttons=['/savematch'], context=context)
-            else:
-                send(chat_id=update.effective_chat.id,
-                     text=f"Invalid date format, try again",
-                     reply_buttons=[], context=context)
-                return
-        else:
-            *names, masterpoints = update.message.text.split(' ')
-            player = Players.lookup(' '.join(names), ALL_PLAYERS, single=True)[0]
-            try:
-                masterpoints = int(masterpoints)
-            except (TypeError, IndexError):
-                send(chat_id=update.effective_chat.id,
-                     text=f"Invalid data format, try again",
-                     reply_buttons=['/savematch'], context=context)
-                return
-            context.user_data["match_result"]['players'].append([player[0], masterpoints])
-            send(chat_id=update.effective_chat.id,
-                 text=f"Added player {player[0]}: {masterpoints} masterpoints",
-                 reply_buttons=['/savematch'], context=context)
-
-    @staticmethod
-    def save_match(update: Update, context: CallbackContext):
-        conn = Players.connect()
-        cursor = conn.cursor()
-        cursor.execute('select distinct id from matches')
-        new_id = max([c[0] for c in cursor.fetchall()]) + 1
-        match_date = context.user_data["match_result"]['date']
-        for player in context.user_data["match_result"]['players']:
-            cursor.execute(f"""insert into matches ("id", "date", player, masterpoints) 
-                           VALUES({new_id}, '{match_date}', '{player[0]}', {player[1]})""")
-            cursor.execute(f"select rating, last_year from players where TRIM(full_name)='{player[0]}'")
-            rating, last_year = cursor.fetchone()
-            cursor.execute(f"""update players set rating={rating+player[1]}, last_year={last_year + player[1]} 
-                               where TRIM(full_name)='{player[0]}'""")
-        send(chat_id=update.effective_chat.id,
-             text=f"Match results are saved",
-             reply_buttons=[], context=context)
-        context.user_data["match_result"] = None
-        conn.commit()
-        conn.close()
-
-    @staticmethod
     def monthly_report(update: Update, context: CallbackContext):
         send(chat_id=update.effective_chat.id,
              text=Players.monthly_report(),
              reply_buttons=[], context=context)
-
-    @staticmethod
-    def bridgematedb(update: Update, context: CallbackContext):
-        chat_id = update.message.chat_id
-        path, players_data = TourneyDB.to_access(CONFIG["city"])
-        date_chunk = time.strftime("%y%m%d")
-        scoring = 'mp' if CONFIG["scoring"] == "MPs" else "imp"
-        room = 6
-        city = CITIES_LATIN.get(CONFIG["city"], transliterate.translit(CONFIG["city"], 'ru'))
-        context.bot.send_document(chat_id, open(path, 'rb'), f'{city}{date_chunk}p{scoring}1r{room}.bws')
-        context.bot.send_document(chat_id, open(players_data, 'rb'))
 
     @staticmethod
     def help_command(update: Update, context: CallbackContext):
@@ -1077,11 +1022,12 @@ TD only commands:
     /updateplayer: updates existing player record in players DB
     /playerslist: prints list of all players associated with the club
     /boards: gets boards without results as pdf
-    /end: gets tourney results, sends you raw db file & resulting pdfs
-    /bridgematedb: convert to bridgemate format""" + """
+    /end: gets tourney results, sends you raw db file & resulting pdfs""" + """
     /store: saves tourney results to yerevanbridge site db
     /correct: resaves last tourney results to yerevanbridge site db
-    /matchresults""" * AM + """
+    /addmatch: submit match results
+    /teamB: change team for submit math results flow
+    /matchscore: submit match result in IMPs""" * AM + """
     /multisession: starts a tournament with 2+ sessions
     /editsession: used to correct previous sessions of a multi-session tourney
     /endmultisession: return to single session mode

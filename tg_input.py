@@ -6,6 +6,7 @@ from command_handlers import CommandHandlers
 from file_handlers import FileHandlers
 from sim_handlers import SimHandlers
 from monthly_jobs import MonthlyJobs
+from match_handlers import MatchHandlers
 
 
 PORT = int(os.environ.get('PORT', 5000))
@@ -48,8 +49,11 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('title', CommandHandlers.title))
     updater.dispatcher.add_handler(CommandHandler('tourneycoeff', CommandHandlers.tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('custommovement', CommandHandlers.custom_movement))
-    updater.dispatcher.add_handler(CommandHandler('addmatch', CommandHandlers.add_match))
-    updater.dispatcher.add_handler(CommandHandler('savematch', CommandHandlers.save_match))
+    # Match results (AM)
+    updater.dispatcher.add_handler(CommandHandler('addmatch', MatchHandlers.add_match))
+    updater.dispatcher.add_handler(CommandHandler('teamB', MatchHandlers.team_b))
+    updater.dispatcher.add_handler(CommandHandler('matchscore', MatchHandlers.match_score))
+    # RU masterpoints
     updater.dispatcher.add_handler(CommandHandler('monthlyreport', CommandHandlers.monthly_report))
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^0\.2?5$"), CommandHandlers.tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('config', CommandHandlers.config))
@@ -59,7 +63,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Clear"), CommandHandlers.clear_db))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Reuse"), CommandHandlers.init))
 
-    updater.dispatcher.add_handler(MessageHandler(Filters.regex("^\d+$"), CommandHandlers.number))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex("^-?\d+$"), CommandHandlers.number))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("OK"), CommandHandlers.ok))
     updater.dispatcher.add_handler(CommandHandler('restart', CommandHandlers.restart))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Cancel"), CommandHandlers.cancel))
@@ -86,15 +90,11 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.document.zip, FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('rar'), FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('pbn'), FileHandlers.upload_boards))
-    # Synchronous tournaments
-    updater.dispatcher.add_handler(CommandHandler("bridgematedb", CommandHandlers.bridgematedb))
-    ## Integrator for synch
+    # Integrator for synch
     updater.dispatcher.add_handler(CommandHandler('simstart', SimHandlers.start_sim_tourney))
     updater.dispatcher.add_handler(CommandHandler('venuelist', SimHandlers.list_venues))
     updater.dispatcher.add_handler(CommandHandler('aggregate', SimHandlers.aggregate))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('db'), SimHandlers.upload_sqlite))
-    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('bws'), SimHandlers.upload_mdb))
-    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('csv'), SimHandlers.upload_csv))
     # Should go last
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), CommandHandlers.freeform))
 

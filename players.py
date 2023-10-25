@@ -268,7 +268,13 @@ class Players:
         cursor.execute(f'select tournament_id from tournaments where EXTRACT(MONTH FROM "date")={month} '
                        f'and EXTRACT(year FROM "date")={year}')
         tourneys = cursor.fetchall()
+        cursor.execute(f'select player, masterpoints_ru from matches where EXTRACT(MONTH FROM "date")={month} '
+                       f'and EXTRACT(year FROM "date")={year}')
+        matches = cursor.fetchall()
         mps = {}
+        for (player, masterpoints) in matches:
+            if player in ru_players.keys():
+                mps[player] = mps.get(player, 0) + masterpoints
         for tourney in tourneys:
             cursor.execute(f'select partnership, masterpoints_ru from names where tournament_id={tourney[0]} '
                            f'and masterpoints_ru > 0')

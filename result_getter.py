@@ -16,6 +16,7 @@ class ResultGetter:
     _deals = None
 
     def __init__(self, boards, pairs, tournament_id=None):
+        self.debug = False
         self.boards = boards
         self.pairs = pairs
         self.tournament_id = tournament_id
@@ -424,7 +425,7 @@ class ResultGetter:
             level = deal.data['level']
             den = deal.data['denomination']
             decl = deal.data['declarer']
-            result = deal.data['result']
+            result = self._replace(str(deal.data['result']) or '')
             score = deal.data['score']
             repl_dict['minimax_contract'] = f"{level}{den} {decl}" if level else "PASS"
             repl_dict['minimax_outcome'] = self._replace(f"{result}, {score}") if level else ""
@@ -552,7 +553,7 @@ class ResultGetter:
         movements = cursor.fetchall()
         tables = (self.pairs + 1) // 2
         is_mitchell = CONFIG.get('is_mitchell')
-        if "Swiss" not in CONFIG.get('scoring') and \
+        if not self.debug and "Swiss" not in CONFIG.get('scoring') and \
                 all(movement[0] != tables or is_mitchell != movement[2] for movement in movements):
             movement = []
             for b in range(1, self.boards + 1, boards_per_round):
