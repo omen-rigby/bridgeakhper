@@ -120,6 +120,7 @@ class Players:
                     partners = [" ".join(chunks[:2]), " ".join(chunks[2:])]
         partners = [p.strip().replace("ё", "е") for p in partners]
         candidates = []
+        full_name = []
         for partner in partners:
             name = partner.split(' ')[-1].replace('.', "")
             surname = partner.split(' ')[-1].replace('.', "")
@@ -127,26 +128,26 @@ class Players:
                 initial = surname
                 surname = partner.split(' ')[0]
                 name = initial
-                full_name = partner
+                full_name.append(partner)
             elif len(name) == 1 and not name in (p[1] for p in players):
                 initial = name
                 name = initial
-                full_name = partner
+                full_name.append(partner)
             elif len(partner.split(' ')) == 2:
                 name, surname = partner.split()
                 initial = ""
-                full_name = partner
+                full_name.extend([partner, f'{surname} {name}'])
             else:
                 name = partner
                 surname = partner
                 initial = ""
-                full_name = partner
-            candidate = [p for p in players if p[2].lower() == full_name.lower() and p not in candidates]
+                full_name.append(partner)
+            candidate = [p for p in players if any(p[2].lower() == f.lower() for f in full_name) and p not in candidates]
             if candidate:
                 candidates.append(candidate[0])
                 continue
             # Full name partial match
-            candidate = [p for p in players if levenshtein(full_name, p[2]) <= 1]
+            candidate = [p for p in players if any(levenshtein(f, p[2]) <= 1 for f in full_name)]
             candidate.sort(key=lambda p: levenshtein(partner, p[2]))
             if candidate:
                 candidates.append(candidate[0])
@@ -247,7 +248,7 @@ class Players:
                 gender = 'F' if patronymic.endswith('а') else 'M'
             else:
                 # TODO: improve gender detection
-                # This condition gives false females which is not really bad since all this data is used for sorting
+                # This condition gives false females which is not bad since all this data is used for sorting
                 # player names within a partnership
                 gender = 'F'
             cursor.execute(
@@ -292,4 +293,5 @@ ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 
 if __name__ == "__main__":
     #print(Players.find_ru_ids())
-    Players.synch_city("Воронеж")
+    # Players.synch_city("Воронеж")
+    Players.synch()

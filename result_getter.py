@@ -9,6 +9,7 @@ from deal import Deal
 from imps import imps
 from tourney_db import TourneyDB
 from imps import vp
+from exceptions import IncompleteTournamentData
 
 
 class ResultGetter:
@@ -49,22 +50,39 @@ class ResultGetter:
         return self._deals
 
     def get_names(self):
+        """Returns pair numbers with missing names"""
         cur = self.cursor
         first = 100 * self.current_session
-        cur.execute(f"select partnership, rank, rank_ru from names where {first} < number and number < {first + 100} order by number")
+        cur.execute(f"select partnership, rank, rank_ru, number from names where {first} < number and number < {first + 100} order by number")
         raw = cur.fetchall()
-        self.names = raw
+        self.names = [r[:-1] for r in raw]
         if not raw:
             self.names = [(f"{i}_1", f"{i}_2") for i in range(1, self.pairs + 1)]
+            missing = []
+        elif len(raw) != self.pairs:
+            existing_pairs = [r[-1] for r in raw]
+            missing = [i for i in range(1 + CONFIG['no_first_pair'], 1 + self.pairs + CONFIG['no_first_pair'])
+                       if i not in existing_pairs]
+        else:
+            missing = []
         self._conn = self.conn.close()
 
+        return missing
+
     def get_hands(self):
+        """
+        Returns list of missing boards
+        """
         self.hands = []
         cur = self.cursor
         first = self.current_session * 100
         cur.execute(f"select distinct * from boards where {first} < number and number < {first + 100} order by number")
         # board #0 can be erroneously submitted
         self.hands = [h for h in cur.fetchall() if h[0]]
+        if len(self.hands) == self.boards:
+            return []
+        existing_boards = [h[0] % 100 for h in self.hands]
+        return [i for i in range(1, 1 + self.boards) if i not in existing_boards]
 
     def set_scores_ximp(self, board, scores, adjusted_scores):
         first = self.current_session * 100
@@ -91,8 +109,8 @@ class ResultGetter:
         first = self.current_session * 100
         for s in adjusted_scores:
             ns_res, ew_res = s[3].split('/')
-            mp_ns = 0 if ns_res == 'A' else 3 * (-1) ** ('A-' == ns_res)
-            mp_ew = 0 if ew_res == 'A' else 3 * (-1) ** ('A-' == ew_res)
+            mp_ns = 0 if ns_res == 'A' else 2 * (-1) ** ('A-' == ns_res)
+            mp_ew = 0 if ew_res == 'A' else 2 * (-1) ** ('A-' == ew_res)
             s[8] = mp_ns
             s[9] = mp_ew
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board + first} and ns={s[1] + first}"
@@ -162,9 +180,11 @@ class ResultGetter:
         """
         For adjustments refer to
         http://db.eurobridge.org/repository/departments/directing/2001Course/LecureNotes/Score%20Adjustments1.pdf
+        Returns list of board numbers with missing results
         """
         cur = self.cursor
         self.travellers = []
+        incomplete = []
         for board in range(1, self.boards + 1):
             first = 100 * self.current_session
             cur.execute(f"select * from protocols where number={board + first}")
@@ -174,7 +194,7 @@ class ResultGetter:
                 filtered[f"{unique_id}"] = protocol
             if len(filtered) != self.pairs // 2:
                 # TODO: add proper logging
-                print(f"Missing results for board #{board}")
+                incomplete.append(board)
             sorted_results = [list(f) for f in filtered.values()]
             adjusted_scores = [s for s in sorted_results if s[7] == 1]
             scores = [s for s in sorted_results if s[7] != 1]
@@ -191,6 +211,7 @@ class ResultGetter:
                                      s[7] if s[7] >= 0 and s[7] != 1 else "",
                                     -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in all_scores])
         self.conn.commit()
+        return list(sorted(list(set(incomplete))))
 
     def get_standings(self):
         max_mp = self.pairs - 2 - self.pairs % 2
@@ -355,10 +376,11 @@ class ResultGetter:
 
     def pdf_sessions(self):
         totals = []
+        movement = 'Mitchell' if CONFIG.get('is_mitchell') else 'Howell'
         first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
         final_standings = []
         for s in self.standings:
-            boards = sum(round(s[1] / s[2]) for ss in s)
+            boards = sum(round(ss[1] / ss[2]) for ss in s)
             new_list = [s[0], sum(ss[1] for ss in s)]
             new_list.append(new_list[-1] / boards)
             final_standings.append(new_list)
@@ -371,19 +393,23 @@ class ResultGetter:
                 "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0],
                 "names": self.names[int(rank[0]) - first_pair], "mp": round(rank[1], 2),
                 "percent": round(100 * rank[2] / self.max_mp, 2),
+                # TODO: use percent for MPs and IMPs for IMPs
+                "sessions":  self.standings[rank[0]][1],
                 "masterpoints": rank[3] or "",
                 "masterpoints_ru": rank[4] or ""
             }
             totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
         self.sessions_dict = {"AM": AM, "scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
-                               "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
-                               "tournament_title": CONFIG["tournament_title"], "totals": totals}
+                              "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
+                              "tournament_title": CONFIG["tournament_title"], "totals": totals,
+                              "sessions": self.current_session + 1, "movement": movement}
         html_string = Template(open("templates/sessions_template.html").read()).render(**self.rankings_dict)
         return print_to_pdf(html_string, "Sessions.pdf")
 
     def pdf_rankings(self):
         totals = []
         first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
+        movement = 'Mitchell' if CONFIG.get('is_mitchell') else 'Howell'
         for i, rank in enumerate(self.totals):
             cluster = [j for j, r in enumerate(self.totals) if abs(r[2] - rank[2]) < 0.0001]
             repl_dict = {
@@ -396,7 +422,7 @@ class ResultGetter:
             totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
         self.rankings_dict = {"AM": AM, "scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
                               "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
-                              "tournament_title": CONFIG["tournament_title"], "totals": totals}
+                              "tournament_title": CONFIG["tournament_title"], "totals": totals, "movement": movement}
         html_string = Template(open("templates/rankings_template.html").read()).render(**self.rankings_dict)
         return print_to_pdf(html_string, "Ranks.pdf")
 
@@ -553,7 +579,7 @@ class ResultGetter:
         movements = cursor.fetchall()
         tables = (self.pairs + 1) // 2
         is_mitchell = CONFIG.get('is_mitchell')
-        if not self.debug and "Swiss" not in CONFIG.get('scoring') and \
+        if not self.debug and self.pairs % 2 == 0 and "Swiss" not in CONFIG.get('scoring') and \
                 all(movement[0] != tables or is_mitchell != movement[2] for movement in movements):
             movement = []
             for b in range(1, self.boards + 1, boards_per_round):
@@ -672,9 +698,19 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
     def process(self):
         paths = []
-        self.get_results()
-        self.get_names()
-        self.get_hands()
+        missing_protocols = self.get_results()
+        missing_names = self.get_names()
+        missing_hands = self.get_hands()
+        if missing_names or missing_hands or missing_protocols:
+            message = []
+            if missing_names:
+                message.append('Missing names for pairs {}'.format(', '.join(map(str, missing_names))))
+            if missing_hands:
+                message.append('Missing hand data for boards {}'.format(', '.join(map(str, missing_hands))))
+            if missing_protocols:
+                message.append('Missing results for boards {}'.format(', '.join(map(str, missing_protocols))))
+            if not self.debug:
+                raise IncompleteTournamentData('\n'.join(message))
         self.get_standings()
         paths.append(self.pdf_rankings())
         if not CONFIG.get("no_hands"):
@@ -690,6 +726,7 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         self.get_names()
         self.get_hands()
         self.get_standings()
+        # TODO: rename to self.sessions?
         self.standings = [[self.names[t[0] - 1], [[]] * self.current_session + [t]] for t in self.totals]
         for i in range(self.current_session):
             self.current_session = i
@@ -697,7 +734,7 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
             self.get_names()
             self.get_hands()
             self.get_standings()
-
+            # TODO: rewrite
             for total in self.totals:
                 try:
                     current_sum = [s[1] for s in self.standings if s[0] == self.names[total[0]]][0]
@@ -705,7 +742,6 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
                     current_sum = [self.names[total[0]], [[]] * self.current_session + [total]]
                     self.standings.append(current_sum)
                 current_sum[1][i] = total
-        self.standings.sort(key=lambda x: -x[2])
         paths.append(self.pdf_sessions())
 
         paths.append(self.pdf_rankings())
@@ -716,10 +752,11 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(2, 10)
+    g = ResultGetter(21, 7)
+    g.debug = True
     from config import init_config
     init_config()
-    CONFIG["scoring"] = "MPs"
+    CONFIG["scoring"] = "IMPs"
+    # CONFIG["tourney_coeff"] = 0.5
     g.process()
-    # TourneyDB.to_access(800)
     # g.save()

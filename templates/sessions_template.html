@@ -34,7 +34,7 @@ CAPTION {
 </head>
 <body bgcolor="#ffffff">
 <h1>{{tournament_title}} {{date}}</h1>
-<h1>Ranks</h1>
+<h1>Ranks after session {{sessions}}</h1>
 {% if scoring == "MPs" %}
 <h2>{{tables}} Table {{boards}} Board {{movement}} Movement. MAX = {{max}}</h2>
 {% else %}
@@ -46,10 +46,10 @@ CAPTION {
     <th align="center">Rank</th>
     <th align="center">Pair</th>
     <th align="left">Names</th>
+    {% for i in range(1, sessions + 1) %}
+    <th align="center">Session {{i}}</th>
+    {% endfor %}
     <th align="center">Total</th>
-    {% if scoring == "MPs" %}
-    <th align="center">%Score</th>
-    {% endif %}
     <th align="center">Master Points</th>
     {% if AM %}
     <th align="center">Master Points (RU)</th>
@@ -61,9 +61,8 @@ CAPTION {
     <td align="center">{{pair.number}}</td>
     <td align="left">{{pair.names}}</td>
     <td align="center">{{pair.mp}}</td>
-    {% if scoring == "MPs" %}
-    <td align="center">{{pair.percent}}</td>
-    {% endif %}
+    {% for i in range(sessions) %}
+    <td align="center">{{pair.sessions[i]}}</td>
     {% if AM %}
     <td align="center">{{pair.masterpoints}}</td>
     {% endif %}

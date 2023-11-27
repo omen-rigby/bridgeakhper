@@ -1,5 +1,6 @@
 import zipfile
 from command_handlers import *
+from sim_handlers import SimHandlers
 import rarfile
 
 
@@ -45,3 +46,18 @@ class FileHandlers:
         send(chat_id=update.effective_chat.id, text=f"Uploaded {number} boards",
              reply_buttons=[], context=context)
         os.remove(filename)
+
+    @staticmethod
+    def load_db(update: Update, context: CallbackContext):
+        if CONFIG['city']:
+            filename = update.message.document.get_file().download()
+            try:
+                TourneyDB.load(filename)
+                send(update.effective_chat.id, "Uploaded db file to current session", None, context)
+            except Exception as e:
+                send(update.effective_chat.id, f"Failed to upload db file to current session: {e}", None, context)
+            finally:
+                os.remove(filename)
+                CONFIG["load_db"] = None
+        else:
+            SimHandlers.upload_sqlite(update, context)

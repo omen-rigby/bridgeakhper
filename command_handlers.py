@@ -6,28 +6,19 @@ from result_getter import ResultGetter
 from generate import generate
 from movement import Movement
 from players import *
-from shutil import copyfile
 from inline_key import *
 from functools import wraps
 from constants import AGGREGATOR_COMMANDS
 from config import init_config
 from swiss import SwissMovement
 from match_handlers import MatchHandlers
+from util import decorate_all_functions
 
 
 CHANGE_FLOWS = ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
                 'rounds', 'add_td', 'config_update', 'penalty', 'table_card', 'move_card', 'select_session',
-                )
+                'load_db')
 ALLOWED_IN_GROUP = ('/end', '/movecards', '/startround', '/restartswiss')
-
-
-def decorate_all_functions(function_decorator):
-    def decorator(cls):
-        for name, obj in vars(cls).items():
-            if callable(obj) and name not in ('end', 'start_round', 'restart_swiss', 'move_cards'):
-                setattr(cls, name, function_decorator(obj))
-        return cls
-    return decorator
 
 
 def command_eligibility(func):
@@ -760,6 +751,8 @@ Results:
             for path in paths:
                 context.bot.send_document(chat_id, open(path, 'rb'))
                 os.remove(path)
+        except IncompleteTournamentData as e:
+            send(chat_id=chat_id, text=f"Missing tournament data:\n{e}", context=context)
         except Exception as e:
             send(chat_id=chat_id, text=f"Result getter failed with error: {e}", context=context)
             raise
@@ -948,10 +941,8 @@ Total penalty: {old_penalty + mp} {scoring}""",
 
     @staticmethod
     def load_db(update: Update, context: CallbackContext):
-        path = f'{date}/boards.db'
-        if os.stat(path):
-            os.remove(path)
-        copyfile('testboards.db', path)
+        CONFIG["load_db"] = True
+        send(update.effective_chat.id, "Forward/drag .db file and send", None, context)
 
     @staticmethod
     def custom_movement(update: Update, context: CallbackContext):
@@ -1011,7 +1002,7 @@ TD only commands:
     /restartswiss: starts 'italian' round (swiss movement)""" + """
     /tourneycoeff: updates tournament coefficient""" * AM + """
     /custommovement: turns off preset movement
-    /loaddb: (debug only) loads test set of boards and results from repo
+    /loaddb: loads session from .db
     /rmboard: removes all hands for the specified board
     /restart: when submitting hands, reset all hands and starts again from N
     /result: starts board result entry flow

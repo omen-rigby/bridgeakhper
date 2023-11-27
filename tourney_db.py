@@ -111,11 +111,11 @@ class TourneyDB:
         TourneyDB._create_tables(conn)
         conn2 = TourneyDB.connect()
         cur2 = conn2.cursor()
-        cur2.execute("select number,partnership,rank,rank_ru from names")
+        cur2.execute("select number, partnership, penalty, rank, rank_ru from names")
         names = cur2.fetchall()
         for d in names:
-            rows = f"({d[0]}, '{d[1]}', {d[2]}, {d[3]})"
-            insert = f"""INSERT INTO names (number, partnership, rank, rank_ru) VALUES {rows};"""
+            rows = f"({d[0]}, '{d[1]}', {d[2]}, {d[3]}, {d[4]})"
+            insert = f"""INSERT INTO names (number, partnership, penalty, rank, rank_ru) VALUES {rows};"""
             cursor.execute(insert)
         cur2.execute("select * from boards")
         boards = cur2.fetchall()
@@ -145,6 +145,35 @@ VALUES {rows};"""
         conn.close()
         conn2.close()
         return dump_path
+
+    @staticmethod
+    def load(filename):
+        conn = TourneyDB.connect()
+        cursor = conn.cursor()
+        conn2 = TourneyDB.connect(local=filename)
+        cur2 = conn2.cursor()
+        cur2.execute("select number, partnership, penalty, rank, rank_ru from names")
+        names = cur2.fetchall()
+        for d in names:
+            rows = f"({d[0]}, '{d[1]}', {d[2]}, {d[3]}, {d[4]})"
+            insert = f"""INSERT INTO names (number, partnership, penalty, rank, rank_ru) VALUES {rows};"""
+            cursor.execute(insert)
+        cur2.execute("select * from boards")
+        boards = cur2.fetchall()
+        for d in boards:
+            rows = f"({d[0]}" + "".join(f", '{dd}'" for dd in d[1:]) + ')'
+            insert = f"""INSERT INTO boards (number, ns, nh, nd, nc, es, eh, ed, ec, ss, sh, sd, sc, ws, wh, wd, wc) 
+        VALUES {rows};"""
+            cursor.execute(insert)
+        cur2.execute("select number, ns, ew, contract, declarer, lead, result, score from protocols")
+        boards = cur2.fetchall()
+        for d in boards:
+            rows = f"({d[0]}, {d[1]}, {d[2]}, '{d[3]}', '{d[4]}', '{d[5]}', '{d[6]}', {d[7]})"
+            insert = f"INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score) VALUES {rows};"
+            cursor.execute(insert)
+        conn.commit()
+        conn.close()
+        conn2.close()
 
 
 if __name__ == "__main__":

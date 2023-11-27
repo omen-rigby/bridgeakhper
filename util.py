@@ -81,3 +81,12 @@ def revert_name(name):
     last_name = ' '.join(chunks[1:])
     # TODO: handle asian & spanish names
     return f'{last_name} {chunks[0]}'
+
+
+def decorate_all_functions(function_decorator):
+    def decorator(cls):
+        for name, obj in vars(cls).items():
+            if callable(obj) and name not in ('end', 'start_round', 'restart_swiss', 'move_cards'):
+                setattr(cls, name, function_decorator(obj))
+        return cls
+    return decorator

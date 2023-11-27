@@ -79,7 +79,7 @@ Could be unsafe if turned on, e.g. anyone can find out if a certain card is pres
 * /addplayer adds player to players DB
 * /updateplayer updates player record
 * /tdlist lists all TDs
-* /loaddb (debugging only) loads tournament DB from testboards.db file.
+* /loaddb loads tournament DB from .db file.
 * /boards gets report with boards without scores
 
 

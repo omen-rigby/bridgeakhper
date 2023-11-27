@@ -185,8 +185,65 @@ class Movement:
         html_string = Template(open("templates/movement_template.html").read()).render(**movement_dict)
         return print_to_pdf(html_string, "Movement.pdf")
 
+    def table_cards(self):
+        rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
+        self._names = self.get_names()
+        movement_dict = {'tables': self.tables, 'boards': self.boards,
+                         'type': 'Mitchell' if CONFIG.get("is_mitchell") else 'Howell',
+                         'pairs': [Dict2Class({'number': i, 'names': self.names(i),
+                                               'rounds': [None] * rounds}) for i in range(1, self.tables * 2 + 1)],
+                         'tablecards': [Dict2Class({'number': i, 'instruction_ns': None,
+                                                    'instruction_ew': None,
+                                                    'rounds': [None] * rounds}) for i in range(1, self.tables + 1)]}
+        boards_per_round = self.boards // rounds
+        if len(self.initial_board_sets) == self.tables:
+            # assumes that board sets change +1, otherwise whole movement is written in initial_board_sets column
+            for i, r in enumerate(self.movement):
+                for pair in r[:1]:
+                    table = i % self.tables
+                    table_data = [t for t in movement_dict['tablecards'] if t.number == table + 1][0].rounds
+                    pair_data = [p for p in movement_dict['pairs'] if p.number == pair][0].rounds
+                    position = "NS" if r[0] == pair else "EW"
+                    first_board = int((r[2] - 1) * boards_per_round + 1)
+                    boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
+                    opps_no = str(r[0] + r[1] - pair)
+                    round_index = (r[2] - self.initial_board_sets[table]) % rounds
+                    if table_data[round_index] is None:
+                        table_data[round_index] = Dict2Class({'number': round_index + 1, 'ns': pair, 'ew': opps_no,
+                                                              'boardset': r[2]})
+                    opps_data = [p for p in movement_dict['pairs'] if str(p.number) == opps_no][0].rounds
+
+                    pair_data[round_index] = Dict2Class({
+                        'number': round_index + 1, 'table': str(table + 1), 'position': position,
+                        'opps': self.names(opps_no).replace(' ', '&nbsp;'), 'boards': boards})
+                    opps_data[round_index] = Dict2Class({
+                        'number': round_index + 1, 'table': str(table + 1), 'position': "NSEW".replace(position, ""),
+                        'opps': self.names(pair).replace(' ', '&nbsp;'), 'boards': boards})
+        else:
+            sets = self.initial_board_sets
+            tables_data = []
+            sets_reordered = list(itertools.chain(*[sets[i::self.tables] for i in range(self.tables)]))
+            for i, sett in enumerate(sets_reordered):
+                tables_data.append([m for m in self.movement if m[2] == sett][sets_reordered[:i].count(sett)])
+            for i in range(rounds):
+                for j, t in enumerate(tables_data[i::rounds]):
+                    for pair in t[0:2]:
+                        data = [p for p in movement_dict['pairs'] if p.number == pair][0].rounds
+                        position = "NS" if t[0] == pair else "EW"
+                        first_board = int((t[2] - 1) * boards_per_round + 1)
+                        boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
+                        opps_no = str(t[0] + t[1] - pair)
+
+                        data[i] = Dict2Class(
+                            {'number': i + 1, 'table': str(j + 1), 'position': position,
+                             'opps': self.names(opps_no).replace(' ', '&nbsp;'), 'boards': boards})
+        # TODO: remove
+        movement_dict['tablecards'] = movement_dict['tablecards'][0:1]
+        html_string = Template(open("templates/table_cards.html").read()).render(**movement_dict)
+        return print_to_pdf(html_string, "Table_cards.pdf")
+
 
 if __name__ == "__main__":
     m = Movement(24, 9)
-    print(m.pdf())
+    print(m.table_cards())
     #print(m.table_card(2))

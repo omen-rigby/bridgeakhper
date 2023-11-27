@@ -94,7 +94,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('simstart', SimHandlers.start_sim_tourney))
     updater.dispatcher.add_handler(CommandHandler('venuelist', SimHandlers.list_venues))
     updater.dispatcher.add_handler(CommandHandler('aggregate', SimHandlers.aggregate))
-    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('db'), SimHandlers.upload_sqlite))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('db'), FileHandlers.load_db))
     # Should go last
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), CommandHandlers.freeform))
 

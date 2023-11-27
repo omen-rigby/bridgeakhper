@@ -9,23 +9,24 @@
     * {
         FONT-FAMILY: Arial;
     }
-    .movement {
-        align: center;
-        width: 67%;
-        margin-left: 16%;
+    .bordered {
+        border: 1px #000000 solid;
+    };
+    table *{
         text-align: center;
     };
-    .tablecard {
-    page-break-inside:avoid;
+    td>p {
+        height: 17%;
     };
-    table {
-        text-align: center;
+    td:nth-child(2) {
+        height: 66% !important;
     };
-
-    table {
-            border: 1px #ff0000 solid;
+    p {
+         position: relative;
+         display: flex;
+         justify-content: center;
+         align-items: center;
     };
-
     .rounds {
         text-align: center;
     };
@@ -40,12 +41,12 @@
 
     };
     .upsidedown {
-        transform: rotate(180);
-        -ms-writing-mode: tb-rl;
-        -webkit-writing-mode: vertical-rl;
-        writing-mode: vertical-rl;
-        transform: rotate(180deg);
-        white-space: nowrap;
+         /*display: inline-block;*/
+         display: inline-block;
+         transform: scaleY(-1);
+         -webkit-transform: scaleY(-1);
+         -ms-transform: scaleY(-1);
+         -o-transform: scaleY(-1);
     };
 
     .readbottomtotop {
@@ -57,7 +58,6 @@
     };
 
     .readtoptobottom {
-
         -ms-writing-mode: tb-rl;
         -webkit-writing-mode: vertical-rl;
         writing-mode: vertical-rl;
@@ -69,52 +69,66 @@
 </head>
 <body bgcolor="#ffffff">
 <h2 align="center">{{tables}} Table {{boards}} boards {{type}} Movement</h2>
-<div>
-    <table class="movement">
-        <tbody>
-        {% for pair in pairs %}
-            <tr class="rounds">
-                <td colspan="1">
-                    <table width="100%"><tbody>
-                        <tr>
-                            <th colspan="5"><br/><b>#{{pair.number}} — {{pair.names}}</b></th>
-                        </tr>
-                        <tr>
-                            <th>Round</th>
-                            <th>Table</th>
-                            <th>Direction</th>
-                            <th>Opps</th>
-                            <th>Boards</th>
-                        </tr>
-                        {% for round in pair.rounds %}
-                        <tr>
-                            <td>{{round.number}}</td>
-                            <td>{{round.table}}</td>
-                            <td>{{round.position}}</td>
-                            <td>{{round.opps}}</td>
-                            <td>{{round.boards}}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody></table>
-                </td>
-            </tr>
-
-        {% endfor %}
-        </tbody>
-    </table>
-</div>
-<div class="tablecards" style="display:none">
-    {% for tablecard in tablecards %}
-    <div class="tablecard">
-        <div class="tablenumber">{{tablecard.number}}</div>
-        <div class="upsidedown">
-            <span class="instruction upsidedown">{{tablecard.instruction_ns}}</span><br/>
-            <span class="side upsidedown">NORTH</span>
-        </div>
-        <div><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/></div>
-    </div>
-<!--        <table><tbody>-->
-<!--            <tr>-->
+<!--    {% for tablecard in tablecards %}-->
+<!--<table class="bordered"><tbody>-->
+<!--    <tr><td>-->
+        <p class="tablenumber">{{tablecard.number}}</p>
+        <p class="upsidedown">
+            <span class="instruction">{{tablecard.instruction_ew}}</span><br/>
+            <span class="side">WEST</span>
+        </p>
+        <p><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/></p>
+<!--    </td>-->
+<!--    <td>-->
+<!--        <p class="upsidedown">-->
+<!--            <span class="instruction">{{tablecard.instruction_ns}}</span><br/>-->
+<!--            <span class="side">NORTH</span>-->
+<!--        </p>-->
+<!--        <p>-->
+<!--            <table width="100%" class="rounds"><tbody>-->
+<!--                <tr>-->
+<!--                    <th>Round</th>-->
+<!--                    <th>NS</th>-->
+<!--                    <th>EW</th>-->
+<!--                    <th>Boards (3)</th>-->
+<!--                    <th>Boards (4)</th>-->
+<!--                </tr>-->
+<!--                {% for round in tablecard.rounds %}-->
+<!--                <tr class="rounds">-->
+<!--                    <td>{{round.number}}</td>-->
+<!--                    <td>{{round.ns}}</td>-->
+<!--                    <td>{{round.ew}}</td>-->
+<!--                    <td>{{round.boardset * 3 - 2}}–{{round.boardset * 3}}</td>-->
+<!--                    <td>{{round.boardset * 4 - 3}}–{{round.boardset * 4}}</td>-->
+<!--                </tr>-->
+<!--                {% endfor %}-->
+<!--            </tbody></table>-->
+<!--        </p>-->
+<!--        <p>-->
+<!--            <span class="instruction">{{tablecard.instruction_ns}}</span><br/>-->
+<!--            <span class="side">SOUTH</span>-->
+<!--        </p>-->
+<!--    </td>-->
+<!--    <td>-->
+<!--        <p></p>-->
+<!--        <p class="upsidedown">-->
+<!--            <span class="instruction">{{tablecard.instruction_ew}}</span><br/>-->
+<!--            <span class="side">WEST</span>-->
+<!--        </p>-->
+<!--        <p class="tablenumber upsidedown">{{tablecard.number}}</p>-->
+<!--    </td></tr>-->
+<!--    <tr><td>-->
+<!--</tbody></table>-->
+<!--    <div class="tablecard">-->
+<!--        <p class="tablenumber">{{tablecard.number}}</p>-->
+<!--        <p class="upsidedown">-->
+<!--            <span class="instruction">{{tablecard.instruction_ns}}</span><br/>-->
+<!--            <span class="side">NORTH</span>-->
+<!--        </p>-->
+<!--        <p><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/></p>-->
+<!--    </div>-->
+<!--        <table width="100%" height="100%"><tbody>-->
+<!--            <tr height="17%">-->
 <!--                <td width="17%"><span class="tablenumber">{{tablecard.number}}</span></td>-->
 <!--                <td width="66%">-->
 <!--                    <span class="instruction upsidedown">{{tablecard.instruction_ns}}</span><br/>-->
@@ -122,7 +136,7 @@
 <!--                </td>-->
 <!--                <td width="17%"/>-->
 <!--            </tr>-->
-<!--            <tr>-->
+<!--            <tr height="66%">-->
 <!--                <td>-->
 <!--                    <span class="side readbottomtotop">WEST</span><br/>-->
 <!--                    <span class="instruction readbottomtotop">{{tablecard.instruction_ew}}</span>-->
@@ -150,7 +164,7 @@
 <!--                    <span class="readtoptobottom instruction">{{tablecard.instruction_ew}}</span>-->
 <!--                </td>-->
 <!--            </tr>-->
-<!--            <tr>-->
+<!--            <tr height="17%">-->
 <!--                <td><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/> </td>-->
 <!--                <td>-->
 <!--                    <p class="side">SOUTH</p>-->

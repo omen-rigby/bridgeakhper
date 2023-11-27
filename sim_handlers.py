@@ -7,10 +7,22 @@ import sqlite3
 from inline_key import send
 from telegram import Update
 from telegram.ext import *
-from util import connect_mdb, revert_name
+from util import connect_mdb, revert_name, decorate_all_functions
 from constants import SUITS, SUITS_UNICODE
+from functools import wraps
+from config import CONFIG
 
 
+def command_eligibility(func):
+    @wraps(func)
+    def wrapper(update: Update, context: CallbackContext):
+        if CONFIG["city"]:
+            send(chat_id=update.effective_chat.id, text="Use regular bot", context=context)
+            raise Exception("Bad command")
+    return wrapper
+
+
+@decorate_all_functions(command_eligibility)
 class SimHandlers:
     mdb_path = 'templates/mdb.bws'
     starting_index = 600
@@ -108,7 +120,8 @@ class SimHandlers:
         conn = sqlite3.connect(filename)
         cursor = conn.cursor()
         real_name = update.message.document.file_name
-        city = real_name.split('.')[0]
+        # Handles city (12).db
+        city = real_name.split('.')[0].split('(')[0].strip()
         bot_results = context.bot_data["results"]
         replacing_section = real_name in bot_results or city in bot_results
         if replacing_section:
@@ -124,8 +137,8 @@ class SimHandlers:
             context.bot_data["tables"] -= existing_tables
             first = min(pairs_unique)
             context.bot_data["names"] = [x for x in context.bot_data["names"] if x[0] not in pairs_unique]
-            context.bot_data["numbers"].remove(first - 1)
-            context.bot_data["numbers"].append(first - 1)
+            context.bot_data["numbers"].remove(first - first % 10)
+            context.bot_data["numbers"].append(first - first % 10)
         else:
             section = len(context.bot_data["numbers"])
             context.bot_data["venues"].append(city)
@@ -143,6 +156,7 @@ class SimHandlers:
         first_pair = min(all_pairs)
         current_increment = first_pair - 1 - (first_pair % 10 == 2)  # odd without 1st pair
         increment = first - current_increment
+        increment = increment - increment % 10  # paranoid check
         for i, p in enumerate(protocols):
             number, ns, ew, contract, declarer, lead, result, score = p[:8]
             if score == 1:
@@ -184,6 +198,9 @@ class SimHandlers:
         conn.close()
         agg_conn.close()
         os.remove(filename)
+
+        context.bot.send_message(chat_id=update.message.from_user.id,
+                                 text=f"Uploaded {city} results")
 
     @staticmethod
     def upload_csv(update: Update, context: CallbackContext):
