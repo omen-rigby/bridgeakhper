@@ -23,12 +23,14 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 if __name__ == '__main__':
     updater = Updater(token=TOKEN)
     # RU masterpoints
-    updater.job_queue.run_monthly(MonthlyJobs.update_ranks, day=2, when=datetime.time(hour=18, minute=24,
-                                                                                      tzinfo=pytz.UTC))
-    updater.job_queue.run_daily(MonthlyJobs.masterpoints_report, time=datetime.time(hour=18, minute=24,
+    if CONFIG["city"]:
+        updater.job_queue.run_monthly(MonthlyJobs.update_ranks, day=2, when=datetime.time(hour=18, minute=24,
+                                                                                          tzinfo=pytz.UTC))
+        updater.job_queue.run_daily(MonthlyJobs.masterpoints_report, time=datetime.time(hour=18, minute=24,
                                                                                     tzinfo=pytz.UTC))
-    # AM masterpoints
-    updater.job_queue.run_daily(MonthlyJobs.update_ratings_am, time=datetime.time(hour=0, minute=0, tzinfo=pytz.UTC))
+    if AM:
+        # AM masterpoints
+        updater.job_queue.run_daily(MonthlyJobs.update_ratings_am, time=datetime.time(hour=0, minute=0, tzinfo=pytz.UTC))
     # Common commands
     updater.dispatcher.add_handler(CommandHandler('start', CommandHandlers.start))
     updater.dispatcher.add_handler(CommandHandler('help', CommandHandlers.help_command))
@@ -72,6 +74,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CallbackQueryHandler(inline_key))
     # Swiss
     updater.dispatcher.add_handler(CommandHandler('startround', CommandHandlers.start_round))
+    updater.dispatcher.add_handler(CommandHandler('endround', CommandHandlers.end_round))
+    updater.dispatcher.add_handler(CommandHandler('correctswiss', CommandHandlers.correct_swiss))
     updater.dispatcher.add_handler(CommandHandler('restartswiss', CommandHandlers.restart_swiss))
     # Results
     updater.dispatcher.add_handler(CommandHandler("result", result))

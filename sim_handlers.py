@@ -25,15 +25,16 @@ def command_eligibility(func):
 @decorate_all_functions(command_eligibility)
 class SimHandlers:
     mdb_path = 'templates/mdb.bws'
-    starting_index = 600
+    _starting_index = 600
 
     @staticmethod
     def start_sim_tourney(update: Update, context: CallbackContext):
-        context.bot_data["results"] = []
-        context.bot_data["venues"] = []
-        context.bot_data["names"] = []
-        context.bot_data["numbers"] = []
-        context.bot_data["tables"] = 0
+        context.user_data["results"] = []
+        context.user_data["venues"] = []
+        context.user_data["names"] = []
+        context.user_data["numbers"] = []
+        context.user_data["tables"] = 0
+        context.user_data["starting_index_value"] = None
         ms_conn = connect_mdb(SimHandlers.mdb_path)
         ms_cursor = ms_conn.cursor()
         ms_cursor.execute('delete from ReceivedData')
@@ -48,7 +49,7 @@ class SimHandlers:
         """
         Results are added in the section, the venue is encoded by the tens digit of table number
         """
-        if context.bot_data.get("results") is None:
+        if context.user_data.get("results") is None:
             context.bot.send_message(chat_id=update.message.from_user.id,
                                      text="Simultaneous tournament not started")
         filename = update.message.document.get_file().download()
@@ -60,7 +61,7 @@ class SimHandlers:
         cursor.execute("select Name from Session")
         fetch_res = cursor.fetchone()[0]
         city = fetch_res if fetch_res != "Bridge game" else real_name
-        bot_results = context.bot_data["results"]
+        bot_results = context.user_data["results"]
         replacing_section = real_name in bot_results or city in bot_results
         if replacing_section:
             section = bot_results.index(real_name) if real_name in bot_results else bot_results.index(city)
@@ -71,25 +72,25 @@ class SimHandlers:
             pairs_unique = set(itertools.chain(*pairs))
             existing_tables = len(pairs_unique) // 2
             agg_cur.execute(f"delete from ReceivedData where [Table] < {10*(section + 1)} and [Table] > {10 * section}")
-            context.bot_data["tables"] -= existing_tables
+            context.user_data["tables"] -= existing_tables
             first = min(pairs_unique)
-            context.bot_data["names"] = [x for x in context.bot_data["names"] if x[0] not in pairs_unique]
-            context.bot_data["numbers"].remove(first - 1)
-            context.bot_data["numbers"].append(first - 1)
+            context.user_data["names"] = [x for x in context.user_data["names"] if x[0] not in pairs_unique]
+            context.user_data["numbers"].remove(first - 1)
+            context.user_data["numbers"].append(first - 1)
         else:
-            section = len(context.bot_data["numbers"])
-            context.bot_data["venues"].append(city)
+            section = len(context.user_data["numbers"])
+            context.user_data["venues"].append(city)
             agg_cur.execute('select PairNS, PairEW from ReceivedData')
             numbers = agg_cur.fetchall()
-            last = max(itertools.chain(*numbers)) if numbers else SimHandlers.starting_index - 2
+            last = max(itertools.chain(*numbers)) if numbers else SimHandlers._starting_index - 2
             first = last + 1 - (last + 1) % 10 + 10
-            context.bot_data["numbers"].append(first)
+            context.user_data["numbers"].append(first)
 
         cursor.execute(f"""select ID, [Section], [Table], [Round], Board, PairNS, PairEW, Declarer,
 [NS/EW], Contract, [Result], LeadCard, Remarks from ReceivedData""")
         results = cursor.fetchall()
         tables = len(set(itertools.chain(*[r[5:7] for r in results]))) // 2
-        context.bot_data["tables"] += tables
+        context.user_data["tables"] += tables
         first_pair = min(itertools.chain(*[r[5:7] for r in results]))
         current_increment = first_pair - 1 - (first_pair % 10 == 2)  # odd without 1st pair
         increment = first - current_increment
@@ -100,7 +101,7 @@ class SimHandlers:
                      f" Contract, Result, LeadCard, Remarks) VALUES {rows};"
             agg_cur.execute(insert)
         agg_conn.commit()
-        context.bot_data["results"].append(update.message.document.file_name)
+        context.user_data["results"].append(update.message.document.file_name)
         conn.close()
         agg_conn.close()
         os.remove(filename)
@@ -111,9 +112,11 @@ class SimHandlers:
         """
         Results are added in the section, the venue is encoded by the tens digit of table number
         """
-        if context.bot_data.get("results") is None:
-            context.bot.send_message(chat_id=update.message.from_user.id,
-                                     text="Simultaneous tournament not started")
+        # TODO: return to bot_data approach
+        # TODO: investigate and return
+        # if context.bot_data.get("results") is None:
+        #     context.bot.send_message(chat_id=update.message.from_user.id,
+        #                              text="Simultaneous tournament not started")
         filename = update.message.document.get_file().download()
         agg_conn = connect_mdb(SimHandlers.mdb_path)
         agg_cur = agg_conn.cursor()
@@ -122,7 +125,7 @@ class SimHandlers:
         real_name = update.message.document.file_name
         # Handles city (12).db
         city = real_name.split('.')[0].split('(')[0].strip()
-        bot_results = context.bot_data["results"]
+        bot_results = context.user_data["results"]
         replacing_section = real_name in bot_results or city in bot_results
         if replacing_section:
             section = bot_results.index(real_name) if real_name in bot_results else bot_results.index(city)
@@ -140,19 +143,25 @@ class SimHandlers:
             context.bot_data["numbers"].remove(first - first % 10)
             context.bot_data["numbers"].append(first - first % 10)
         else:
-            section = len(context.bot_data["numbers"])
-            context.bot_data["venues"].append(city)
-            agg_cur.execute('select PairNS, PairEW from ReceivedData')
-            numbers = agg_cur.fetchall()
-            last = max(itertools.chain(*numbers)) if numbers else SimHandlers.starting_index - 2
-            first = last + 1 - (last + 1) % 10 + 10
-            context.bot_data["numbers"].append(first)
+            INDICES = {
+            #    'Yerevan': 475, "Воронеж": 300, 'Ессентуки': 450, "Ижевск": 550
+            }
+            section = len(context.user_data["numbers"])
+            context.user_data["venues"].append(city)
+            if city in INDICES.keys():
+                first = INDICES[city]
+            else:
+                agg_cur.execute('select PairNS, PairEW from ReceivedData')
+                numbers = agg_cur.fetchall()
+                last = max(itertools.chain(*numbers)) if numbers else SimHandlers._starting_index - 2
+                first = last + 1 - (last + 1) % 10 + 10
+            context.user_data["numbers"].append(first)
         cursor.execute('select * from protocols where number > 0')
         protocols = cursor.fetchall()
         players = max(max(p[1] for p in protocols), max(p[2] for p in protocols))
         all_pairs = set(itertools.chain(*[r[1:3] for r in protocols]))
         tables = len(all_pairs) // 2
-        context.bot_data["tables"] += tables
+        context.user_data["tables"] += tables
         first_pair = min(all_pairs)
         current_increment = first_pair - 1 - (first_pair % 10 == 2)  # odd without 1st pair
         increment = first - current_increment
@@ -186,13 +195,13 @@ class SimHandlers:
                      f" Contract, Result, LeadCard, Remarks) VALUES {rows};"
             agg_cur.execute(insert)
         agg_conn.commit()
-        context.bot_data["results"].append(update.message.document.file_name)
+        context.user_data["results"].append(update.message.document.file_name)
         cursor.execute("select number, partnership, rank_ru from names order by number")
         names = cursor.fetchall()
         for (number, partnership, rank_ru) in names:
             names = partnership.split(' & ')
             rank = str(rank_ru).replace('.', ",")
-            context.bot_data['names'].append([increment + number, revert_name(names[0]),
+            context.user_data['names'].append([increment + number, revert_name(names[0]),
                                               # '0' is for rating
                                               revert_name(names[1]), '0', rank, city])
         conn.close()
@@ -200,11 +209,11 @@ class SimHandlers:
         os.remove(filename)
 
         context.bot.send_message(chat_id=update.message.from_user.id,
-                                 text=f"Uploaded {city} results")
+                                 text=f"Uploaded {city} results starting from {first}")
 
     @staticmethod
     def upload_csv(update: Update, context: CallbackContext):
-        if context.bot_data.get("results") is None:
+        if context.user_data.get("results") is None:
             context.bot.send_message(chat_id=update.message.from_user.id,
                                      text="Simultaneous tournament not started")
         timeout = 15 + time.time()
@@ -228,7 +237,7 @@ class SimHandlers:
                 # mdb id already processed
                 first = context.bot_data["numbers"][-1]
             else:
-                first = SimHandlers.starting_index
+                first = SimHandlers._starting_index
             for i, row in enumerate(csv.reader(contents, delimiter=';', quotechar='"')):
                 row[0] = i + 1 + first
                 row.append(city)
@@ -255,13 +264,13 @@ class SimHandlers:
         players_path = 'players.csv'
         with open(players_path, 'w', newline='', encoding="cp1251") as csvfile:
             writer = csv.writer(csvfile, delimiter=';', quotechar='"')
-            writer.writerows(sorted(context.bot_data['names'], key=lambda x: x[0]))
+            writer.writerows(sorted(context.user_data['names'], key=lambda x: x[0]))
 
         context.bot.send_document(update.message.from_user.id, open(SimHandlers.mdb_path, 'rb'))
         context.bot.send_document(update.message.from_user.id, open(players_path, 'rb'))
-        venues = len(context.bot_data["venues"])
-        tables = context.bot_data["tables"]
-        pairs = len(context.bot_data['names'])
+        venues = len(context.user_data["venues"])
+        tables = context.user_data["tables"]
+        pairs = len(context.user_data['names'])
         send(chat_id=update.effective_chat.id,
              text=f"Total venues: {venues}\nTotal tables: {tables}\nTotal pairs: {pairs}",
              context=context)

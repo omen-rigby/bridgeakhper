@@ -97,6 +97,14 @@ class Movement:
                                                      r, d in enumerate(data))
 
     def get_movement(self):
+        """Movement is stored as following:
+        movement field:
+        semicolon separates the board set data, each of which is a list of pairs of numbers which play this set,
+        they are sorted by table number (!) not by round number
+        board_sets is comma-separated list of board sets.
+        If board sets change sequentially at each table, numbers for the 1st round are stored sorted by table number again.
+        Otherwise, all rounds are stored
+        """
         conn = TourneyDB.connect()
         cursor = conn.cursor()
         is_mitchell = CONFIG.get("is_mitchell")
@@ -244,6 +252,10 @@ class Movement:
 
 
 if __name__ == "__main__":
-    m = Movement(24, 9)
-    print(m.table_cards())
-    #print(m.table_card(2))
+    _='5-12,1-3,7-8,14-11,4-9,2-6,13-10;6-13,2-4,8-9,14-12,5-10,3-7,1-11;7-1,3-5,9-10,14-13,6-11,4-8,2-12;8-2,4-6,10-11,14-1,7-12,5-9,3-13;9-3,5-7,11-12,14-2,8-13,6-10,4-1;10-4,6-8,12-13,14-3,9-1,7-11,5-2;11-5,7-9,13-1,14-4,10-2,8-12,6-3;12-6,8-10,1-2,14-5,11-3,9-13,7-4;13-7,9-11,2-3,14-6,12-4,10-1,8-5;1-8,10-12,3-4,14-7,13-5,11-2,9-6;2-9,11-13,4-5,14-8,1-6,12-3,10-7;3-10,12-1,5-6,14-9,2-7,13-4,11-8;4-11,13-2,6-7,14-10,3-8,1-5,12-9'
+    m = Movement(27, 9)
+
+    print(m.movement)
+    print(len(m.movement))
+    print(m.pdf())
+    print(m.table_card(2))

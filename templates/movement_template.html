@@ -113,52 +113,6 @@
         </div>
         <div><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/></div>
     </div>
-<!--        <table><tbody>-->
-<!--            <tr>-->
-<!--                <td width="17%"><span class="tablenumber">{{tablecard.number}}</span></td>-->
-<!--                <td width="66%">-->
-<!--                    <span class="instruction upsidedown">{{tablecard.instruction_ns}}</span><br/>-->
-<!--                    <span class="side upsidedown">NORTH</span>-->
-<!--                </td>-->
-<!--                <td width="17%"/>-->
-<!--            </tr>-->
-<!--            <tr>-->
-<!--                <td>-->
-<!--                    <span class="side readbottomtotop">WEST</span><br/>-->
-<!--                    <span class="instruction readbottomtotop">{{tablecard.instruction_ew}}</span>-->
-<!--                </td>-->
-<!--                <td><table width="100%" class="rounds"><tbody>-->
-<!--                    <tr>-->
-<!--                        <th>Round</th>-->
-<!--                        <th>NS</th>-->
-<!--                        <th>EW</th>-->
-<!--                        <th>Boards (3)</th>-->
-<!--                        <th>Boards (4)</th>-->
-<!--                    </tr>-->
-<!--                    {% for round in tablecard.rounds %}-->
-<!--                    <tr class="rounds">-->
-<!--                        <td>{{round.number}}</td>-->
-<!--                        <td>{{round.ns}}</td>-->
-<!--                        <td>{{round.ew}}</td>-->
-<!--                        <td>{{round.boardset * 3 - 2}}–{{round.boardset * 3}}</td>-->
-<!--                        <td>{{round.boardset * 4 - 3}}–{{round.boardset * 4}}</td>-->
-<!--                    </tr>-->
-<!--                    {% endfor %}-->
-<!--                </tbody></table></td>-->
-<!--                <td>-->
-<!--                    <span class="readtoptobottom side">EAST</span><br/>-->
-<!--                    <span class="readtoptobottom instruction">{{tablecard.instruction_ew}}</span>-->
-<!--                </td>-->
-<!--            </tr>-->
-<!--            <tr>-->
-<!--                <td><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/> </td>-->
-<!--                <td>-->
-<!--                    <p class="side">SOUTH</p>-->
-<!--                    <p class="instruction">{{tablecard.instruction_ew}}</p>-->
-<!--                </td>-->
-<!--                <td><span class="tablenumber upsidedown">{{tablecard.number}}</span></td>-->
-<!--            </tr>-->
-<!--        </tbody></table>-->
     {% endfor %}
 </div>
 </body>

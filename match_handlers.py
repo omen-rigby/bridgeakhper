@@ -31,7 +31,7 @@ class MatchHandlers:
             return
         match_vps = vp(imps, boards=context.user_data["match_result"]['boards'])
         # AM
-        # formula was designed for VP30 scale, so 1.5 is workaround coefficient
+        # formula was designed for VP30 scale, so 1.5 is a workaround coefficient
         boards = context.user_data["match_result"]['boards']
         players = context.user_data["match_result"]['players']
         boards_coeff = 1 + log10(boards / 32) if boards >= 16 else 0

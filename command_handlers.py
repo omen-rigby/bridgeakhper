@@ -18,20 +18,21 @@ from util import decorate_all_functions
 CHANGE_FLOWS = ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
                 'rounds', 'add_td', 'config_update', 'penalty', 'table_card', 'move_card', 'select_session',
                 'load_db')
-ALLOWED_IN_GROUP = ('/end', '/movecards', '/startround', '/restartswiss')
+ALLOWED_IN_GROUP = ('/end', '/movecards', '/startround', '/restartswiss', '/endround')
 
 
 def command_eligibility(func):
     @wraps(func)
     def wrapper(update: Update, context: CallbackContext):
-        if update.message and update.message.text and update.message.text.startswith('/'):
+        if CONFIG["city"] and update.message and update.message.text and update.message.text.startswith('/'):
             for key in CHANGE_FLOWS:
                 context.user_data[key] = False
             context.user_data['names'] = None
         if CONFIG["city"] and update.message and update.message.text in AGGREGATOR_COMMANDS:
             send(chat_id=update.effective_chat.id, text="Use @mdb_aggregator_bot", context=context)
             raise Exception("Bad command")
-        elif not CONFIG["city"] and update.message and update.message.text not in AGGREGATOR_COMMANDS:
+        elif not CONFIG["city"] and update.message and update.message.text.startswith('/') and \
+                update.message.text not in AGGREGATOR_COMMANDS:
             send(chat_id=update.effective_chat.id, text="Use city bot for this command", context=context)
             raise Exception("Bad command")
         if update.effective_chat.id < 0 and update.message.text.startswith('/') and \
@@ -62,7 +63,8 @@ class CommandHandlers:
         """
         Players & boards for session 2 are numbered 101..., etc.
         """
-        context.bot_data["current_session"] = 0
+        context.bot_data["current_session"] = -1
+        context.user_data["current_session"] = -1
         send(chat_id=update.effective_chat.id,
              text="Started multisession mode. "
                   "Use /session to start first session or /endmultisession to return to single session.",
@@ -172,14 +174,14 @@ class CommandHandlers:
 
     @staticmethod
     def init(update: Update, context: CallbackContext):
-        if context.bot_data.get('current_session') is not None:
-            context.user_data['current_session'] = None
+        if 'Swiss' not in CONFIG['scoring'] and context.bot_data.get('current_session') is not None:
             context.bot_data['current_session'] += 1
         context.bot_data["maxboard"] = 0
         context.bot_data["maxpair"] = 0
         context.user_data["currentHand"] = None
         context.user_data["result"] = None
         context.user_data["names"] = None
+        context.bot_data["movement"] = None
         for key in CHANGE_FLOWS:
             context.user_data[key] = False
         initial_config = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
@@ -401,7 +403,7 @@ Submitted {names} names""",
         conn.close()
         send(chat_id=update.effective_chat.id,
              text=f"Identified as {found_pair}. What's next?",
-             reply_buttons=("/names", "/board"),
+             reply_buttons=("/names", ("/startround" if 'Swiss' in CONFIG['scoring'] else "/board")),
              context=context)
 
     @staticmethod
@@ -531,7 +533,6 @@ Results:
             context.bot_data["maxpair"] = int(update.message.text)
             if "Swiss" in CONFIG.get("scoring"):
                 context.user_data["rounds"] = True
-                context.bot_data["movement"] = SwissMovement(context.bot_data["maxpair"])
                 send(chat_id=update.effective_chat.id,
                      text="Enter number of rounds",
                      reply_buttons=list(range(1, context.bot_data["maxpair"])),
@@ -638,7 +639,37 @@ Results:
         return CommandHandlers.start_round(update, context)
 
     @staticmethod
+    def correct_swiss(update: Update, context: CallbackContext):
+        """Only used in Swiss mode. Lists all existing boards"""
+        last_played_board = context.bot_data['movement'].round * context.bot_data["maxboard"] // CONFIG["rounds"]
+        send(chat_id=update.effective_chat.id,
+             text="Enter board number",
+             reply_buttons=list(range(1, last_played_board + 1)),
+             context=context)
+
+    @staticmethod
     def start_round(update: Update, context: CallbackContext):
+        """
+        Only used in Swiss mode
+        """
+        if 'Swiss' not in CONFIG['scoring']:
+            send(chat_id=update.effective_chat.id,
+                 text="Unsuitable command, use it with swiss scoring",  reply_buttons=[], context=context)
+        else:
+            if not context.bot_data.get("movement"):
+                context.bot_data["movement"] = SwissMovement(context.bot_data["maxpair"])
+            chat_id = update.message.chat_id
+            try:
+                context.bot.deleteMessage(chat_id, update.message.message_id)
+            except Exception:
+                pass
+            pairings = context.bot_data["movement"].start_round()
+            send(chat_id=update.effective_chat.id,
+                 text=pairings,
+                 reply_buttons=[], context=context)
+
+    @staticmethod
+    def end_round(update: Update, context: CallbackContext):
         """
         Only used in Swiss mode
         """
@@ -651,23 +682,21 @@ Results:
                 context.bot.deleteMessage(chat_id, update.message.message_id)
             except Exception:
                 pass
-            if context.bot_data["movement"].round > 0:
-                header = send(chat_id, "Calculating results...", None, context)
-                context.bot_data['result_getter'] = ResultGetter(boards=context.bot_data["maxboard"],
-                                                                 pairs=context.bot_data["maxpair"])
-                paths = context.bot_data['result_getter'].process()
-                context.bot_data['movement'].totals = [t[1] for t in sorted(context.bot_data['result_getter'].totals, key=lambda x: x[0])]
-                if context.bot_data['maxpair'] % 2:
-                    context.bot_data['movement'].totals.append(0)
-                for path in paths:
-                    context.bot.send_document(chat_id, open(path, 'rb'))
-                    os.remove(path)
-                context.bot.editMessageText(f'Standings after round #{context.bot_data["movement"].round}:', chat_id, header.message_id)
-
-            pairings = context.bot_data["movement"].start_round()
-            send(chat_id=update.effective_chat.id,
-                 text=pairings,
-                 reply_buttons=[], context=context)
+            header = send(chat_id, "Calculating results...", None, context)
+            boards = context.bot_data["maxboard"]
+            context.bot_data['result_getter'] = ResultGetter(boards=boards,
+                                                             pairs=context.bot_data["maxpair"])
+            paths = context.bot_data['result_getter'].process()
+            context.bot_data['movement'].totals = [
+                t[1] for t in sorted(context.bot_data['result_getter'].totals, key=lambda x: x[0])
+            ]
+            if context.bot_data['maxpair'] % 2:
+                context.bot_data['movement'].totals.append(0)
+            for path in paths:
+                context.bot.send_document(chat_id, open(path, 'rb'))
+                os.remove(path)
+            context.bot.editMessageText(f'Standings after round #{context.bot_data["movement"].round}:', chat_id,
+                                        header.message_id)
 
     @staticmethod
     def testend(update: Update, context: CallbackContext):
@@ -999,6 +1028,8 @@ TD only commands:
     /tdlist: prints all TDs for the session
     /title: customizes tourney title
     /startround: starts round (swiss movement)
+    /endround: prints result for current round (swiss)
+    /correctswiss: corrects results for this or previous round (swiss)
     /restartswiss: starts 'italian' round (swiss movement)""" + """
     /tourneycoeff: updates tournament coefficient""" * AM + """
     /custommovement: turns off preset movement

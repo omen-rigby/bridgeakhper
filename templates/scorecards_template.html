@@ -51,7 +51,7 @@ background-color: #aa7777;
         {% if scoring == "MPs" %}
       <th colspan="10" align="left">{{scoring_short}} {{pair.mp_total}} MaxMPs {{max_mp}} Score {{pair.percent_total}}% Rank {{pair.rank}}</th>
         {% elif scoring == "Swiss IMPs" %}
-      <th colspan="10" align="left">VPs {{pair.mp_total}} Rank {{pair.rank}}</th>
+      <th colspan="10" align="left">VPs {{pair.mp_total}} IMPs {{pair.imp_total}} Rank {{pair.rank}}</th>
         {% else %}
       <th colspan="10" align="left">{{scoring_short}} {{pair.mp_total}} Rank {{pair.rank}}</th>
         {% endif %}

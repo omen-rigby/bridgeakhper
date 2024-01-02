@@ -9,7 +9,8 @@ from exceptions import *
 
 
 def current_session(context):
-    return context.user_data.get('current_session', context.bot_data.get('current_session', 0))
+    value = context.user_data.get('current_session') or context.bot_data.get('current_session') or 0
+    return value
 
 
 def send(chat_id, text, reply_buttons=None, context=None):

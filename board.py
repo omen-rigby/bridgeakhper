@@ -131,8 +131,9 @@ class Board:
         overtrick_value = [50, 100][vul] * multiplier if multiplier > 1 else trick_value
         return int((bonus + base_cost * multiplier + overtrick_value * (result - tricks)) * sign)
 
-    def get_board_from_pbn(self, pbn):
-        for hand in pbn.split(' '):
+    def get_board_from_pbn(self, pbn, start_index=0):
+        hands = pbn.split(' ')
+        for hand in hands[4 - start_index:] + hands[:4 - start_index]:
             self.set_hand(hand.replace(".", "\n"))
 
     def is_valid(self):

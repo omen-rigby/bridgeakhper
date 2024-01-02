@@ -2,34 +2,43 @@ import itertools
 import random
 from copy import deepcopy
 from tourney_db import TourneyDB
+from constants import AM
 
 
 class SwissMovement:
     def __init__(self, pairs: int):
         self.pairs = pairs
         self.adj = self.pairs + self.pairs % 2
-        self.names = self.get_names()
+        self.numbers_by_rank, self.names = self.get_names()
         self.has_played = self.restart()
+        self.history = []
         self.round = 0
         self.totals = [0] * self.adj
         self.pairing = []
         self.nonpairable = []
 
     def get_names(self):
+        """
+        Names are 0...n-1 because of the recursion in _pair() method
+        """
         conn = TourneyDB.connect()
         cur = conn.cursor()
-        cur.execute("select number, partnership from names order by number")
-        return_value = {}
-        for i, res in enumerate(cur.fetchall()):
-            return_value[str(i)] = res[1]
+        rank = "rank" if AM else "rank_ru"
+        cur.execute(f"select number, partnership, {rank} from names order by {rank} desc")
+        players = cur.fetchall()
+        numbers_by_rank = [p[0] - 1 for p in players]
+        names = {}
+        for res in sorted(players, key=lambda x: x[0]):
+            names[str(res[0] - 1)] = res[1]
         if self.adj > self.pairs:
-            return_value[str(self.pairs)] = "BYE"
+            names[str(self.pairs)] = "BYE"
+            numbers_by_rank.append(self.pairs)
+
         conn.close()
-        return return_value
+        return numbers_by_rank, names
 
     def __iter__(self):
-        for p in self.pairing:
-            yield p[0] + 1, p[1] + 1, self.round
+        yield from self.history
 
     def restart(self):
         """
@@ -74,18 +83,25 @@ class SwissMovement:
         for i in range(self.adj):
             index = sorted_totals.index(self.totals[i])
             sorted_pairs[[j for j in range(index, self.adj) if sorted_pairs[j] is None][0]] = i
-        return self._pair(sorted_pairs)
+        return_value = self._pair(sorted_pairs)
+
+        return return_value
 
     def start_round(self):
         if not self.round:
             half = (self.pairs + 1) // 2
-            self.pairing = [[i, i + half] for i in range(half)]
+            self.pairing = [[self.numbers_by_rank[i], self.numbers_by_rank[i + half]] for i in range(half)]
         else:
             self.pair()
         self.round += 1
-        for pairs in self.pairing:
+        for i, pairs in enumerate(self.pairing):
+            self.history.append([pairs[0] + 1, pairs[1] + 1, self.round])
             less = min(pairs)
             greater = max(pairs)
+            if 0 < i % 4 < 3:
+                # (top, bottom) (bottom, top) (bottom, top) (top, bottom)
+                # Can't see any reason for this, but cf. https://bridgemoscow.ru/tournaments/results/m22mem/m22memr1.htm
+                self.pairing[i] = self.pairing[i][-1::-1]
             self.has_played[int((self.adj - 1 - (less - 1) / 2) * less + greater - less - 1)] = True
         printable_pairs = []
         for pair in self.pairing:
@@ -98,7 +114,7 @@ class SwissMovement:
 
 
 if __name__ == "__main__":
-    s = SwissMovement(9)
+    s = SwissMovement(8)
     for i in range(6):
         s.start_round()
         new_totals = [0] * s.adj

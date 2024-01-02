@@ -46,10 +46,10 @@ CAPTION {
     <th align="center">Rank</th>
     <th align="center">Pair</th>
     <th align="left">Names</th>
+    <th align="center">Total</th>
     {% for i in range(1, sessions + 1) %}
     <th align="center">Session {{i}}</th>
     {% endfor %}
-    <th align="center">Total</th>
     <th align="center">Master Points</th>
     {% if AM %}
     <th align="center">Master Points (RU)</th>
@@ -63,6 +63,7 @@ CAPTION {
     <td align="center">{{pair.mp}}</td>
     {% for i in range(sessions) %}
     <td align="center">{{pair.sessions[i]}}</td>
+    {% endfor %}
     {% if AM %}
     <td align="center">{{pair.masterpoints}}</td>
     {% endif %}
