@@ -219,7 +219,7 @@ class Players:
         players = etree.fromstring(res.content)
         conn = Players.connect()
         cursor = conn.cursor()
-        cursor.execute("select first_name,last_name,city from players where id_ru is NULL")
+        cursor.execute("select first_name,last_name,city from players where id_ru is NULL or id_ru = 0")
         digest = []
         for first, last, city in cursor.fetchall():
             ru_id, message = Players.find_ru_id(first, last, city, players)
@@ -292,6 +292,6 @@ ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 
 
 if __name__ == "__main__":
-    #print(Players.find_ru_ids())
+    print(Players.find_ru_ids())
     # Players.synch_city("Воронеж")
-    Players.synch()
+    print(Players.synch())

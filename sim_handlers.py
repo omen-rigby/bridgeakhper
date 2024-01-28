@@ -28,6 +28,14 @@ class SimHandlers:
     _starting_index = 600
 
     @staticmethod
+    def sputnik(update: Update, context: CallbackContext):
+        context.bot_data["sputnik"] = True
+
+    @staticmethod
+    def um(update: Update, context: CallbackContext):
+        context.bot_data["sputnik"] = False
+
+    @staticmethod
     def start_sim_tourney(update: Update, context: CallbackContext):
         context.user_data["results"] = []
         context.user_data["venues"] = []
@@ -143,13 +151,13 @@ class SimHandlers:
             context.bot_data["numbers"].remove(first - first % 10)
             context.bot_data["numbers"].append(first - first % 10)
         else:
-            INDICES = {
-            #    'Yerevan': 475, "Воронеж": 300, 'Ессентуки': 450, "Ижевск": 550
-            }
+            indices = {
+                'Yerevan': 475, "Воронеж": 300, 'Ессентуки': 450, "Ижевск": 550
+            } if context.bot_data.get("sputnik") else {}
             section = len(context.user_data["numbers"])
             context.user_data["venues"].append(city)
-            if city in INDICES.keys():
-                first = INDICES[city]
+            if city in indices.keys():
+                first = indices[city]
             else:
                 agg_cur.execute('select PairNS, PairEW from ReceivedData')
                 numbers = agg_cur.fetchall()

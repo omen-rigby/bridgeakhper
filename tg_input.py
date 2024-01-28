@@ -95,6 +95,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('rar'), FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('pbn'), FileHandlers.upload_boards))
     # Integrator for synch
+    updater.dispatcher.add_handler(CommandHandler('sputnik', SimHandlers.sputnik))
+    updater.dispatcher.add_handler(CommandHandler('um', SimHandlers.um))
     updater.dispatcher.add_handler(CommandHandler('simstart', SimHandlers.start_sim_tourney))
     updater.dispatcher.add_handler(CommandHandler('venuelist', SimHandlers.list_venues))
     updater.dispatcher.add_handler(CommandHandler('aggregate', SimHandlers.aggregate))

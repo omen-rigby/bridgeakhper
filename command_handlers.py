@@ -88,6 +88,7 @@ class CommandHandlers:
     @staticmethod
     def end_multi_session(update: Update, context: CallbackContext):
         context.bot_data["current_session"] = None
+        context.user_data["current_session"] = None
         send(chat_id=update.effective_chat.id,
              text="Exited multi-session mode",
              context=context)
@@ -176,6 +177,9 @@ class CommandHandlers:
     def init(update: Update, context: CallbackContext):
         if 'Swiss' not in CONFIG['scoring'] and context.bot_data.get('current_session') is not None:
             context.bot_data['current_session'] += 1
+            context.user_data['current_session'] = context.bot_data['current_session']
+        if 'rounds' in CONFIG.keys():
+            del CONFIG['rounds']
         context.bot_data["maxboard"] = 0
         context.bot_data["maxpair"] = 0
         context.user_data["currentHand"] = None
@@ -235,12 +239,18 @@ class CommandHandlers:
         pairs_num = context.bot_data.get("maxpair")
         cursor = conn.cursor()
         first = 100 * current_session(context)
-        cursor.execute(f'select * from boards where {first} < number and number < {first + 100}')
+        if 'wiss' in CONFIG['scoring']:
+            boards_per_round = context.bot_data['maxboard'] // CONFIG['rounds']
+            round_number = context.bot_data['movement'].round
+            max_board = boards_per_round * round_number + 1
+        else:
+            max_board = boards_num + 1
+        cursor.execute(f'select * from boards where {first} < number and number < {first + max_board}')
         submitted_boards = [b[0] for b in cursor.fetchall()]
-        boards = ", ".join([str(b) for b in range(1, boards_num + 1) if b not in submitted_boards])
-        cursor.execute(f'select * from protocols where {first} < number and number < {first + 100}')
+        boards = ", ".join([str(b) for b in range(1, max_board) if b not in submitted_boards])
+        cursor.execute(f'select * from protocols where {first} < number and number < {first + max_board}')
         protocols = list(set(cursor.fetchall()))
-        boards_with_missing_results = ", ".join([str(i) for i in range(1, boards_num + 1)
+        boards_with_missing_results = ", ".join([str(i) for i in range(1, max_board)
                                                  if len([p for p in protocols if p[0] == i]) < pairs_num // 2])
         cursor.execute(f'select * from names where {first} < number and number < {first + 100}')
         names = len(cursor.fetchall())
@@ -541,8 +551,20 @@ Results:
                 try:
                     context.bot_data["movement"] = Movement(context.bot_data["maxboard"], context.bot_data["maxpair"],
                                                             current_session(context))
+                    tables = context.bot_data["movement"].tables
+                    boards = context.bot_data["maxboard"]
+                    rounds = context.bot_data["movement"].rounds
+                    send(chat_id=update.effective_chat.id,
+                         text=f"Found movement for {boards} boards, {tables} tables, {rounds} rounds",
+                         reply_buttons=[],
+                         context=context)
                 except ValueError:
-                    pass
+                    boards = context.bot_data["maxboard"]
+                    tables = (context.bot_data["maxpair"] + 1) // 2
+                    send(chat_id=update.effective_chat.id,
+                         text=f"Not found movement for {boards} boards {tables} tables",
+                         reply_buttons=[],
+                         context=context)
                 send(chat_id=update.effective_chat.id,
                      text="Enter board number",
                      reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
@@ -881,9 +903,9 @@ Total penalty: {old_penalty + mp} {scoring}""",
         if context.user_data.get("add_player"):
             context.user_data["add_player"] = False
             if AM:
-                first, last, gender, rank, rank_ru = update.message.text.split(" ")
+                first, last, gender, rank, rank_ru = update.message.text.rsplit(" ", 4)
             else:
-                first, last, gender, rank_ru = update.message.text.split(" ")
+                first, last, gender, rank_ru = update.message.text.rsplit(" ", 3)
                 rank = 0
             message = Players.add_new_player(first, last, gender, rank or 0, rank_ru)
             global ALL_PLAYERS
@@ -1026,11 +1048,11 @@ TD only commands:
 
     /manual: link to manual for TDs
     /tdlist: prints all TDs for the session
-    /title: customizes tourney title
+    /title: customizes tourney title""" + """
     /startround: starts round (swiss movement)
     /endround: prints result for current round (swiss)
     /correctswiss: corrects results for this or previous round (swiss)
-    /restartswiss: starts 'italian' round (swiss movement)""" + """
+    /restartswiss: starts 'italian' round (swiss movement)""" * ("wiss" in CONFIG["scoring"]) + """
     /tourneycoeff: updates tournament coefficient""" * AM + """
     /custommovement: turns off preset movement
     /loaddb: loads session from .db

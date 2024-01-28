@@ -16,6 +16,7 @@ class MonthlyJobs:
 
     @staticmethod
     def update_ranks(context: CallbackContext):
+        Players.find_ru_ids()
         synched = Players.synch()
         send(BITKIN_ID, f"Updated ranks:\n{synched}" if synched else "Monthly ranks: No ranks updated",
              reply_buttons=[], context=context)

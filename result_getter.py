@@ -61,7 +61,7 @@ class ResultGetter:
             cur = self.cursor
             cur.execute("select max(number) from names")
             raw = cur.fetchone()
-            self._session_count = raw[0] // 100 + 1
+            self._session_count = (raw[0] if raw else 1) // 100 + 1
         return self._session_count
 
     def get_names(self):
@@ -266,7 +266,8 @@ class ResultGetter:
                             real_number = record[2]
                     results.append(record[-2] if pair % 100 % self.pairs == record[1] % 100 % self.pairs else record[-1])
             cur.execute(f"select penalty from names where number={pair}")
-            self.penalties[pair] = cur.fetchone()[0]
+            penalty = cur.fetchone()
+            self.penalties[pair] = penalty[0] if penalty else 0
             result_in_mp = sum(results) - self.penalties[pair]
             mp_per_board = result_in_mp/(len(results) or 1)
             self.totals.append([real_number or pair, result_in_mp, mp_per_board])
@@ -292,7 +293,7 @@ class ResultGetter:
                                           escape_suits(board[3] + board[6]), board[4], escape_suits(board[5]),
                                           board[7] * (-1) ** (pair != board[1] and board[7] != 1),
                                           board[8 + (pair != board[1])],
-                                          round(board[8 + (pair != board[1])] * 100 / max_mp, 2),
+                                          round(board[8 + (pair != board[1])] * 100 / (max_mp or 1), 2),
                                           board[1 + (pair == board[1])]])
         self.totals.sort(key=lambda x: -x[2])
         try:
@@ -433,7 +434,7 @@ class ResultGetter:
             repl_dict = {
                 "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0],
                 "names": self.player_names[(int(rank[0]) - first_pair) % 100], "mp": round(rank[1], 2),
-                "percent": round(100 * rank[2]/self.max_mp, 2),
+                "percent": round(100 * rank[2]/(self.max_mp or 1), 2),
                 "masterpoints": rank[3] or "",
                 "masterpoints_ru": rank[4] or ""
             }
@@ -600,7 +601,7 @@ class ResultGetter:
         tables = (self.pairs + 1) // 2
         is_mitchell = CONFIG.get('is_mitchell')
         if not self.debug and self.pairs % 2 == 0 and "Swiss" not in CONFIG.get('scoring') and \
-                all(movement[0] != tables or is_mitchell != movement[2] for movement in movements):
+                all(movement[0] != tables or is_mitchell != movement[2] for movement in movements) and tables > 1:
             movement = []
             for b in range(1, self.boards + 1, boards_per_round):
                 board_results = self.travellers[b - 1]
@@ -628,7 +629,7 @@ class ResultGetter:
                             "number": pair_number % 100,
                             "mp_total": round(pair_rank[1], 2), "max_mp": max_mp,
                             "imp_total": 0,  # only used for swiss, regular IMPs are stored as mp_total
-                            "percent_total": round(100 * pair_rank[1] / max_mp, 2),
+                            "percent_total": round(100 * pair_rank[1] / (max_mp or 1), 2),
                             "penalties": self.penalties[pair_number],
                             "rank": totals.index(pair_rank) + 1, "boards": []
                             }))
@@ -792,13 +793,14 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(48, 8)
-    # g.debug = True
+    g = ResultGetter(25, 5, 115)
+    g.debug = True
     from config import init_config
     init_config()
-    CONFIG['rounds'] = 6
-    CONFIG["scoring"] = "Swiss IMPs"
+    CONFIG["scoring"] = "MPs"
     CONFIG["tourney_coeff"] = 0.5
+    CONFIG["tournament_title"] = "Уральский мастер. Этап 4"
     g.process()
+    g.save(correction=True)
     # g.process_multisession()
     # g.save(correction=True)
