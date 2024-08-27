@@ -48,6 +48,11 @@ class MatchHandlers:
                 masterpoints_a = 1
             if match_vps <= 10:
                 masterpoints_b = 1
+        # Winning team is given a point no matter how strong they are
+        elif match_vps > 10 and masterpoints_a == 0:
+            masterpoints_a = 1
+        elif match_vps < 10 and masterpoints_b == 0:
+            masterpoints_b = 1
         # RU http://old.bridgesport.ru/tools/mb_calc.htm function calculateMatch
         a_ru_rank = sum(p[2] for p in players['A']) / len(players['A'])
         b_ru_rank = sum(p[2] for p in players['B']) / len(players['B'])
@@ -88,7 +93,7 @@ Masterpoints RU: {masterpoints_a_ru}:{masterpoints_b_ru}''', context=context)
 
     @staticmethod
     def add_match(update: Update, context: CallbackContext):
-        if not context.user_data.get("match_result"):
+        if update.message.text == '/addmatch':
             context.user_data["match_result"] = {'date': '', 'players': {}}
             # TODO: add telegram date selector widget if https://bugs.telegram.org/c/3144 ever gets fixed
             send(chat_id=update.effective_chat.id,

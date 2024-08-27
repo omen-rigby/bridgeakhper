@@ -72,13 +72,13 @@ class CommandHandlers:
              context=context)
 
     @staticmethod
-    def edit_session(update: Update, context: CallbackContext):
+    def switch_session(update: Update, context: CallbackContext):
         if context.user_data.get("select_session"):
-            context.user_data['current_session'] = int(update.message.text)
+            context.user_data['current_session'] = int(update.message.text) - 1
             context.user_data["select_session"] = False
         else:
-            reply_buttons = [[b for b in range(context.bot_data.get('current_session'))
-                              if b != context.user_data.get('current_session')]]
+            reply_buttons = [str(b + 1) for b in range(context.bot_data.get('current_session'))
+                             if b != context.user_data.get('current_session')]
             send(chat_id=update.effective_chat.id,
                  text="Select session to edit",
                  reply_buttons=reply_buttons,
@@ -166,7 +166,7 @@ class CommandHandlers:
         for i in all_boards:
             played = set([p[1:3] for p in protocols if p[0] == i])
             if len(list(chain(*played))) < context.bot_data["maxpair"] - 1:
-                unfinished.append(i)
+                unfinished.append(f'{i} ({i%32 or 32})' if i > 32 else i)
         context.user_data["board"] = Board()
         send(chat_id=update.effective_chat.id,
              text="Enter board number",
@@ -192,10 +192,16 @@ class CommandHandlers:
         CONFIG["tournament_title"] = initial_config["tournament_title"]
         CONFIG["tourney_coeff"] = 0.25
         init_config()
-        send(chat_id=update.effective_chat.id,
-             text="Started session. Enter scoring",
-             reply_buttons=["MPs", "IMPs", "Cross-IMPs", "Swiss IMPs"],
-             context=context)
+        if (context.bot_data.get('current_session') or 0) > 0:
+            send(chat_id=update.effective_chat.id,
+                 text=f"Started session {context.bot_data['current_session'] + 1}. Enter the number of boards",
+                 reply_buttons=[],
+                 context=context)
+        else:
+            send(chat_id=update.effective_chat.id,
+                 text="Started session. Enter scoring",
+                 reply_buttons=["MPs", "IMPs", "Cross-IMPs", "Swiss IMPs"],
+                 context=context)
         if update.effective_chat.id != BITKIN_ID:
             initiator = update.message.from_user.username or update.message.from_user.id
             send(chat_id=BITKIN_ID,
@@ -215,19 +221,21 @@ class CommandHandlers:
                 conn = TourneyDB.connect()
                 cursor = conn.cursor()
                 first = 100 * current_session(context)
-                for table in ('boards', 'protocols', 'names'):
-                    cursor.execute(f'select * from {table} where {first} < number and number < {first + 100} LIMIT 1')
-                    if cursor.fetchall():
-                        break
-                else:
+                if context.bot_data.get('current_session') is None:
+                    for table in ('boards', 'protocols', 'names'):
+                        cursor.execute(f'select * from {table} where {first} < number and number < {first + 100} LIMIT 1')
+                        if cursor.fetchall():
+                            break
+                    else:
+                        conn.close()
+                        return CommandHandlers.init(update, context)
                     conn.close()
-                    return CommandHandlers.init(update, context)
-                conn.close()
-                return send(chat_id=update.effective_chat.id,
-                            text="Session exists in database. Clear and start new tournament or reuse the existing data?",
-                            reply_buttons=["Clear", "Reuse"],
-                            context=context)
-            generate()
+                    return send(chat_id=update.effective_chat.id,
+                                text="Session exists in database. Clear and start new tournament or reuse the existing data?",
+                                reply_buttons=["Clear", "Reuse"],
+                                context=context)
+            else:
+                generate()
             CommandHandlers.init(update, context)
         else:
             return CommandHandlers.missing(update, context)
@@ -247,10 +255,11 @@ class CommandHandlers:
             max_board = boards_num + 1
         cursor.execute(f'select * from boards where {first} < number and number < {first + max_board}')
         submitted_boards = [b[0] for b in cursor.fetchall()]
-        boards = ", ".join([str(b) for b in range(1, max_board) if b not in submitted_boards])
+        boards = ", ".join([str(b) for b in range(first + 1, first + max_board) if b not in submitted_boards])
         cursor.execute(f'select * from protocols where {first} < number and number < {first + max_board}')
         protocols = list(set(cursor.fetchall()))
-        boards_with_missing_results = ", ".join([str(i) for i in range(1, max_board)
+        expected_records = boards_num * pairs_num // 2
+        boards_with_missing_results = ", ".join([str(i) for i in range(first + 1, first + max_board)
                                                  if len([p for p in protocols if p[0] == i]) < pairs_num // 2])
         cursor.execute(f'select * from names where {first} < number and number < {first + 100}')
         names = len(cursor.fetchall())
@@ -259,6 +268,7 @@ class CommandHandlers:
                  text=f"""Active session: {pairs_num} pairs {CONFIG['scoring']}
 Missing boards: {boards}
 Missing results for boards: {boards_with_missing_results}
+Submitted {len(protocols)}/{expected_records} results
 Submitted {names} names""",
                  reply_buttons=[],
                  context=context)
@@ -285,7 +295,7 @@ Submitted {names} names""",
         cursor = conn.cursor()
         first = 100 * current_session(context)
         cursor.execute(f"Select number from names where {first} < number and number < {first + 100}")
-        added = list(set([c[0] for c in cursor.fetchall()]))
+        added = list(set([c[0] - first for c in cursor.fetchall()]))
         conn.close()
         pairs = context.bot_data["maxpair"]
         skip_first = pairs % 2 and CONFIG["no_first_pair"]
@@ -355,6 +365,8 @@ Submitted {names} names""",
     @staticmethod
     def freeform(update: Update, context: CallbackContext):
         text = update.message.text
+        if BOARDS_RE.match(text):
+            return CommandHandlers.number(update, context)
         if context.user_data.get("match_result"):
             return MatchHandlers.add_match(update, context)
         if context.user_data.get("tournament_title"):
@@ -418,6 +430,7 @@ Submitted {names} names""",
 
     @staticmethod
     def number(update: Update, context: CallbackContext):
+        pure_number = update.message.text.split('(')[0]
         if context.user_data.get("match_result"):
             if context.user_data["match_result"]['boards'] is None:
                 context.user_data["match_result"]['boards'] = int(update.message.text)
@@ -427,12 +440,14 @@ Submitted {names} names""",
             else:
                 return MatchHandlers.calculate(update, context)
             # boards will be handled below
-        if len(update.message.text) > 3:
+        if len(pure_number) > 3:
             # Telegram ID
             return CommandHandlers.freeform(update, context)
+        if context.user_data.get("tourney_coeff") and pure_number == '1':
+            return CommandHandlers.tourney_coeff(update, context)
         first = 100 * current_session(context)
         if context.user_data.get('select_session'):
-            return CommandHandlers.edit_session(update, context)
+            return CommandHandlers.switch_session(update, context)
         if context.user_data.get('table_card'):
             return CommandHandlers.table_card(update, context)
         if context.user_data.get('move_card'):
@@ -455,7 +470,7 @@ Submitted {names} names""",
                  context=context)
             return
         if context.user_data.get("names", -1) == 0:
-            pair_number = int(update.message.text)
+            pair_number = int(pure_number)
             context.user_data["names"] = pair_number
             send(chat_id=update.effective_chat.id,
                  text=f"Enter names for pair #{pair_number}",
@@ -465,15 +480,24 @@ Submitted {names} names""",
         if context.user_data.get("rounds"):
             context.user_data["rounds"] = False
             CONFIG["rounds"] = int(update.message.text)
-            send(chat_id=update.effective_chat.id,
-                 text=f"""The number of rounds is set to {update.message.text}.
-Enter /names, then use /startround or /restartswiss to proceed.""",
-                 reply_buttons=[], context=context)
+            if 'wiss' in CONFIG['scoring']:
+                send(chat_id=update.effective_chat.id,
+                     text=f"""The number of rounds is set to {update.message.text}.
+    Enter /names, then use /startround or /restartswiss to proceed.""",
+                     reply_buttons=[], context=context)
+            else:
+                try:
+                    CommandHandlers.init_movement(update, context)
+                except ValueError:
+                    send(chat_id=update.effective_chat.id,
+                         text=f"No suitable movement.",
+                         reply_buttons=['/names', '/board'],
+                         context=context)
             return
         if context.bot_data["maxboard"] and context.bot_data["maxpair"]:
             conn = TourneyDB.connect()
             cursor = conn.cursor()
-            cursor.execute(f"Select * from boards where number={first + int(update.message.text)}")
+            cursor.execute(f"Select * from boards where number={first + int(pure_number)}")
             brd = cursor.fetchall()
             if brd or CONFIG.get('no_hands', False):
                 brd = brd[0] if brd else None
@@ -481,7 +505,7 @@ Enter /names, then use /startround or /restartswiss to proceed.""",
                     if not brd:
                         send(update.effective_chat.id, "Board not found", [], context)
                     else:
-                        number = int(update.message.text) + first
+                        number = int(pure_number) + first
                         cursor.execute(f"select MOD(ns, 100), MOD(ew, 100), contract, declarer, lead, result, score from protocols where number={number}")
                         board_results_raw = cursor.fetchall()
                         if not is_director(update) and context.bot_data["maxpair"]//2 > len(board_results_raw):
@@ -514,7 +538,7 @@ Results:
                     return
                 elif context.user_data.get("remove_board"):
                     context.user_data["remove_board"] = False
-                    board_number = int(update.message.text.strip())
+                    board_number = int(pure_number.strip())
                     cursor.execute(f"delete from boards where number={board_number + first}")
                     conn.commit()
                     conn.close()
@@ -523,11 +547,11 @@ Results:
                          reply_buttons=[], context=context)
                     return
                 # The line below is required!
-                context.user_data["board"] = Board(number=int(update.message.text))
+                context.user_data["board"] = Board(number=int(pure_number))
                 conn.close()
                 return result(update, context)
             context.user_data["board"] = Board()
-            context.user_data["board"].number = first + int(update.message.text)
+            context.user_data["board"].number = first + int(pure_number)
             send(chat_id=update.effective_chat.id,
                  text="Enter N hand",
                  reply_buttons=[],
@@ -549,32 +573,38 @@ Results:
                      context=context)
             else:
                 try:
-                    context.bot_data["movement"] = Movement(context.bot_data["maxboard"], context.bot_data["maxpair"],
-                                                            current_session(context))
-                    tables = context.bot_data["movement"].tables
-                    boards = context.bot_data["maxboard"]
-                    rounds = context.bot_data["movement"].rounds
-                    send(chat_id=update.effective_chat.id,
-                         text=f"Found movement for {boards} boards, {tables} tables, {rounds} rounds",
-                         reply_buttons=[],
-                         context=context)
+                    CommandHandlers.init_movement(update, context)
+                    # send(chat_id=update.effective_chat.id,
+                    #      text="Enter board number",
+                    #      reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
+                    #      context=context)
                 except ValueError:
                     boards = context.bot_data["maxboard"]
                     tables = (context.bot_data["maxpair"] + 1) // 2
                     send(chat_id=update.effective_chat.id,
-                         text=f"Not found movement for {boards} boards {tables} tables",
-                         reply_buttons=[],
+                         text=f"Not found movement for {boards} boards {tables} tables {2 * tables - 1} rounds."
+                              f" Try setting custom number of rounds or continue without movement",
+                         reply_buttons=['/rounds', '/names', '/board'],
                          context=context)
-                send(chat_id=update.effective_chat.id,
-                     text="Enter board number",
-                     reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
-                     context=context)
+
         else:
             context.bot_data["maxboard"] = int(update.message.text)
             send(chat_id=update.effective_chat.id,
                  text="Enter the number of pairs",
                  reply_buttons=[],
                  context=context)
+
+    @staticmethod
+    def init_movement(update: Update, context: CallbackContext):
+        context.bot_data["movement"] = Movement(context.bot_data["maxboard"], context.bot_data["maxpair"],
+                                                current_session(context))
+        tables = context.bot_data["movement"].tables
+        boards = context.bot_data["maxboard"]
+        rounds = context.bot_data["movement"].rounds
+        send(chat_id=update.effective_chat.id,
+             text=f"Found movement for {boards} boards, {tables} tables, {rounds} rounds",
+             reply_buttons=['/names', '/board'],
+             context=context)
 
     @staticmethod
     def ok(update: Update, context: CallbackContext):
@@ -607,7 +637,7 @@ Results:
                  context=context)
             board.save()
             send(chat_id=update.effective_chat.id,
-                 text=f"Board {board.number} is saved",
+                 text=f"Board {board.number % 100} is saved",
                  reply_buttons=("/board", "/result", "/restart"),
                  context=context)
 
@@ -756,7 +786,7 @@ Results:
     def end(update: Update, context: CallbackContext):
         chat_id = update.message.chat_id
         if not is_director(update):
-            send(chat_id=chat_id, text="You don't have enough rights to see tourney results", context=context)
+            send(chat_id=chat_id, text="You don't have enough permissions to see tourney results", context=context)
             return
         try:
             context.bot.deleteMessage(chat_id, update.message.message_id)
@@ -774,7 +804,9 @@ Results:
                                                              pairs=context.bot_data["maxpair"])
             if context.bot_data.get('current_session'):
                 context.bot_data['result_getter'].current_session = context.bot_data.get('current_session')
-            paths = context.bot_data['result_getter'].process()
+                paths = context.bot_data['result_getter'].process_multisession()
+            else:
+                paths = context.bot_data['result_getter'].process()
             if CONFIG.get('site_db_autoadd') and context.bot_data.get('current_session') is None:
                 conn = Players.connect()
                 cursor = conn.cursor()
@@ -843,7 +875,7 @@ Results:
             CONFIG["tourney_coeff"] = new_coeff
             send(chat_id=update.effective_chat.id,
                  text=f"New tournament coefficient is {new_coeff}",
-                 reply_buttons=[], context=context)
+                 reply_buttons=[], conext=context)
         else:
             context.user_data["tourney_coeff"] = True
             send(chat_id=update.effective_chat.id,
@@ -956,7 +988,7 @@ Total penalty: {old_penalty + mp} {scoring}""",
     def get_boards_only(update: Update, context: CallbackContext):
         chat_id = update.message.chat_id
         if not is_director(update):
-            send(chat_id=chat_id, text="You don't have enough rights to see tourney boards", context=context)
+            send(chat_id=chat_id, text="You don't have enough peermissions to see tourney boards", context=context)
             return
         path = ResultGetter(boards=context.bot_data["maxboard"], pairs=context.bot_data["maxpair"]).boards_only()
         context.bot.send_document(chat_id, open(path, 'rb'))
@@ -1008,7 +1040,7 @@ Total penalty: {old_penalty + mp} {scoring}""",
             context.user_data["rounds"] = True
             send(chat_id=update.effective_chat.id,
                  text=f"Enter the number of rounds",
-                 reply_buttons=[], context=context)
+                 reply_buttons=[str(i + 1) for i in range(2, context.bot_data['maxpair'] - 1)], context=context)
 
     @staticmethod
     def title(update: Update, context: CallbackContext):
@@ -1039,7 +1071,8 @@ Total penalty: {old_penalty + mp} {scoring}""",
     /tablecard: prints movement card for specified table
     /movecard: prints personal movement
     /movecards: generates PDF with all movement data
-    /players: prints list of participants of current tournament with numbers"""
+    /players: prints list of participants of current tournament with numbers
+    /viewboard: prints all hands and results for a played board"""
         if is_director(update):
             text = text.replace('shows session info', 'starts new session, will ask for db cleanup')
             text += """
@@ -1061,7 +1094,6 @@ TD only commands:
     /result: starts board result entry flow
     /penalty: penalizes a player by a certain number of (I)MPs
     /missing: shows session info
-    /viewboard: shows 4 hands for specified board
     /addplayer: adds a new player to players DB
     /updateplayer: updates existing player record in players DB
     /playerslist: prints list of all players associated with the club
@@ -1073,7 +1105,7 @@ TD only commands:
     /teamB: change team for submit math results flow
     /matchscore: submit match result in IMPs""" * AM + """
     /multisession: starts a tournament with 2+ sessions
-    /editsession: used to correct previous sessions of a multi-session tourney
+    /switchsession: used to correct previous sessions of a multi-session tourney
     /endmultisession: return to single session mode
     /config: lists current global parameters
     /config_update: updates global parameter

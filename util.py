@@ -75,7 +75,9 @@ def revert_name(name):
     chunks = name.split()
     if len(chunks) == 2:
         return ' '.join(reversed(chunks))
-    if len(chunks) == 3 and len(chunks[1].strip('.')) == 1:  # middle/patronymic initial: Alexander A. Ershov
+    if len(chunks) == 3 and (len(chunks[1].strip('.')) == 1 or
+                             any(chunks[1].endswith(a) for a in ("ич", "вна", "чна"))):
+        # middle/patronymic initial: Alexander A. Ershov
         return f'{chunks[2]} {chunks[0]} {chunks[1]}'
     # last name prefix: Rafael van der Vaart
     last_name = ' '.join(chunks[1:])

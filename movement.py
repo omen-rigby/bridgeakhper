@@ -1,4 +1,6 @@
 import itertools
+import json
+
 from constants import CONFIG
 from tourney_db import TourneyDB
 from jinja2 import Template
@@ -18,8 +20,8 @@ class Movement:
         self.boards = boards
         self.session_index = session_index
         # "3/4" howell
-        self.rounds = boards // (boards // (2 * self.tables - 1) + 1) \
-            if boards % (2 * self.tables - 1) else 2 * self.tables - 1
+        self.rounds = CONFIG.get('rounds', boards // (boards // (2 * self.tables - 1) + 1) \
+            if boards % (2 * self.tables - 1) else 2 * self.tables - 1)
         self.movement, self.initial_board_sets = self.get_movement()
         self._names = {}
 
@@ -145,7 +147,10 @@ class Movement:
                                                'rounds': [None] * rounds}) for i in range(1, self.tables * 2 + 1)],
                          'tablecards': [Dict2Class({'number': i, 'instruction_ns': None,
                                                     'instruction_ew': None,
-                                                    'rounds': [None] * rounds}) for i in range(1, self.tables + 1)]}
+                                                    'rounds': [None] * rounds}) for i in range(1, self.tables + 1)],
+                         'roundcards': [Dict2Class({'number': i + 1, 'tables': [None] * self.tables})
+                                   for i in range(rounds)]
+                         }
         boards_per_round = self.boards // rounds
         if len(self.initial_board_sets) == self.tables:
             # assumes that board sets change +1, otherwise whole movement is written in initial_board_sets column
@@ -177,7 +182,8 @@ class Movement:
             tables_data = []
             sets_reordered = list(itertools.chain(*[sets[i::self.tables] for i in range(self.tables)]))
             for i, sett in enumerate(sets_reordered):
-                tables_data.append([m for m in self.movement if m[2] == sett][sets_reordered[:i].count(sett)])
+                current = [m for m in self.movement if m[2] == sett]
+                tables_data.append(current[sets_reordered[:i].count(sett)])
             for i in range(rounds):
                 for j, t in enumerate(tables_data[i::rounds]):
                     for pair in t[0:2]:
@@ -190,6 +196,14 @@ class Movement:
                         data[i] = Dict2Class(
                             {'number': i + 1, 'table': str(j + 1), 'position': position,
                              'opps': self.names(opps_no).replace(' ', '&nbsp;'),  'boards': boards})
+        for p in movement_dict['pairs']:
+            for round_index, pair_round_data in enumerate(p.rounds):
+                table_index = int(pair_round_data.table) - 1
+                movement_dict['roundcards'][round_index].tables[table_index] = {
+                    'number': table_index + 1,
+                    'ns': p.names if pair_round_data.position == 'NS' else pair_round_data.opps,
+                    'ew': p.names if pair_round_data.position == 'EW' else pair_round_data.opps,
+                    'boards': pair_round_data.boards}
         html_string = Template(open("templates/movement_template.html").read()).render(**movement_dict)
         return print_to_pdf(html_string, "Movement.pdf")
 
@@ -233,29 +247,24 @@ class Movement:
             sets_reordered = list(itertools.chain(*[sets[i::self.tables] for i in range(self.tables)]))
             for i, sett in enumerate(sets_reordered):
                 tables_data.append([m for m in self.movement if m[2] == sett][sets_reordered[:i].count(sett)])
-            for i in range(rounds):
-                for j, t in enumerate(tables_data[i::rounds]):
-                    for pair in t[0:2]:
-                        data = [p for p in movement_dict['pairs'] if p.number == pair][0].rounds
-                        position = "NS" if t[0] == pair else "EW"
-                        first_board = int((t[2] - 1) * boards_per_round + 1)
-                        boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
-                        opps_no = str(t[0] + t[1] - pair)
-
-                        data[i] = Dict2Class(
-                            {'number': i + 1, 'table': str(j + 1), 'position': position,
-                             'opps': self.names(opps_no).replace(' ', '&nbsp;'), 'boards': boards})
+            for table_number in range(1, self.tables + 1):
+                rounds = [t for t in movement_dict['tablecards'] if t.number == table_number][0].rounds
+                for round_index, round_data in enumerate(
+                        tables_data[self.rounds * (table_number - 1) : self.rounds * table_number]):
+                    first_board = (round_data[2] - 1) * boards_per_round + 1
+                    boards = f"{int(first_board)}-{int(first_board + boards_per_round - 1)}"
+                    rounds[round_index] = Dict2Class({'number': round_index + 1, 'ns': round_data[0],
+                                                      'ew': round_data[1], 'boards': boards})
         # TODO: remove
-        movement_dict['tablecards'] = movement_dict['tablecards'][0:1]
+        # movement_dict['tablecards'] = movement_dict['tablecards']
         html_string = Template(open("templates/table_cards.html").read()).render(**movement_dict)
         return print_to_pdf(html_string, "Table_cards.pdf")
 
 
 if __name__ == "__main__":
-    _='5-12,1-3,7-8,14-11,4-9,2-6,13-10;6-13,2-4,8-9,14-12,5-10,3-7,1-11;7-1,3-5,9-10,14-13,6-11,4-8,2-12;8-2,4-6,10-11,14-1,7-12,5-9,3-13;9-3,5-7,11-12,14-2,8-13,6-10,4-1;10-4,6-8,12-13,14-3,9-1,7-11,5-2;11-5,7-9,13-1,14-4,10-2,8-12,6-3;12-6,8-10,1-2,14-5,11-3,9-13,7-4;13-7,9-11,2-3,14-6,12-4,10-1,8-5;1-8,10-12,3-4,14-7,13-5,11-2,9-6;2-9,11-13,4-5,14-8,1-6,12-3,10-7;3-10,12-1,5-6,14-9,2-7,13-4,11-8;4-11,13-2,6-7,14-10,3-8,1-5,12-9'
-    m = Movement(27, 9)
-
-    print(m.movement)
-    print(len(m.movement))
+    CONFIG["is_mitchell"] = False
+    _ = '1-5,2-8,3-6,4-7;1-7,2-6,3-8,4-5;1-8,2-5,3-7,4-6;1-6,2-7,3-5,4-8'
+    m = Movement(88, 11)
+    print(m.move_card(1))
     print(m.pdf())
-    print(m.table_card(2))
+    # print(m.table_cards())

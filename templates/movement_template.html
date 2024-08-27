@@ -103,6 +103,37 @@
         </tbody>
     </table>
 </div>
+{% for round in roundcards %}
+<div style="page-break-before:always">
+    <table class="movement">
+        <tbody>
+            <tr class="rounds" >
+                <td colspan="1">
+                    <table width="100%"><tbody>
+                        <tr>
+                            <th colspan="5"><br/><b>Round #{{round.number}}</b></th>
+                        </tr>
+                        <tr>
+                            <th>Table</th>
+                            <th>NS</th>
+                            <th>EW</th>
+                            <th>Boards</th>
+                        </tr>
+                        {% for table in round.tables %}
+                        <tr>
+                            <td>{{table.number}}</td>
+                            <td>{{table.ns}}</td>
+                            <td>{{table.ew}}</td>
+                            <td>{{table.boards}}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody></table>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endfor %}
 <div class="tablecards" style="display:none">
     {% for tablecard in tablecards %}
     <div class="tablecard">

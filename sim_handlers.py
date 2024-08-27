@@ -177,7 +177,7 @@ class SimHandlers:
         for i, p in enumerate(protocols):
             number, ns, ew, contract, declarer, lead, result, score = p[:8]
             if score == 1:
-                remarks = contract.replace('/', '%-') + '%'
+                remarks = contract.replace('/', '%-') + '%' if contract[:2].isdigit() else contract
                 contract = ''
             else:
                 remarks = ''

@@ -9,7 +9,8 @@ APPS = {
     "Курск": "bridgeakhper-kursk",
     "Ижевск": "bridgeakhper-izhevsk",
     "Ессентуки": "bridgeakhper-yessentuki",
-     # "null": "bridgeakhper-mdb-aggregator"
+    "Новосибирск": "bridgeakhper-novosibirsk",
+    # "null": "bridgeakhper-mdb-aggregator",
 }
 
 config_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")
@@ -35,6 +36,8 @@ with open(config_path) as f:
             cmd += " --dockerfile Dockerfile.bws"
         try:
             subprocess.check_output(cmd.split())
+            # flows won't work on multiple machines because data is stored in bot context
+            subprocess.check_output('flyctl scale count 1'.split())
         except Exception as e:
             print(f"{city} deployment failed with exception")
     else:

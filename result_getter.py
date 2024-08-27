@@ -377,8 +377,7 @@ class ResultGetter:
                 cluster_length = len([a for a in totals if a[2] == totals[i][2]])
                 tied_mps = [mps[j] for j, a in enumerate(totals) if a[2] == totals[i][2]]
                 cluster_total = sum(tied_mps) / cluster_length
-                final_value = 1 if min(tied_mps) < 0.5 and max(map(round, tied_mps)) > 0 and cluster_total < 0.5 \
-                    else round(cluster_total)
+                final_value = round(cluster_total)
                 if replace and t[-1] < final_value:
                     t[-1] = final_value
                 else:
@@ -419,7 +418,7 @@ class ResultGetter:
             }
             totals.append(Dict2Class({k: v if type(v) == list else self._replace(v) for k, v in repl_dict.items()}))
         self.sessions_dict = {"AM": AM, "scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
-                              "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
+                              "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards_total,
                               "tournament_title": CONFIG["tournament_title"], "totals": totals,
                               "sessions": self.current_session + 1, "movement": movement}
         html_string = Template(open("templates/sessions_template.html").read()).render(**self.sessions_dict)
@@ -447,8 +446,9 @@ class ResultGetter:
 
     def pdf_travellers(self, boards_only=False):
         boards = []
-        real_pairs = list(sorted(t[0] % 100 for t in self.totals))
-        first_pair = real_pairs[0]
+        if not boards_only:
+            real_pairs = list(sorted(t[0] % 100 for t in self.totals))
+            first_pair = real_pairs[0]
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X").replace("Swiss ", "")
         for board_number in range(1, min(len(self.deals), self.boards) + 1):
             deal = Deal(no_data=True) if CONFIG.get("no_hands") else self.deals[board_number - 1]
@@ -763,12 +763,9 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
             self.get_masterpoints()
             for total in self.totals:
                 try:
-                    current_sum = [s for s in self.sessions if s[0] == self.names[total[0] % 100 - 1]][0]
+                    current_sum = [s for s in self.sessions if s[0][0] == self.names[total[0] % 100 - 1][0]][0]
                 except IndexError as e:
-                    if i:
-                        raise e
                     current_sum = [self.names[total[0] % 100 - 1], []]
-
                     self.sessions.append(current_sum)
                 current_sum[1].append(total)
         self.final_standings = []
@@ -784,23 +781,47 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         self.final_standings.sort(key=lambda x: -x[2])
         self.get_masterpoints(self.played_boards, self.final_standings, replace=True)
         paths.append(self.pdf_sessions())
-
         paths.append(self.pdf_rankings())
         if not CONFIG.get("no_hands"):
             paths.append(self.pdf_travellers())
         paths.append(self.pdf_scorecards())
         self._conn = self.conn.close()
+        return paths
+
+    def get_raw_masterpoints(self, played_boards, total_rating=None, ranks_ru=None):
+        n = self.pairs
+        # 52 is the number of cards in a board (sic!)
+        b0 = total_rating * played_boards / 52 * CONFIG["tourney_coeff"]
+        mps = [b0]
+        for i in range(2, n):
+            mps.append(b0 / (1 + i / (n - i)) ** (i - 1))
+        team = "team" in CONFIG["scoring"].lower()
+        n0 = n * (1 + team)  # number of pairs for team events also
+        kp = 0.9 if team else 0.95
+        typ = 2 - team
+        q1 = list(sorted((0.2 - 0.12 * r if r < 0 else 0.2 / (1.6 ** r) for r in ranks_ru), key=lambda x: -x))
+        q2 = [q * kp ** i for i, q in enumerate(q1)]
+        last = 16 if type == 2 else 32
+        kq = sum(q2[:last]) / 2 ** (typ - 1)
+        kq1 = 1 if kq >= 1 else 1 - 0.7 * log10(kq)
+        kqn = 0.6 * (kq + log10(n0) - 1.5) * kq1 if n0 >= 32 else 0.4 * kq * log10(n0) * kq1
+        kd = 2.2 * log10(played_boards) - 2
+        t = n / 8 * max(0.5, 3 + kq - 0.5 * log10(n))
+        r = 1.1 * (100 * kd * kqn) ** (1 / t)
+        ru_mps = [50 * kqn * kd / r ** i for i in range(n)]
+        return mps, ru_mps
 
 
 if __name__ == "__main__":
-    g = ResultGetter(25, 5, 115)
+    g = ResultGetter(24, 4)
     g.debug = True
     from config import init_config
     init_config()
     CONFIG["scoring"] = "MPs"
-    CONFIG["tourney_coeff"] = 0.5
-    CONFIG["tournament_title"] = "Уральский мастер. Этап 4"
-    g.process()
-    g.save(correction=True)
+    print(g.get_raw_masterpoints(24, 14+14+14+6+6+6+4+2.5, [1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, -1]))
+    # CONFIG["tourney_coeff"] = 0.5
+    # CONFIG["tournament_title"] = "Уральский мастер. Этап 4"
+    # g.process()
+    # g.save(correction=True)
     # g.process_multisession()
     # g.save(correction=True)

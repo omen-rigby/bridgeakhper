@@ -188,7 +188,11 @@ class Players:
         for player_id, rank, full_name in cursor.fetchall():
             if not player_id:
                 continue
-            db_rank = players.find(f'.//player[@id="{player_id}"]').find('razr').text
+            try:
+                db_rank = players.find(f'.//player[@id="{player_id}"]').find('razr').text
+            except:
+                digest.append(f"Not found id in ru db: {player_id}")
+                continue
             if float(db_rank) != rank:
                 digest.append(f"{full_name} {rank} -> {db_rank}")
                 cursor.execute(f"update players set rank_ru={db_rank} where id_ru={player_id}")
@@ -284,7 +288,19 @@ class Players:
                 for name in pair[0].split(' & '):
                     if name in ru_players.keys():
                         mps[name] = mps.get(name, 0) + pair[1]
+        conn.close()
         return "ID\tName\tMPs\n" + "\n".join(f"{ru_players[k]}\t{k}\t{v}" for k,v in mps.items())
+
+    @staticmethod
+    def rating_yearly_regression():
+        conn = Players.connect()
+        cursor = conn.cursor()
+        cursor.execute(f'select id, rating, last_year from players')
+        for (player_id, masterpoints, last_year) in cursor.fetchall():
+            new_masterpoints = last_year + round((masterpoints - last_year) * 0.95)
+            cursor.execute(f'update players set last_year=0, rating={new_masterpoints} where id={player_id}')
+        conn.commit()
+        conn.close()
 
 
 global ALL_PLAYERS
@@ -292,6 +308,6 @@ ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 
 
 if __name__ == "__main__":
-    print(Players.find_ru_ids())
+    # print(Players.find_ru_ids())
     # Players.synch_city("Воронеж")
     print(Players.synch())

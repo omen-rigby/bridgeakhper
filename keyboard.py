@@ -13,6 +13,11 @@ CONTRACTS_KEYBOARD = [[InlineKeyboardButton(text=str(i), callback_data=f"bm:{i}"
     [InlineKeyboardButton(s, callback_data=f"bm:{s}") for s in list("NESW")]]
 
 
+def current_session(context):
+    value = context.user_data.get('current_session', context.bot_data.get('current_session')) or 0
+    return value
+
+
 def contracts_keyboard(update, include_arbitral=False):
     lists = deepcopy(CONTRACTS_KEYBOARD)
     if is_director(update):
@@ -57,11 +62,12 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
     board_set = (int(board) - 1) // boards_per_round + 1
     conn = TourneyDB.connect()
     cursor = conn.cursor()
-    cursor.execute(f"Select ns,ew from protocols where number={board}")
+    first = 100 * current_session(context)
+    cursor.execute(f"Select ns,ew from protocols where number={board + first}")
     denied = list(set(chain(*[c for c in cursor.fetchall()])))
     conn.close()
-    first_pair = 1 + (pairs % 2 and CONFIG.get('no_first_pair', False))
-    allowed = [b for b in range(first_pair, pairs + first_pair) if b not in denied and b != int(exclude)]
+    first_pair = first + 1 + (pairs % 2 and CONFIG.get('no_first_pair', False))
+    allowed = [b % 100 for b in range(first_pair, pairs + first_pair) if b not in denied and b != int(exclude) + first]
     rows = []
     if movement:
         allowed_tuples = [f"{ew if reverted else ns} vs {ns if reverted else ew}"

@@ -8,17 +8,12 @@ from tourney_db import TourneyDB
 from exceptions import *
 
 
-def current_session(context):
-    value = context.user_data.get('current_session') or context.bot_data.get('current_session') or 0
-    return value
-
-
 def send(chat_id, text, reply_buttons=None, context=None):
     if isinstance(reply_buttons, InlineKeyboardMarkup):
         markup = reply_buttons
     else:
         reply_buttons = list(reply_buttons) if reply_buttons else []
-        if len(reply_buttons) > 10:
+        if len(reply_buttons) > 8:
             reply_buttons = [reply_buttons[:9], reply_buttons[9:18], reply_buttons[18:]]
         else:
             reply_buttons = [reply_buttons] if reply_buttons else []
@@ -44,7 +39,7 @@ def result(update: Update, context: CallbackContext):
 
 def inline_key(update: Update, context: CallbackContext):
     key = update["callback_query"]["data"]
-    first = current_session(context)
+    first = current_session(context) * 100
     if key.startswith("bm:"):
         key = key.split("bm:")[1]
         result_data = context.user_data.get("result")
@@ -164,7 +159,6 @@ def inline_key(update: Update, context: CallbackContext):
 
             conn = TourneyDB.connect()
             cursor = conn.cursor()
-            first = current_session(context) * 100
             statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
                 VALUES({board_number + first}, '{int(ns) + first}', '{int(ew) + first}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
 ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE 
@@ -237,8 +231,7 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             ns = previous_result.text.split("NS: ")[1].split("\n")[0]
             conn = TourneyDB.connect()
             cursor = conn.cursor()
-            first = 100 * current_session(context)
-            statement = f"""delete from protocols where number={board_number} and ns={ns + first}"""
+            statement = f"""delete from protocols where number={board_number + first} and ns={ns + first}"""
             cursor.execute(statement)
             conn.commit()
             conn.close()
@@ -247,10 +240,10 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             number = context.user_data["board"].number
             conn = TourneyDB.connect()
             cursor = conn.cursor()
-            statement = f"""select * from protocols where number={number}"""
+            statement = f"""select * from protocols where number={number + first}"""
             cursor.execute(statement)
             current_protocol = cursor.fetchall()
-            reply_markup = remove_results_keyboard([f'{p[1]} vs {p[2]}' for p in current_protocol])
+            reply_markup = remove_results_keyboard([f'{p[1] % 100} vs {p[2] % 100}' for p in current_protocol])
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
                                                                       message_id=result_data.message_id,
                                                                       text=result_data.text,
@@ -262,7 +255,7 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             conn = TourneyDB.connect()
             cursor = conn.cursor()
             ns = int(match.group(1)) + first
-            cursor.execute(f"delete from protocols where number={number} and ns={ns}")
+            cursor.execute(f"delete from protocols where number={number + first} and ns={ns}")
             conn.commit()
             conn.close()
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
@@ -274,7 +267,7 @@ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE
             number = context.user_data["board"].number
             conn = TourneyDB.connect()
             cursor = conn.cursor()
-            statement = f"""delete from protocols where number={number}"""
+            statement = f"""delete from protocols where number={number + first}"""
             cursor.execute(statement)
             conn.commit()
             conn.close()

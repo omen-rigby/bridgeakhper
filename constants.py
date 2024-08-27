@@ -6,8 +6,8 @@ import os
 DEBUG = False
 
 date = "2022-10-10" if DEBUG else time.strftime("%Y-%m-%d")
-db_path = os.environ.get("CURRENT_TOURNEY")
-PLAYERS_DB = os.environ.get("PLAYERS_DB")
+db_path = os.environ.get('CURRENT_TOURNEY')
+PLAYERS_DB = os.environ.get('PLAYERS_DB')
 VULNERABILITY = ["e",
                  "-", "n", "e", "b",
                  "n", "e", "b", "-",
@@ -29,6 +29,7 @@ CONFIG = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__fil
 AM = CONFIG["city"] in ("Ереван",)
 CITIES_LATIN = {"Ереван": "Yerevan"}
 BITKIN_ID = 403784659
-AGGREGATOR_COMMANDS = ['/simstart', '/venuelist', '/aggregate']
+AGGREGATOR_COMMANDS = ['/simstart', '/venuelist', '/aggregate', '/startindex']
+BOARDS_RE = re.compile('\d+ \(\d+\)')
 global DIRECTORS
 DIRECTORS = set(CONFIG["directors"])

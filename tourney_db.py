@@ -44,7 +44,7 @@ class TourneyDB:
                                 "wh"	TEXT,
                                 "wd"	TEXT,
                                 "wc"	TEXT
-                            )"""
+                            );"""
         cursor.execute(statement)
         statement = f"""CREATE TABLE "protocols" (
                                         "number"	{int_type},
@@ -57,7 +57,7 @@ class TourneyDB:
                                         "score"	{int_type},
                                         "mp_ns" {float_type},
                                         "mp_ew" {float_type}
-                                    )"""
+                                    );"""
         cursor.execute(statement)
         if flavor == 'postgres':
             constraint = 'ALTER TABLE public.protocols ADD CONSTRAINT protocols_un UNIQUE ("number",ns,ew);'
@@ -68,13 +68,14 @@ class TourneyDB:
                                         "penalty"   {float_type} DEFAULT 0,
                                         "rank"  {float_type},
                                         "rank_ru"  {float_type}
-                                    )"""
+                                    );"""
         cursor.execute(statement)
 
         statement = f"""CREATE TABLE "config" (
                                         "key"	TEXT  PRIMARY KEY,
-                                        "value"	TEXT
-                                    )"""
+                                        "value"	TEXT,
+                                        "comment" TEXT
+                                    );"""
         cursor.execute(statement)
 
         statement = f"""CREATE TABLE "movements" (
@@ -82,8 +83,11 @@ class TourneyDB:
                                         "movement"	TEXT,
                                         "is_mitchell"  {int_type if flavor != 'postgres' else 'bool'}  NOT NULL DEFAULT 0,
                                         "initial_board_sets"  TEXT
-                                    )"""
+                                    );"""
         cursor.execute(statement)
+        if flavor == 'postgres':
+            constraints = """ALTER TABLE ONLY protocols ADD CONSTRAINT protocols_un UNIQUE (number, ns, ew);"""
+            cursor.execute(constraints)
         conn.commit()
 
     @staticmethod
@@ -177,6 +181,7 @@ VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    TourneyDB.create_tables('postgres')
+    pass
+    # TourneyDB.create_tables('postgres')
 
 

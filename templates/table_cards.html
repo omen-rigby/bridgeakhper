@@ -4,51 +4,43 @@
     <meta content="text/html; charset='UTF-8'">
     <title>Movement</title>
     <style type="Text/css">@media print {
+    table.page {page-break-after: always;}
     @page { margin: 0mm 0mm 0mm 0mm; size: portrait; }
     @bottom-right-corner { ... } }
-    * {
-        FONT-FAMILY: Arial;
-    }
-    .bordered {
-        border: 1px #000000 solid;
-    };
-    table *{
-        text-align: center;
-    };
-    td>p {
-        height: 17%;
-    };
-    td:nth-child(2) {
-        height: 66% !important;
-    };
-    p {
-         position: relative;
-         display: flex;
-         justify-content: center;
-         align-items: center;
-    };
-    .rounds {
-        text-align: center;
-    };
+* {
+    FONT-FAMILY: Arial;
+}
+.tablenumber {
+    font-size: 72pt;
+    bold:true;
+};
 
-    .rounds td, .rounds th {
-        padding: 10px;
-    };
 
-    .tablenumber {
-        font-size: 36pt;
-        bold:true;
+div {
+   width:10%;
+   height:20%;
+   padding:5%;
+}
+.rotate{
+   -webkit-transform:rotate(180deg); /* Safari and Chrome */
+   position: absolute;
+   top: 75%;
+   left: 90%;
+}
+.rounds {
+    align: center;
+}
 
-    };
-    .upsidedown {
-         /*display: inline-block;*/
-         display: inline-block;
-         transform: scaleY(-1);
-         -webkit-transform: scaleY(-1);
-         -ms-transform: scaleY(-1);
-         -o-transform: scaleY(-1);
-    };
-
+.compass{
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    font-size: 50pt;
+    transform: translate(-50%, -50%);
+}
     .readbottomtotop {
         -ms-writing-mode: tb-rl;
         -webkit-writing-mode: vertical-rl;
@@ -68,112 +60,40 @@
     </style>
 </head>
 <body bgcolor="#ffffff">
-<h2 align="center">{{tables}} Table {{boards}} boards {{type}} Movement</h2>
-<!--    {% for tablecard in tablecards %}-->
-<!--<table class="bordered"><tbody>-->
-<!--    <tr><td>-->
-        <p class="tablenumber">{{tablecard.number}}</p>
-        <p class="upsidedown">
-            <span class="instruction">{{tablecard.instruction_ew}}</span><br/>
-            <span class="side">WEST</span>
-        </p>
-        <p><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/></p>
-<!--    </td>-->
-<!--    <td>-->
-<!--        <p class="upsidedown">-->
-<!--            <span class="instruction">{{tablecard.instruction_ns}}</span><br/>-->
-<!--            <span class="side">NORTH</span>-->
-<!--        </p>-->
-<!--        <p>-->
-<!--            <table width="100%" class="rounds"><tbody>-->
-<!--                <tr>-->
-<!--                    <th>Round</th>-->
-<!--                    <th>NS</th>-->
-<!--                    <th>EW</th>-->
-<!--                    <th>Boards (3)</th>-->
-<!--                    <th>Boards (4)</th>-->
-<!--                </tr>-->
-<!--                {% for round in tablecard.rounds %}-->
-<!--                <tr class="rounds">-->
-<!--                    <td>{{round.number}}</td>-->
-<!--                    <td>{{round.ns}}</td>-->
-<!--                    <td>{{round.ew}}</td>-->
-<!--                    <td>{{round.boardset * 3 - 2}}–{{round.boardset * 3}}</td>-->
-<!--                    <td>{{round.boardset * 4 - 3}}–{{round.boardset * 4}}</td>-->
-<!--                </tr>-->
-<!--                {% endfor %}-->
-<!--            </tbody></table>-->
-<!--        </p>-->
-<!--        <p>-->
-<!--            <span class="instruction">{{tablecard.instruction_ns}}</span><br/>-->
-<!--            <span class="side">SOUTH</span>-->
-<!--        </p>-->
-<!--    </td>-->
-<!--    <td>-->
-<!--        <p></p>-->
-<!--        <p class="upsidedown">-->
-<!--            <span class="instruction">{{tablecard.instruction_ew}}</span><br/>-->
-<!--            <span class="side">WEST</span>-->
-<!--        </p>-->
-<!--        <p class="tablenumber upsidedown">{{tablecard.number}}</p>-->
-<!--    </td></tr>-->
-<!--    <tr><td>-->
-<!--</tbody></table>-->
-<!--    <div class="tablecard">-->
-<!--        <p class="tablenumber">{{tablecard.number}}</p>-->
-<!--        <p class="upsidedown">-->
-<!--            <span class="instruction">{{tablecard.instruction_ns}}</span><br/>-->
-<!--            <span class="side">NORTH</span>-->
-<!--        </p>-->
-<!--        <p><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/></p>-->
-<!--    </div>-->
-<!--        <table width="100%" height="100%"><tbody>-->
-<!--            <tr height="17%">-->
-<!--                <td width="17%"><span class="tablenumber">{{tablecard.number}}</span></td>-->
-<!--                <td width="66%">-->
-<!--                    <span class="instruction upsidedown">{{tablecard.instruction_ns}}</span><br/>-->
-<!--                    <span class="side upsidedown">NORTH</span>-->
-<!--                </td>-->
-<!--                <td width="17%"/>-->
-<!--            </tr>-->
-<!--            <tr height="66%">-->
-<!--                <td>-->
-<!--                    <span class="side readbottomtotop">WEST</span><br/>-->
-<!--                    <span class="instruction readbottomtotop">{{tablecard.instruction_ew}}</span>-->
-<!--                </td>-->
-<!--                <td><table width="100%" class="rounds"><tbody>-->
-<!--                    <tr>-->
-<!--                        <th>Round</th>-->
-<!--                        <th>NS</th>-->
-<!--                        <th>EW</th>-->
-<!--                        <th>Boards (3)</th>-->
-<!--                        <th>Boards (4)</th>-->
-<!--                    </tr>-->
-<!--                    {% for round in tablecard.rounds %}-->
-<!--                    <tr class="rounds">-->
-<!--                        <td>{{round.number}}</td>-->
-<!--                        <td>{{round.ns}}</td>-->
-<!--                        <td>{{round.ew}}</td>-->
-<!--                        <td>{{round.boardset * 3 - 2}}–{{round.boardset * 3}}</td>-->
-<!--                        <td>{{round.boardset * 4 - 3}}–{{round.boardset * 4}}</td>-->
-<!--                    </tr>-->
-<!--                    {% endfor %}-->
-<!--                </tbody></table></td>-->
-<!--                <td>-->
-<!--                    <span class="readtoptobottom side">EAST</span><br/>-->
-<!--                    <span class="readtoptobottom instruction">{{tablecard.instruction_ew}}</span>-->
-<!--                </td>-->
-<!--            </tr>-->
-<!--            <tr height="17%">-->
-<!--                <td><img src="https://yerevanbridge.fly.dev/static/logo.png" width="100%"/> </td>-->
-<!--                <td>-->
-<!--                    <p class="side">SOUTH</p>-->
-<!--                    <p class="instruction">{{tablecard.instruction_ew}}</p>-->
-<!--                </td>-->
-<!--                <td><span class="tablenumber upsidedown">{{tablecard.number}}</span></td>-->
-<!--            </tr>-->
-<!--        </tbody></table>-->
-    {% endfor %}
-</div>
+
+{% for tablecard in tablecards %}
+<table class="page"><tbody><tr><td>
+<header class="tablenumber">{{tablecard.number}}</header>
+<table class="compass"><tbody><tr>
+    <td></td>
+    <td>N</td>
+    <td></td>
+</tr><tr>
+    <td>W</td>
+    <td></td>
+    <td>E</td>
+</tr><tr>
+    <td></td>
+    <td>S</td>
+    <td></td>
+</tr></tbody></table>
+
+<table class="rounds" align="center"><tbody><tr>
+    <th>Round</th>
+    <th>NS</th>
+    <th>EW</th>
+    <th>Boards</th>
+</tr>
+{% for round in tablecard.rounds %}<tr>
+    <td>{{round.number}}</td>
+    <td>{{round.ns}}</td>
+    <td>{{round.ew}}</td>
+    <td>{{round.boards}}</td>
+</tr>
+{% endfor %}</tbody></table>
+<footer class="tablenumber rotate">{{tablecard.number}}</footer>
+
+    </td></tr></tbody></table>
+{% endfor %}
 </body>
 </html>
