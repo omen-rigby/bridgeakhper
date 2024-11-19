@@ -1,4 +1,5 @@
 import shutil
+import telegram
 import transliterate
 import datetime
 from board import Board
@@ -189,8 +190,9 @@ class CommandHandlers:
         for key in CHANGE_FLOWS:
             context.user_data[key] = False
         initial_config = json.load(open(os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")))
-        CONFIG["tournament_title"] = initial_config["tournament_title"]
-        CONFIG["tourney_coeff"] = 0.25
+        if context.bot_data.get('current_session') is None or context.bot_data.get('current_session') == 0:
+            CONFIG["tournament_title"] = initial_config["tournament_title"]
+            CONFIG["tourney_coeff"] = 0.25
         init_config()
         if (context.bot_data.get('current_session') or 0) > 0:
             send(chat_id=update.effective_chat.id,
@@ -221,7 +223,7 @@ class CommandHandlers:
                 conn = TourneyDB.connect()
                 cursor = conn.cursor()
                 first = 100 * current_session(context)
-                if context.bot_data.get('current_session') is None:
+                if context.bot_data.get('current_session', -1) == -1:
                     for table in ('boards', 'protocols', 'names'):
                         cursor.execute(f'select * from {table} where {first} < number and number < {first + 100} LIMIT 1')
                         if cursor.fetchall():
@@ -258,7 +260,7 @@ class CommandHandlers:
         boards = ", ".join([str(b) for b in range(first + 1, first + max_board) if b not in submitted_boards])
         cursor.execute(f'select * from protocols where {first} < number and number < {first + max_board}')
         protocols = list(set(cursor.fetchall()))
-        expected_records = boards_num * pairs_num // 2
+        expected_records = boards_num * (pairs_num // 2)
         boards_with_missing_results = ", ".join([str(i) for i in range(first + 1, first + max_board)
                                                  if len([p for p in protocols if p[0] == i]) < pairs_num // 2])
         cursor.execute(f'select * from names where {first} < number and number < {first + 100}')
@@ -423,8 +425,11 @@ Submitted {names} names""",
         cursor.execute(statement)
         conn.commit()
         conn.close()
+        missing_players = [p[0] for p in found_pair_data if len(p) == 4]
+        text = f"Identified as {found_pair}. Players {', '.join(missing_players)} are missing. Please add them to the club by sending /addplayer command, then re-add the names" if missing_players \
+            else f"Identified as {found_pair}. What's next?"
         send(chat_id=update.effective_chat.id,
-             text=f"Identified as {found_pair}. What's next?",
+             text=text,
              reply_buttons=("/names", ("/startround" if 'Swiss' in CONFIG['scoring'] else "/board")),
              context=context)
 
@@ -601,6 +606,7 @@ Results:
         tables = context.bot_data["movement"].tables
         boards = context.bot_data["maxboard"]
         rounds = context.bot_data["movement"].rounds
+        CONFIG['rounds'] = rounds
         send(chat_id=update.effective_chat.id,
              text=f"Found movement for {boards} boards, {tables} tables, {rounds} rounds",
              reply_buttons=['/names', '/board'],
@@ -873,9 +879,34 @@ Results:
             context.user_data["tourney_coeff"] = False
             new_coeff = float(update.message.text)
             CONFIG["tourney_coeff"] = new_coeff
-            send(chat_id=update.effective_chat.id,
-                 text=f"New tournament coefficient is {new_coeff}",
-                 reply_buttons=[], conext=context)
+            if new_coeff == 1:
+                # Updating ranks for national championship
+                try:
+                    conn = TourneyDB.connect()
+                    cursor = conn.cursor()
+                    cursor.execute(f"select number, partnership, rank_ru from names")
+                    names = set()
+                    for partnership in cursor.fetchall():
+                        found_pair = Players.lookup(partnership[1], ALL_PLAYERS)
+                        new_rank = sum(p[2] for p in found_pair) / len(found_pair)
+                        if new_rank != partnership[1]:
+                            cursor.execute(f'update names set rank_ru={new_rank} where number={partnership[0]}')
+                            names.add(partnership[0] % 100)
+                    names = sorted(list(names))
+                    if names:
+                        conn.commit()
+                except:
+                    names = []
+                finally:
+                    conn.close()
+                send(chat_id=update.effective_chat.id,
+                     text=f"New tournament coefficient is {new_coeff}." +
+                          (f" Ranks are updated for pairs {', '.join(names)}" if names else ''),
+                     reply_buttons=['/names'] * len(names), context=context)
+            else:
+                send(chat_id=update.effective_chat.id,
+                     text=f"New tournament coefficient is {new_coeff}",
+                     reply_buttons=[], context=context)
         else:
             context.user_data["tourney_coeff"] = True
             send(chat_id=update.effective_chat.id,
@@ -1061,6 +1092,15 @@ Total penalty: {old_penalty + mp} {scoring}""",
         send(chat_id=update.effective_chat.id,
              text=Players.monthly_report(),
              reply_buttons=[], context=context)
+
+    @staticmethod
+    def donate(update: Update, context: CallbackContext):
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text="""Beer, coffee, and cloud servers don't grow on trees. 
+If you want to support the developers, click the link below (RU) or use VISA card transfer: 
+RU card: https://www.tinkoff.ru/cf/3mG1Qe6fN3q
+AM card: `4318 2700 0032 4697`
+BTC: `bitcoin:bc1q83p77e9zqe3ju5ew4crejm0f9lf9grzx0mu6nh`""", parse_mode=ParseMode.MARKDOWN)
 
     @staticmethod
     def help_command(update: Update, context: CallbackContext):

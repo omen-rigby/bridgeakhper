@@ -161,7 +161,10 @@ def inline_key(update: Update, context: CallbackContext):
             cursor = conn.cursor()
             statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
                 VALUES({board_number + first}, '{int(ns) + first}', '{int(ew) + first}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
-ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE 
+""".replace('_', '')
+            # This is a workaround
+            # Telegram fails sometimes, and things like n_ or worse are submitted
+            statement += """ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE 
   SET contract = excluded.contract, lead = excluded.lead, result = excluded.result, score = excluded.score, 
   declarer=excluded.declarer;"""
             cursor.execute(statement)

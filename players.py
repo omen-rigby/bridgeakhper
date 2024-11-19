@@ -5,7 +5,7 @@ import re
 import time
 import requests
 from util import levenshtein
-from constants import PLAYERS_DB, CONFIG
+from constants import PLAYERS_DB, CONFIG, AM
 from lxml import etree
 
 up.uses_netloc.append("postgres")
@@ -28,14 +28,17 @@ class Players:
         conn = Players.connect()
         cursor = conn.cursor()
         statement = """CREATE TABLE "players" (
-                "first_name"    CHAR(20),
-                "last_name"    CHAR(20),
+                "first_name"    varchar,
+                "last_name"    varchar,
                 "rank"  REAL,
                 "gender"	CHAR,
-                "full_name" CHAR(40),
+                "full_name" VARCHAR,
                 "rating"    SMALLINT,
-                "rank_ru"	REAL  default 1.6
-            )"""
+                "rank_ru"	REAL  default 1.6,
+                "last_year"   SMALLINT,
+                "id_ru"   SMALLINT,
+                "city"   VARCHAR
+            );"""
         cursor.execute(statement)
         old_con = sqlite3.connect("players.db")
         old_cur = old_con.cursor()
@@ -108,6 +111,10 @@ class Players:
 
     @staticmethod
     def lookup(raw_pair, players, single=False):
+        """
+        Returns list of (name, rank, rank_ru) tuples. If missing from the DB,
+        the 4th True value is added to the tuple
+        """
         players = [p for p in players if any(p)]
         partners = re.split("[^\w\s]", raw_pair, 2)
         if len(partners) < 2 - single:
@@ -175,7 +182,15 @@ class Players:
                 candidates.sort(key=lambda p: p[3])
             else:
                 candidates.sort(key=lambda p: players.index(p))
-        return [(c[2], c[4] or 0, c[5] if c[5] is not None else 5) if type(c) != str else (c, 0, 1.6) for c in candidates]
+        # nationals, default ru ranks are recalculated
+        default_ru = 1.6 if AM else 5
+        if CONFIG['tourney_coeff'] == 1:
+            for i, c in enumerate(candidates):
+                if c[5] % 0.5 != 0:
+                    candidates[i] = tuple(c[0:5] + [(c[5] - 0.8) * 3/2])
+            default_ru = 1.2
+        return [(c[2], c[4] or 0, c[5] if c[5] is not None else default_ru) if type(c) != str else (c, 0, default_ru, True)
+                for c in candidates]
 
     @staticmethod
     def synch():

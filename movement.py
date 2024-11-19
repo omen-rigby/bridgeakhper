@@ -111,8 +111,9 @@ class Movement:
         cursor = conn.cursor()
         is_mitchell = CONFIG.get("is_mitchell")
         statement = f"select movement, initial_board_sets from movements where tables={self.tables} " \
-                    f"and is_mitchell={is_mitchell} and " \
-                    f"MOD(array_length(string_to_array(movement, ';'), 1),{self.rounds})=0"
+                    f"and is_mitchell={is_mitchell} and  mod(least(" \
+                    f"array_length(string_to_array(movement, ';'), 1), "\
+                    f"array_length(string_to_array(movement, '-'), 1) / tables), {self.rounds})=0"
         cursor.execute(statement)
         movement = cursor.fetchone()
         conn.close()
@@ -263,8 +264,9 @@ class Movement:
 
 if __name__ == "__main__":
     CONFIG["is_mitchell"] = False
+    CONFIG["rounds"] = 9
     _ = '1-5,2-8,3-6,4-7;1-7,2-6,3-8,4-5;1-8,2-5,3-7,4-6;1-6,2-7,3-5,4-8'
-    m = Movement(88, 11)
-    print(m.move_card(1))
+    m = Movement(20, 20)
+    print(m.move_card(2))
     print(m.pdf())
     # print(m.table_cards())

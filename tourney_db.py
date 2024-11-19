@@ -60,7 +60,7 @@ class TourneyDB:
                                     );"""
         cursor.execute(statement)
         if flavor == 'postgres':
-            constraint = 'ALTER TABLE public.protocols ADD CONSTRAINT protocols_un UNIQUE ("number",ns,ew);'
+            constraint = 'ALTER TABLE protocols ADD CONSTRAINT protocols_un UNIQUE ("number",ns,ew);'
             cursor.execute(constraint)
         statement = f"""CREATE TABLE "names" (
                                         "number"	{int_type}  PRIMARY KEY,
@@ -86,6 +86,9 @@ class TourneyDB:
                                     );"""
         cursor.execute(statement)
         if flavor == 'postgres':
+            # 'ALTER TABLE public.names ALTER COLUMN penalty SET DEFAULT 0;'
+            # 'ALTER TABLE public.boards ADD CONSTRAINT boards_pk PRIMARY KEY ("number");'
+            # 'ALTER TABLE public.names ADD CONSTRAINT names_pk PRIMARY KEY ("number");'
             constraints = """ALTER TABLE ONLY protocols ADD CONSTRAINT protocols_un UNIQUE (number, ns, ew);"""
             cursor.execute(constraints)
         conn.commit()
@@ -138,7 +141,7 @@ VALUES {rows};"""
         cur2.execute("select key, value from config")
         for key, value in cur2.fetchall():
             rows = f"('{key}', '{value}')"
-            insert = f"INSERT INTO config (key, value) VALUES {rows};"
+            insert = f"INSERT INTO config (key, value) VALUES {rows} ON CONFLICT (key) DO UPDATE set value=excluded.value;"
             cursor.execute(insert)
         cur2.execute("select tables, movement, is_mitchell, initial_board_sets from movements")
         for tables, movement, is_mitchell, board_sets in cur2.fetchall():

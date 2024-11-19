@@ -44,7 +44,7 @@ class FileHandlers:
                     board.get_board_from_pbn(deal.group(2), hands.index(deal.group(1).lower()))
                     board.save()
         send(chat_id=update.effective_chat.id, text=f"Uploaded {number} boards",
-             reply_buttons=[], context=context)
+             reply_buttons=['/title', 'tourney_coeff', '/names'] if AM else ['/title', '/names'], context=context)
         os.remove(filename)
 
     @staticmethod

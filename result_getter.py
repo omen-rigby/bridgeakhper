@@ -200,13 +200,14 @@ class ResultGetter:
         self.travellers = []
         incomplete = []
         first = 100 * self.current_session
-        for board in range(first + 1, first + self.boards + 1):
+        for board in range(first + 1, first + 100):
+            # 100 is for multisession apporoach
             cur.execute(f"select * from protocols where number={board}")
             filtered = {}
             for protocol in cur.fetchall():
                 unique_id = protocol[1] * (self.pairs + 1) + protocol[2]
                 filtered[f"{unique_id}"] = protocol
-            if len(filtered) != self.pairs // 2 and 'Swiss' not in CONFIG['scoring']:
+            if len(filtered) != self.pairs // 2 and 'Swiss' not in CONFIG['scoring'] and board <= first + self.boards:
                 # TODO: add proper logging
                 incomplete.append(board)
             sorted_results = [list(f) for f in filtered.values()]
@@ -221,9 +222,10 @@ class ResultGetter:
             scores = scoring_method(board, scores, adjusted_scores)
             # TODO: change 60/40 to session average
             all_scores = sorted(scores + adjusted_scores, key=lambda x: x[-2])
-            self.travellers.append([[s[1] % 100, s[2] % 100, escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]),
-                                     s[7] if s[7] >= 0 and s[7] != 1 else "",
-                                    -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in all_scores])
+            if all_scores:
+                self.travellers.append([[s[1] % 100, s[2] % 100, escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]),
+                                         s[7] if s[7] >= 0 and s[7] != 1 else "",
+                                        -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in all_scores])
         self.conn.commit()
         return list(sorted(list(set(incomplete))))
 
@@ -813,15 +815,16 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(24, 4)
+    g = ResultGetter(21, 8, tournament_id=194)
+    #g = ResultGetter(28, 8)
     g.debug = True
     from config import init_config
     init_config()
-    CONFIG["scoring"] = "MPs"
-    print(g.get_raw_masterpoints(24, 14+14+14+6+6+6+4+2.5, [1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, -1]))
-    # CONFIG["tourney_coeff"] = 0.5
-    # CONFIG["tournament_title"] = "Уральский мастер. Этап 4"
+    # CONFIG["scoring"] = "MPs"
+    # CONFIG["rounds"] = 8
+    CONFIG["tourney_coeff"] = 0.5
+    CONFIG["tournament_title"] = "Микстовый парный чемпионат Армении"
     # g.process()
     # g.save(correction=True)
-    # g.process_multisession()
-    # g.save(correction=True)
+    g.process_multisession()
+    g.save(correction=False)

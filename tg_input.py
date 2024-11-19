@@ -25,13 +25,18 @@ if __name__ == '__main__':
     # RU masterpoints
     if CONFIG["city"]:
         updater.job_queue.run_monthly(MonthlyJobs.update_ranks, day=2, when=datetime.time(hour=18, minute=24,
-                                                                                          tzinfo=pytz.UTC))
+                                                                                          tzinfo=pytz.UTC),
+                                      job_kwargs={'misfire_grace_time': None})  # ensures job is run whenever it can be
         updater.job_queue.run_daily(MonthlyJobs.masterpoints_report, time=datetime.time(hour=18, minute=24,
-                                                                                    tzinfo=pytz.UTC))
+                                                                                    tzinfo=pytz.UTC),
+                                    job_kwargs={'misfire_grace_time': None})
     if AM:
         # AM masterpoints
-        updater.job_queue.run_daily(MonthlyJobs.update_ratings_am, time=datetime.time(hour=0, minute=0, tzinfo=pytz.UTC))
+        updater.job_queue.run_daily(MonthlyJobs.update_ratings_am, time=datetime.time(hour=0, minute=0,
+                                                                                      tzinfo=pytz.UTC),
+                                    job_kwargs={'misfire_grace_time': None})
     # Common commands
+    updater.dispatcher.add_handler(CommandHandler('donate', CommandHandlers.donate))
     updater.dispatcher.add_handler(CommandHandler('start', CommandHandlers.start))
     updater.dispatcher.add_handler(CommandHandler('help', CommandHandlers.help_command))
     updater.dispatcher.add_handler(CommandHandler('manual', CommandHandlers.manual))
