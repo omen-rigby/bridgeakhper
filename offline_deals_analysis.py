@@ -38,7 +38,7 @@ def main():
     path = f"./{date}"
     if not os.path.exists(path):
         os.makedirs(path)
-    pdf_path = result_getter.pdf_travellers(True)
+    pdf_path = print_to_file(result_getter.html_travellers(True), True, 'Boards')
     print(f"Results are at: {pdf_path}")
 
 

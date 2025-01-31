@@ -9,7 +9,7 @@ from monthly_jobs import MonthlyJobs
 from match_handlers import MatchHandlers
 
 
-PORT = int(os.environ.get('PORT', 5000))
+PORT = int(os.environ.get('PORT', 8080))
 if 'BOT_TOKEN' in os.environ:
     TOKEN = os.environ["BOT_TOKEN"]
     WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
@@ -57,6 +57,10 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('title', CommandHandlers.title))
     updater.dispatcher.add_handler(CommandHandler('tourneycoeff', CommandHandlers.tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('custommovement', CommandHandlers.custom_movement))
+    updater.dispatcher.add_handler(CommandHandler('togglehands', CommandHandlers.toggle_hands))
+    updater.dispatcher.add_handler(CommandHandler('mitchell', CommandHandlers.mitchell))
+    updater.dispatcher.add_handler(CommandHandler('howell', CommandHandlers.howell))
+    updater.dispatcher.add_handler(CommandHandler('barometer', CommandHandlers.barometer))
     # Match results (AM)
     updater.dispatcher.add_handler(CommandHandler('addmatch', MatchHandlers.add_match))
     updater.dispatcher.add_handler(CommandHandler('teamB', MatchHandlers.team_b))
@@ -66,7 +70,6 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^0\.2?5$"), CommandHandlers.tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('config', CommandHandlers.config))
     updater.dispatcher.add_handler(CommandHandler('config_update', CommandHandlers.config_update))
-
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Clear"), CommandHandlers.clear_db))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Reuse"), CommandHandlers.init))
@@ -89,6 +92,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("viewboard", CommandHandlers.view_board))
     updater.dispatcher.add_handler(CommandHandler("addplayer", CommandHandlers.add_player))
     updater.dispatcher.add_handler(CommandHandler("updateplayer", CommandHandlers.update_player))
+    updater.dispatcher.add_handler(CommandHandler("removeplayer", CommandHandlers.remove_player))
     updater.dispatcher.add_handler(CommandHandler("playerslist", CommandHandlers.list_players))
     updater.dispatcher.add_handler(CommandHandler("boards", CommandHandlers.get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
@@ -99,7 +103,9 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('penalty', CommandHandlers.penalty))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.zip, FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('rar'), FileHandlers.upload_boards))
+    updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('7z'), FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('pbn'), FileHandlers.upload_boards))
+    updater.dispatcher.add_handler(CommandHandler('excel', CommandHandlers.excel))
     # Integrator for synch
     updater.dispatcher.add_handler(CommandHandler('sputnik', SimHandlers.sputnik))
     updater.dispatcher.add_handler(CommandHandler('um', SimHandlers.um))

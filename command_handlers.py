@@ -1,7 +1,11 @@
 import shutil
 import telegram
+from urllib.parse import urlparse
 import transliterate
 import datetime
+
+from openpyxl.styles import PatternFill
+
 from board import Board
 from result_getter import ResultGetter
 from generate import generate
@@ -13,12 +17,13 @@ from constants import AGGREGATOR_COMMANDS
 from config import init_config
 from swiss import SwissMovement
 from match_handlers import MatchHandlers
-from util import decorate_all_functions
+from util import decorate_all_functions, revert_name
+from openpyxl import Workbook
+from exceptions import MovementError
 
-
-CHANGE_FLOWS = ('update_player', 'add_player', 'view_board', 'remove_board', 'tourney_coeff', 'tournament_title',
-                'rounds', 'add_td', 'config_update', 'penalty', 'table_card', 'move_card', 'select_session',
-                'load_db')
+CHANGE_FLOWS = ('update_player', 'add_player', 'remove_player', 'view_board', 'remove_board', 'tourney_coeff',
+                'tournament_title', 'rounds', 'add_td', 'config_update', 'penalty', 'table_card', 'move_card',
+                'select_session', 'load_db', 'howell', 'mitchell', 'barometer', 'xlsx')
 ALLOWED_IN_GROUP = ('/end', '/movecards', '/startround', '/restartswiss', '/endround')
 
 
@@ -128,12 +133,16 @@ class CommandHandlers:
                 cursor.execute("select key from config order by key")
                 keys = [c[0] for c in cursor.fetchall()]
                 if k not in keys:
-                    return send(chat_id=update.effective_chat.id,
-                                text=f"No such config key {k}, should be one of {','.join(keys)}",
-                                context=context)
-                cursor.execute(f"update config set value='{v}' where key='{k}'")
+                    cursor.execute(f"insert into config (key, value) values ('{k}', '{v}')")
+                else:
+                    cursor.execute(f"update config set value='{v}' where key='{k}'")
                 send(chat_id=update.effective_chat.id,
                      text=f"{k} is set to {v}",
+                     context=context)
+                cursor.execute("select key,value from config order by key")
+                string_config = '\n'.join(f'{k} = {v}' for (k, v) in cursor.fetchall())
+                send(chat_id=update.effective_chat.id,
+                     text=f"Current global parameters:\n{string_config}",
                      context=context)
                 conn.commit()
                 init_config()
@@ -493,9 +502,9 @@ Submitted {names} names""",
             else:
                 try:
                     CommandHandlers.init_movement(update, context)
-                except ValueError:
+                except MovementError as e:
                     send(chat_id=update.effective_chat.id,
-                         text=f"No suitable movement.",
+                         text=str(e),
                          reply_buttons=['/names', '/board'],
                          context=context)
             return
@@ -579,19 +588,24 @@ Results:
             else:
                 try:
                     CommandHandlers.init_movement(update, context)
-                    # send(chat_id=update.effective_chat.id,
-                    #      text="Enter board number",
-                    #      reply_buttons=list(range(1, context.bot_data["maxboard"] + 1)),
-                    #      context=context)
-                except ValueError:
-                    boards = context.bot_data["maxboard"]
-                    tables = (context.bot_data["maxpair"] + 1) // 2
+                except MovementError as e:
+                    if 'Set' in str(e):
+                        context.user_data["rounds"] = True
+                        rounds = str(e).split(': ')[-1].split(',')
+                        send(chat_id=update.effective_chat.id,
+                             text=str(e),
+                             reply_buttons=rounds,
+                             context=context)
+                    else:
+                        send(chat_id=update.effective_chat.id,
+                             text=str(e),
+                             reply_buttons=['/names', '/board'],
+                             context=context)
+                except Exception as e:
                     send(chat_id=update.effective_chat.id,
-                         text=f"Not found movement for {boards} boards {tables} tables {2 * tables - 1} rounds."
-                              f" Try setting custom number of rounds or continue without movement",
-                         reply_buttons=['/rounds', '/names', '/board'],
+                         text=str(e),
+                         reply_buttons=[],
                          context=context)
-
         else:
             context.bot_data["maxboard"] = int(update.message.text)
             send(chat_id=update.effective_chat.id,
@@ -601,10 +615,11 @@ Results:
 
     @staticmethod
     def init_movement(update: Update, context: CallbackContext):
-        context.bot_data["movement"] = Movement(context.bot_data["maxboard"], context.bot_data["maxpair"],
-                                                current_session(context))
-        tables = context.bot_data["movement"].tables
         boards = context.bot_data["maxboard"]
+        context.bot_data["movement"] = Movement(boards, context.bot_data["maxpair"],
+                                                current_session(context),
+                                                rounds=CONFIG.get('rounds', 0))
+        tables = context.bot_data["movement"].tables
         rounds = context.bot_data["movement"].rounds
         CONFIG['rounds'] = rounds
         send(chat_id=update.effective_chat.id,
@@ -641,11 +656,16 @@ Results:
                  text=f"W hand should be: {w}",
                  reply_buttons=[],
                  context=context)
-            board.save()
-            send(chat_id=update.effective_chat.id,
-                 text=f"Board {board.number % 100} is saved",
-                 reply_buttons=("/board", "/result", "/restart"),
-                 context=context)
+            if board.number:
+                board.save()
+                send(chat_id=update.effective_chat.id,
+                     text=f"Board {board.number % 100} is saved",
+                     reply_buttons=("/board", "/result", "/restart"),
+                     context=context)
+            else:
+                send(chat_id=update.effective_chat.id,
+                     text=f"Select board number first",
+                     context=context)
 
         else:
             seat = board.current_hand.upper()
@@ -835,11 +855,25 @@ Results:
                 else:
                     correction = False
                 conn.close()
-                context.bot_data['result_getter'].save(correction=correction)
-            context.bot.editMessageText(f"Tournament results:", chat_id, header.message_id)
-            for path in paths:
-                context.bot.send_document(chat_id, open(path, 'rb'))
-                os.remove(path)
+                tournament_id = context.bot_data['result_getter'].save(correction=correction)
+                if context.bot_data['result_getter'].suspicious_result_list:
+                    send(update.message.from_user.id, context.bot_data['result_getter'].suspicious_results_text(),
+                         context=context)
+                url = CONFIG.get('tournament_url').format(tournament_id)
+                context.bot.editMessageText(f"Tournament results: {url}", chat_id, header.message_id)
+            elif CONFIG.get('site_ftp_upload'):
+                url = CONFIG.get('tournament_url')
+                parsed_url = urlparse(url)
+                from ftplib import FTP
+                with FTP(parsed_url.hostname) as ftp, open(paths[0], 'rb') as file:
+                    ftp.cwd(parsed_url.path)
+                    ftp.storbinary(f'STOR tour.shtml', file)
+                context.bot.editMessageText(f"Tournament results: {url}", chat_id, header.message_id)
+            else:
+                context.bot.editMessageText(f"Tournament results:", chat_id, header.message_id)
+                for path in paths:
+                    context.bot.send_document(chat_id, open(path, 'rb'))
+                    os.remove(path)
         except IncompleteTournamentData as e:
             send(chat_id=chat_id, text=f"Missing tournament data:\n{e}", context=context)
         except Exception as e:
@@ -850,6 +884,60 @@ Results:
             current_dir = os.getcwd()
             new_dir = f"{current_dir}/{date}"
             shutil.rmtree(new_dir)
+
+    @staticmethod
+    def excel(update: Update, context: CallbackContext):
+        city_en = CITIES_LATIN.get(CONFIG["city"], transliterate.translit(CONFIG["city"], 'ru'))
+        out_path = f'{city_en}.xlsx'
+        indices = {
+            'Ереван': 475, "Воронеж": 300, 'Ессентуки': 450, "Ижевск": 550
+        }
+        wb = Workbook()
+        wb.create_sheet("Names")
+        wb.remove(wb['Sheet'])
+        try:
+            conn = TourneyDB.connect()
+            cursor = conn.cursor()
+            cursor.execute(f"select number, partnership, rank_ru from names")
+            players = cursor.fetchall()
+            player_data = Players.get_players('id_ru,full_name')
+            for col, value in enumerate(('Pair number', 'Name1', 'ID1', 'Name2', 'ID2', 'Rank')):
+                wb['Names'].cell(1, col + 1).value = value
+            for row, p in enumerate(players):
+                wb['Names'].cell(row + 2, 1).value = p[0] + indices.get(CONFIG['city'], 0)
+                for name_index, player_name in enumerate(p[1].split(' & ')[:2]):
+                    wb['Names'].cell(row + 2, 2 * name_index + 2).value = revert_name(player_name)
+                    found = [player[0] for player in player_data if player[1].split() == player_name.split()]
+                    if found:
+                        wb['Names'].cell(row + 2, 2 * name_index + 3).value = found[0]
+                    else:
+                        wb['Names'].cell(row + 2, 2 * name_index + 3).fill = PatternFill(start_color="FFC7CE",
+                                                                                         end_color="FFC7CE",
+                                                                                         fill_type="solid")
+                wb['Names'].cell(row + 2, 6).value = p[2]
+
+            wb.create_sheet("Protocols")
+            for col, value in enumerate(('Board', 'NS', 'EW', 'Contract', 'Lead', 'Result', 'Score')):
+                wb['Protocols'].cell(1, col + 1).value = value
+            columns = 'number,ns,ew,contract,declarer,lead,result,score'
+            cursor.execute(f"select {columns} from protocols where number > 0 order by number, score")
+            results = cursor.fetchall()
+            for row, r in enumerate(results):
+                wb['Protocols'].cell(row + 2, 1).value = r[0]
+                wb['Protocols'].cell(row + 2, 2).value = r[1] + indices.get(CONFIG['city'], 0)
+                wb['Protocols'].cell(row + 2, 3).value = r[2] + indices.get(CONFIG['city'], 0)
+                wb['Protocols'].cell(row + 2, 4).value = (r[3] + r[4]).upper()
+                wb['Protocols'].cell(row + 2, 5).value = r[5]
+                wb['Protocols'].cell(row + 2, 6).value = r[6]
+                wb['Protocols'].cell(row + 2, 7).value = r[7]
+            wb.save(out_path)
+            context.bot.send_document(update.message.from_user.id, open(out_path, 'rb'))
+        except:
+            raise
+        finally:
+            conn.close()
+            if os.path.exists(out_path):
+                os.remove(out_path)
 
     @staticmethod
     def remove_board(update: Update, context: CallbackContext):
@@ -889,7 +977,7 @@ Results:
                     for partnership in cursor.fetchall():
                         found_pair = Players.lookup(partnership[1], ALL_PLAYERS)
                         new_rank = sum(p[2] for p in found_pair) / len(found_pair)
-                        if new_rank != partnership[1]:
+                        if abs(new_rank - partnership[2]) > 0.05:
                             cursor.execute(f'update names set rank_ru={new_rank} where number={partnership[0]}')
                             names.add(partnership[0] % 100)
                     names = sorted(list(names))
@@ -901,8 +989,8 @@ Results:
                     conn.close()
                 send(chat_id=update.effective_chat.id,
                      text=f"New tournament coefficient is {new_coeff}." +
-                          (f" Ranks are updated for pairs {', '.join(names)}" if names else ''),
-                     reply_buttons=['/names'] * len(names), context=context)
+                          (f" Ranks are updated for pairs {', '.join(map(str, names))}" if names else ''),
+                     reply_buttons=[], context=context)
             else:
                 send(chat_id=update.effective_chat.id,
                      text=f"New tournament coefficient is {new_coeff}",
@@ -910,7 +998,7 @@ Results:
         else:
             context.user_data["tourney_coeff"] = True
             send(chat_id=update.effective_chat.id,
-                 text=f"Enter new tounrey coeff (0.25 is the default)",
+                 text=f"Enter new tourney coeff (0.25 is the default)",
                  reply_buttons=[], context=context)
 
     @staticmethod
@@ -1009,6 +1097,22 @@ Total penalty: {old_penalty + mp} {scoring}""",
                  reply_buttons=[], context=context)
 
     @staticmethod
+    def remove_player(update: Update, context: CallbackContext):
+        if context.user_data.get("remove_player"):
+            context.user_data["remove_player"] = False
+            text = update.message.text
+            first, last = text.rsplit(' ', 2)
+            Players.remove(last, first_name=first)
+            global ALL_PLAYERS
+            ALL_PLAYERS = Players.get_players()
+            send(update.effective_chat.id, "Updated player", [], context)
+        else:
+            context.user_data["remove_player"] = True
+            send(chat_id=update.effective_chat.id,
+                 text=f"Enter space-separated values: last name/full name",
+                 reply_buttons=[], context=context)
+
+    @staticmethod
     def list_players(update: Update, context: CallbackContext):
         players_list = Players.get_players('full_name,rank_ru' + ',rank' * AM)
         send(chat_id=update.effective_chat.id,
@@ -1066,6 +1170,35 @@ Total penalty: {old_penalty + mp} {scoring}""",
              reply_buttons=[], context=context)
 
     @staticmethod
+    def toggle_hands(update: Update, context: CallbackContext):
+        CONFIG['no_hands'] = not CONFIG['no_hands']
+        send(chat_id=update.effective_chat.id,
+             text="Hands are turned " + ("off" if CONFIG['no_hands'] else "on"),
+             reply_buttons=[], context=context)
+
+    @staticmethod
+    def mitchell(update: Update, context: CallbackContext):
+        CONFIG['is_mitchell'] = True
+        send(chat_id=update.effective_chat.id,
+             text="Movement is set to Mitchell",
+             reply_buttons=[], context=context)
+
+    @staticmethod
+    def howell(update: Update, context: CallbackContext):
+        CONFIG['is_mitchell'] = False
+        send(chat_id=update.effective_chat.id,
+             text="Movement is set to Howell",
+             reply_buttons=[], context=context)
+
+    @staticmethod
+    def barometer(update: Update, context: CallbackContext):
+        CONFIG['is_barometer'] = not CONFIG.get('is_barometer')
+        send(chat_id=update.effective_chat.id,
+             text="Barometer is turned " + ("on" if CONFIG['is_barometer'] else "off"),
+             reply_buttons=[], context=context)
+
+
+    @staticmethod
     def rounds(update: Update, context: CallbackContext):
         if not context.user_data.get("rounds"):
             context.user_data["rounds"] = True
@@ -1118,37 +1251,49 @@ BTC: `bitcoin:bc1q83p77e9zqe3ju5ew4crejm0f9lf9grzx0mu6nh`""", parse_mode=ParseMo
             text += """
 
 TD only commands:
-
+General
+    /missing: shows session info
+    /end: gets tourney results, sends you raw db file & resulting htms
+    /rmboard: removes all hands for the specified board
+    /boards: gets boards without results as htm
+    /restart: when submitting hands, reset all hands and starts again from N
+    /penalty: penalizes a player by a certain number of (I)MPs
+    /excel: converts results to human-readable .xlsx format
     /manual: link to manual for TDs
-    /tdlist: prints all TDs for the session
-    /title: customizes tourney title""" + """
+    /title: customizes tourney title
+    /result: starts board result entry flow
+    /togglehands: turns on/off saving the played hands""" + """
+Swiss tournament
     /startround: starts round (swiss movement)
     /endround: prints result for current round (swiss)
     /correctswiss: corrects results for this or previous round (swiss)
-    /restartswiss: starts 'italian' round (swiss movement)""" * ("wiss" in CONFIG["scoring"]) + """
-    /tourneycoeff: updates tournament coefficient""" * AM + """
-    /custommovement: turns off preset movement
-    /loaddb: loads session from .db
-    /rmboard: removes all hands for the specified board
-    /restart: when submitting hands, reset all hands and starts again from N
-    /result: starts board result entry flow
-    /penalty: penalizes a player by a certain number of (I)MPs
-    /missing: shows session info
+    /restartswiss: starts 'italian' round (swiss movement)""" * ("wiss" in CONFIG["scoring"])  + """
+Movement
+    /custommovement: turns off movement
+    /howell: turns off mitchell movements
+    /mitchell: turns on mitchell movements
+    /barometer: toggles barometer movement
+Players 
     /addplayer: adds a new player to players DB
     /updateplayer: updates existing player record in players DB
+    /removeplayer: removes player from club
     /playerslist: prints list of all players associated with the club
-    /boards: gets boards without results as pdf
-    /end: gets tourney results, sends you raw db file & resulting pdfs""" + """
+""" +  """
+    /tourneycoeff: updates tournament coefficient
     /store: saves tourney results to yerevanbridge site db
     /correct: resaves last tourney results to yerevanbridge site db
+Matches
     /addmatch: submit match results
     /teamB: change team for submit math results flow
     /matchscore: submit match result in IMPs""" * AM + """
+Multi-session tournaments
     /multisession: starts a tournament with 2+ sessions
     /switchsession: used to correct previous sessions of a multi-session tourney
     /endmultisession: return to single session mode
+Other
     /config: lists current global parameters
     /config_update: updates global parameter
+    /tdlist: prints all TDs for the session
     /addtd: adds director to current tourney. To add a permanent TD, edit config (see above)""" + """
     /monthlyreport: generates table with monthly MPs for RU players""" * AM
 

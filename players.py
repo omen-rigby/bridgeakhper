@@ -102,10 +102,11 @@ class Players:
         conn.close()
 
     @staticmethod
-    def remove(last_name):
+    def remove(last_name, first_name=None):
         conn = Players.connect()
         cursor = conn.cursor()
-        cursor.execute(f"DELETE FROM players WHERE last_name='{last_name}'")
+        cursor.execute(f"DELETE FROM players WHERE last_name='{last_name}'"
+                       + f" and first_name='{first_name}'" * (first_name is not None))
         conn.commit()
         conn.close()
 
@@ -186,7 +187,7 @@ class Players:
         default_ru = 1.6 if AM else 5
         if CONFIG['tourney_coeff'] == 1:
             for i, c in enumerate(candidates):
-                if c[5] % 0.5 != 0:
+                if type(c) == list and c[5] and c[5] % 0.5 != 0:
                     candidates[i] = tuple(c[0:5] + [(c[5] - 0.8) * 3/2])
             default_ru = 1.2
         return [(c[2], c[4] or 0, c[5] if c[5] is not None else default_ru) if type(c) != str else (c, 0, default_ru, True)
@@ -254,7 +255,7 @@ class Players:
     def synch_city(city):
         res = requests.get(RU_DB)
         players = etree.fromstring(res.content)
-        city_players = [p for p in players.findall(f'.//player') if p.find('.city').text == city]
+        city_players = [p for p in players.findall(f'.//player') if p.find('.city').text.split(',')[-1].strip() == city]
         conn = Players.connect()
         cursor = conn.cursor()
         for c in city_players:
@@ -325,4 +326,4 @@ ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 if __name__ == "__main__":
     # print(Players.find_ru_ids())
     # Players.synch_city("Воронеж")
-    print(Players.synch())
+    Players.synch_city("Астана")

@@ -4,12 +4,15 @@ import json
 from copy import deepcopy
 
 APPS = {
-    "Ереван": "bridgeakhper",
-    "Воронеж": "bridgeakhper-voronezh",
-    "Курск": "bridgeakhper-kursk",
-    "Ижевск": "bridgeakhper-izhevsk",
-    "Ессентуки": "bridgeakhper-yessentuki",
-    "Новосибирск": "bridgeakhper-novosibirsk",
+    #"Ереван": "bridgeakhper",
+    #"Воронеж": "bridgeakhper-voronezh",
+    #"Курск": "bridgeakhper-kursk",
+    #"Ижевск": "bridgeakhper-izhevsk",
+  #  "Ессентуки": "bridgeakhper-yessentuki",
+    "Новокузнецк": "bridgeakhper-novokuznetsk",
+    "Иркутск": "bridgeakhper-irkutsk",
+    #"Новосибирск": "bridgeakhper-novosibirsk",
+    #"at Sea": "bridgeakhper-at-sea",
     # "null": "bridgeakhper-mdb-aggregator",
 }
 
@@ -37,9 +40,10 @@ with open(config_path) as f:
         try:
             subprocess.check_output(cmd.split())
             # flows won't work on multiple machines because data is stored in bot context
-            subprocess.check_output('flyctl scale count 1'.split())
+            count = 1
+            subprocess.check_output(f'fly scale count 1 -a {fly_app} -y'.split())
         except Exception as e:
-            print(f"{city} deployment failed with exception")
+            print(f"{city} deployment failed with exception {str(e)}")
     else:
         with open(config_path, 'w') as g:
             g.write(json.dumps(old_json, indent=2))

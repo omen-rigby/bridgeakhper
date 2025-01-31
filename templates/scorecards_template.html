@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta content="text/html; charset='UTF-8'">
+    <meta http-equiv="Content-type" content="Content-type: text/html; charset=utf-8"/>
     <title>Scorecards</title>
     <style type="Text/css">@media print {
     @page { margin: 0mm 0mm 0mm 0mm; size: landscape; }
@@ -33,15 +33,27 @@ CAPTION {
 .suspicious {
 background-color: #aa7777;
 }
+.spades{
+  color:black;
+}
+.hearts{
+  color:red;
+}
+.diamonds {
+  color:#ff6600;
+}
+.clubs {
+  color:green;
+}
+
 </style>
 </head>
 <body>
 <h1>Scorecards</h1>
 {% for pair in pairs %}
 {% if loop.index0 > 0 %}
-<div style="page-break-before:always">
+<div style="page-break-before:always;padding-bottom:15px;">
 {% else %}
-<div>
 {% endif %}
 <table style="FONT-SIZE: 10pt; FONT-FAMILY: Arial">
   <tbody>

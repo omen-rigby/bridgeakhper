@@ -41,6 +41,9 @@ class Deal:
 
         self.get_html()
 
+    def __repr__(self):
+        return str(self.data)
+
     def get_board_from_db(self, number):
         conn = TourneyDB.connect()
         cursor = conn.cursor()

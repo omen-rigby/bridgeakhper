@@ -82,7 +82,7 @@ def revert_name(name):
     # last name prefix: Rafael van der Vaart
     last_name = ' '.join(chunks[1:])
     # TODO: handle asian & spanish names
-    return f'{last_name} {chunks[0]}'
+    return f'{last_name} {chunks[0]}'.replace("ё", "е")
 
 
 def decorate_all_functions(function_decorator):

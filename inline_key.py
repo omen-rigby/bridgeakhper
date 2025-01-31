@@ -27,14 +27,83 @@ def send(chat_id, text, reply_buttons=None, context=None):
 def result(update: Update, context: CallbackContext):
     board = context.user_data.get("board")
     if board:
+        if CONFIG.get('submit_lead', True):
+            text = f"Enter result:\nNS: {CARET}\nEW: \nContract: \nLead: \nResult: \nScore: "
+        else:
+            text = f"Enter result:\nNS: {CARET}\nEW: \nContract: \nResult: \nScore: "
         context.user_data["result"] = send(
             chat_id=update.effective_chat.id,
-            text=f"Enter result:\nNS: {CARET}\nEW: \nContract: \nLead: \nResult: \nScore: ",
+            text=text,
             reply_buttons=pairs_keyboard(update, context),
             context=context)
     else:
         from command_handlers import CommandHandlers
         return CommandHandlers.board(update, context)
+
+
+def save_board(result_data, key: str, first: int, context: CallbackContext):
+    new_text = result_data.text.replace(CARET, f"{key}")
+    contract = result_data.text.split("Contract: ")[1].split("\n")[0].lower().replace("nt", "n")
+    submit_lead = CONFIG.get('submit_lead', True)
+    if key == "pass":
+        score = 0
+    elif ADJ_RE.match(key):
+        # 1 stands for adjusted score
+        score = 1
+
+    else:
+        level = int(contract[0]) + 6
+        denomination = contract[1]
+        multiplier = "x" * contract.count("x")
+        declarer = contract[-1]
+
+        if key == "=":
+            tricks_taken = level
+        else:
+            tricks_taken = eval(f"{level}{key}")
+        score = context.user_data["board"].get_total_points(declarer, denomination, level,
+                                                            tricks_taken, multiplier)
+    board_number = context.user_data["board"].number
+    ns = result_data.text.split("NS: ")[1].split("\n")[0]
+    ew = result_data.text.split("EW: ")[1].split("\n")[0]
+    contract = result_data.text.split("Contract: ")[1].split("\n")[0].lower().replace("nt", "n")
+
+    if contract == "_":
+        contract = key
+        declarer = ""
+        tricks = ""
+        lead = ""
+    else:
+        contract, declarer = contract.split(" ")
+        lead = result_data.text.split("Lead: ")[1].split("\n")[0] if submit_lead else ""
+        tricks = key
+
+    conn = TourneyDB.connect()
+    cursor = conn.cursor()
+    statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
+                    VALUES({board_number + first}, '{int(ns) + first}', '{int(ew) + first}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
+    """.replace('_', '')
+    # This is a workaround
+    # Telegram fails sometimes, and things like n_ or worse are submitted
+    statement += """ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE 
+      SET contract = excluded.contract, lead = excluded.lead, result = excluded.result, score = excluded.score, 
+      declarer=excluded.declarer;"""
+    cursor.execute(statement)
+    conn.commit()
+    conn.close()
+    new_text = new_text.replace("Score:", f"Score: {score}\nResult for board #{board_number} is saved")
+    lst = NAVIGATION_KEYBOARD + [InlineKeyboardButton('next board', callback_data='board'),
+                                 InlineKeyboardButton('another result', callback_data='result')]
+    reply_markup = InlineKeyboardMarkup([lst])
+    context.user_data["markups"].append(reply_markup)
+    context.user_data["result"] = context.bot \
+        .editMessageText(chat_id=result_data["chat"]["id"],
+                         message_id=result_data.message_id,
+                         text=new_text,
+                         reply_markup=reply_markup,
+                         parse_mode=ParseMode.HTML
+                         )
+    return reply_markup
 
 
 def inline_key(update: Update, context: CallbackContext):
@@ -47,7 +116,9 @@ def inline_key(update: Update, context: CallbackContext):
         if key.isdigit():
             next_field = result_data.text.split(CARET)[1].lstrip("\n")
             skip_first = context.bot_data["maxpair"] % 2 and CONFIG.get('no_first_pair')
-            if not next_field.startswith("Lead:") and \
+            is_contract = CONFIG.get('submit_lead', True) and next_field.startswith("Lead:") or \
+                not CONFIG.get('submit_lead', True) and next_field.startswith("Result:")
+            if not is_contract and \
                     (
                         # pair number out of range
                         int(result_data.text.split(CARET)[0].split(": ")[-1] + key) >
@@ -62,7 +133,7 @@ def inline_key(update: Update, context: CallbackContext):
                 new_text = f"Incorrect pair number, try again\n{new_text}"
                 reply_markup = context.user_data["markups"][-1]
             else:
-                if next_field.startswith("Lead:"):
+                if is_contract:
                     new_text = re.sub(f"{CARET}", f"{key.upper()}{CARET}", result_data.text)
                     prev, tail = new_text.split(key + CARET)
                     if prev[-1] in SUITS_UNICODE:
@@ -96,10 +167,15 @@ def inline_key(update: Update, context: CallbackContext):
                     new_text = f"Incorrect contract, try again\n{new_text}"
                     reply_markup = contracts_keyboard(update)
                 else:
-                    new_text = re.sub(f"{CARET}\n([^:]+): ", f" {key.upper()}\n\g<1>: {CARET}", new_text,
-                                      flags=re.MULTILINE)
-                    reply_markup = lead_keyboard(update)
-                    context.user_data["markups"].append(reply_markup)
+                    if CONFIG.get('submit_lead', True):
+                        new_text = re.sub(f"{CARET}\n([^:]+): ", f" {key.upper()}\n\g<1>: {CARET}", new_text,
+                                          flags=re.MULTILINE)
+                        reply_markup = lead_keyboard(update)
+                        context.user_data["markups"].append(reply_markup)
+                    else:
+                        new_text = re.sub(f"{CARET}\n([^:]+): ", f" {key.upper()}\n\g<1>: {CARET}", new_text,
+                                          flags=re.MULTILINE)
+                        reply_markup = results_keyboard(context)
             else:
                 new_string = remove_suits(old_string.replace("NT", ""))
                 new_text = result_data.text.replace(old_string, new_string)
@@ -121,67 +197,8 @@ def inline_key(update: Update, context: CallbackContext):
                                                                            text=new_text,
                                                                            parse_mode=ParseMode.HTML)
         elif result_re.match(key) or key == "pass" or ADJ_RE.match(key):
-            new_text = result_data.text.replace(CARET, f"{key}")
-            contract = result_data.text.split("Contract: ")[1].split("\n")[0].lower().replace("nt", "n")
+            save_board(result_data, key, first, context)
 
-            if key == "pass":
-                score = 0
-            elif ADJ_RE.match(key):
-                # 1 stands for adjusted score
-                score = 1
-
-            else:
-                level = int(contract[0]) + 6
-                denomination = contract[1]
-                multiplier = "x" * contract.count("x")
-                declarer = contract[-1]
-
-                if key == "=":
-                    tricks_taken = level
-                else:
-                    tricks_taken = eval(f"{level}{key}")
-                score = context.user_data["board"].get_total_points(declarer, denomination, level,
-                                                                    tricks_taken, multiplier)
-            board_number = context.user_data["board"].number
-            ns = result_data.text.split("NS: ")[1].split("\n")[0]
-            ew = result_data.text.split("EW: ")[1].split("\n")[0]
-            contract = result_data.text.split("Contract: ")[1].split("\n")[0].lower().replace("nt", "n")
-
-            if contract == "_":
-                contract = key
-                declarer = ""
-                tricks = ""
-                lead = ""
-            else:
-                contract, declarer = contract.split(" ")
-                lead = result_data.text.split("Lead: ")[1].split("\n")[0]
-                tricks = key
-
-            conn = TourneyDB.connect()
-            cursor = conn.cursor()
-            statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
-                VALUES({board_number + first}, '{int(ns) + first}', '{int(ew) + first}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
-""".replace('_', '')
-            # This is a workaround
-            # Telegram fails sometimes, and things like n_ or worse are submitted
-            statement += """ ON CONFLICT ON CONSTRAINT protocols_un DO UPDATE 
-  SET contract = excluded.contract, lead = excluded.lead, result = excluded.result, score = excluded.score, 
-  declarer=excluded.declarer;"""
-            cursor.execute(statement)
-            conn.commit()
-            conn.close()
-            new_text = new_text.replace("Score:", f"Score: {score}\nResult for board #{board_number} is saved")
-            lst = NAVIGATION_KEYBOARD + [InlineKeyboardButton('next board', callback_data='board'),
-                                         InlineKeyboardButton('another result', callback_data='result')]
-            reply_markup = InlineKeyboardMarkup([lst])
-            context.user_data["markups"].append(reply_markup)
-            context.user_data["result"] = context.bot\
-                .editMessageText(chat_id=result_data["chat"]["id"],
-                                 message_id=result_data.message_id,
-                                 text=new_text,
-                                 reply_markup=reply_markup,
-                                 parse_mode=ParseMode.HTML
-                                 )
         elif key == "more":
             reply_markup = contracts_keyboard(update, include_arbitral=True)
             context.user_data["result"] = context.bot.editMessageText(chat_id=result_data["chat"]["id"],
@@ -191,7 +208,7 @@ def inline_key(update: Update, context: CallbackContext):
                                                                       parse_mode=ParseMode.HTML)
 
         elif CARD_RE.match(key):
-            if key and CONFIG.get("validate_lead"):
+            if key and CONFIG.get("submit_lead", True) and CONFIG.get("validate_lead"):
                 conn = TourneyDB.connect()
                 cursor = conn.cursor()
                 declarer = result_data.text.split(CARET)[0].split('\n')[-2][-1].lower()

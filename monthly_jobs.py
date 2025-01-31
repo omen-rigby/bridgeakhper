@@ -63,4 +63,4 @@ f"update players set rating={player_record[1]}, last_year={player_record[2]} whe
 
 
 if __name__ == "__main__":
-    print(Players.monthly_report())
+    print(Players.synch())

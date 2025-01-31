@@ -8,6 +8,9 @@ primary_region = "arn"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
 
+[env]
+  PORT = "8080"
+
 [experimental]
   auto_rollback = true
 

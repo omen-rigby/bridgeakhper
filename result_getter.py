@@ -1,4 +1,7 @@
 import itertools
+import prettytable as pt
+from copy import deepcopy
+
 from constants import *
 from players import Players
 from math import log10, ceil
@@ -10,6 +13,7 @@ from imps import imps
 from tourney_db import TourneyDB
 from imps import vp
 from exceptions import IncompleteTournamentData
+from decimal import Decimal, ROUND_HALF_UP
 
 
 class ResultGetter:
@@ -24,6 +28,7 @@ class ResultGetter:
         self.travellers = []
         self.totals = []
         self.personals = []
+        self.suspicious_result_list = []
         self.names = []
         self.datums = []
         self.penalties = {}
@@ -162,6 +167,10 @@ class ResultGetter:
         for s in adjusted_scores:
             mp_ns = round(self.max_mp / 100 * int(s[3].split("/")[0]), 1)
             mp_ew = round(self.max_mp / 100 * int(s[3].split("/")[1]), 1)
+            if not mp_ns % 1:
+                mp_ns = int(mp_ns)
+            if not mp_ew % 1:
+                mp_ew = int(mp_ew)
             s[8] = mp_ns
             s[9] = mp_ew
             statement = f"update protocols set mp_ns={mp_ns}, mp_ew={mp_ew} where number={board} and ns={s[1]}"
@@ -175,6 +184,8 @@ class ResultGetter:
             if adjusted_scores and CONFIG["mp"]["neuberg"]:
                 mp_ew = (self.max_mp - 2 * len(adjusted_scores) - current - (repeats - 1) + 1) \
                         * (len(scores) + len(adjusted_scores)) / len(scores) - 1
+                if not mp_ew % 1:
+                    mp_ew = int(mp_ew)
                 mp_ns = self.max_mp - mp_ew
             else:
                 mp_ns = current + (repeats - 1)
@@ -197,10 +208,10 @@ class ResultGetter:
         Returns list of board numbers with missing results
         """
         cur = self.cursor
-        self.travellers = []
+        self.travellers = [[] for i in range(self.boards)]
         incomplete = []
         first = 100 * self.current_session
-        for board in range(first + 1, first + 100):
+        for board in range(first + 1, first + self.boards + 1):
             # 100 is for multisession apporoach
             cur.execute(f"select * from protocols where number={board}")
             filtered = {}
@@ -223,9 +234,9 @@ class ResultGetter:
             # TODO: change 60/40 to session average
             all_scores = sorted(scores + adjusted_scores, key=lambda x: x[-2])
             if all_scores:
-                self.travellers.append([[s[1] % 100, s[2] % 100, escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]),
+                self.travellers[board - 1] = [[s[1] % 100, s[2] % 100, escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]),
                                          s[7] if s[7] >= 0 and s[7] != 1 else "",
-                                        -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in all_scores])
+                                        -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in all_scores]
         self.conn.commit()
         return list(sorted(list(set(incomplete))))
 
@@ -305,7 +316,7 @@ class ResultGetter:
                 self.totals[i].extend([0, 0])
             # self.names = [[n[0] for n in p] for p in self.names]
 
-    def get_masterpoints(self, played_boards=None, totals=None, names=None, replace=False):
+    def get_masterpoints(self, played_boards=None, totals=None, names=None, replace=False, session=False):
         n = self.pairs
         if not names:
             names = self.names
@@ -326,11 +337,11 @@ class ResultGetter:
             half = self.max_mp / 2 if CONFIG["scoring"] == "MPs" else 0
             for i in range(n):
                 cluster_first = i - cluster_index
-                if cluster_first + 1 > round(0.4 * n) or totals[i][2] < half:
+                if cluster_first + 1 > round(0.4 * n) or (len(totals) > i and len(totals[i]) > 2 and totals[i][2] < half):
                     if not replace:
                         totals[i].append(0)
                     continue
-                cluster_length = len([a for a in totals if a[2] == totals[i][2]])
+                cluster_length = len([a for a in totals if a[2] == totals[i][2]]) or 1
                 cluster_total = sum(mps[j] for j, a in enumerate(totals) if a[2] == totals[i][2])\
                     / cluster_length
                 if i + 1 < len(totals) and totals[i + 1][2] == totals[i][2]:
@@ -341,7 +352,8 @@ class ResultGetter:
                 if cluster_first + cluster_length > round(0.4 * n):
                     rounding_method = ceil
                 else:
-                    rounding_method = round
+                    # round uses bankers rounding e.g. 10.5 = 10
+                    rounding_method = lambda x: Decimal(x).to_integral_value(rounding=ROUND_HALF_UP)
 
                 final_value = rounding_method(cluster_total)
                 if replace and totals[i][-2] < final_value:
@@ -359,21 +371,25 @@ class ResultGetter:
         # The logic will change soon according to Dobrin.
         # Yet classification 4.1 looks like we shouldn't be recalculating it as of 2023.
         # played_boards = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
-        ranks_ru = [p[2] for p in self.names]
+        ranks_ru = [p[2] for p in names]
         team = "team" in CONFIG["scoring"].lower()
         n0 = n * (1 + team)  # number of pairs for team events also
         kp = 0.9 if team else 0.95
         typ = 2 - team
         q1 = list(sorted((0.2 - 0.12 * r if r < 0 else 0.2 / (1.6 ** r) for r in ranks_ru), key=lambda x: -x))
         q2 = [q * kp ** i for i, q in enumerate(q1)]
-        last = 16 if type == 2 else 32
-        kq = sum(q2[:last]) / 2 ** (typ - 1)
-        kq1 = 1 if kq >= 1 else 1 - 0.7 * log10(kq)
-        kqn = 0.6 * (kq + log10(n0) - 1.5) * kq1 if n0 >= 32 else 0.4 * kq * log10(n0) * kq1
-        kd = 2.2 * log10(played_boards) - 2
-        t = n / 8 * max(0.5, 3 + kq - 0.5 * log10(n))
-        r = 1.1 * (100 * kd * kqn) ** (1 / t)
-        mps = [50 * kqn * kd / r ** i for i in range(len(totals))]
+        if q2:
+            last = 16 if typ == 2 else 32
+
+            kq = sum(q2[:last]) / 2 ** (typ - 1)
+            kq1 = 1 if kq >= 1 else 1 - 0.7 * log10(kq)
+            kqn = 0.6 * (kq + log10(n0) - 1.5) * kq1 if n0 >= 32 else 0.4 * kq * log10(n0) * kq1
+            kd = log10(played_boards) - 0.7 if session else 2.2 * log10(played_boards) - 2
+            t = n / 8 * max(0.5, 3 + kq - 0.5 * log10(n))
+            r = 1.1 * (100 * kd * kqn) ** (1 / t)
+            mps = [50 * kqn * kd / r ** i for i in range(len(totals))]
+        else:
+            mps = [0] * len(names)
         try:
             for i, t in enumerate(totals):
                 cluster_length = len([a for a in totals if a[2] == totals[i][2]])
@@ -400,7 +416,7 @@ class ResultGetter:
         string = string.replace("-", minus)
         return string
 
-    def pdf_sessions(self):
+    def html_sessions(self):
         totals = []
         movement = 'Mitchell' if CONFIG.get('is_mitchell') else 'Howell'
 
@@ -424,9 +440,9 @@ class ResultGetter:
                               "tournament_title": CONFIG["tournament_title"], "totals": totals,
                               "sessions": self.current_session + 1, "movement": movement}
         html_string = Template(open("templates/sessions_template.html").read()).render(**self.sessions_dict)
-        return print_to_pdf(html_string, "Sessions.pdf")
+        return html_string
 
-    def pdf_rankings(self):
+    def html_rankings(self):
         totals = []
         first_pair = 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
         movement = 'Mitchell' if CONFIG.get('is_mitchell') else 'Howell'
@@ -441,19 +457,25 @@ class ResultGetter:
             }
             totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
         self.rankings_dict = {"AM": AM, "scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
-                              "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards": self.boards,
+                              "date": date if DEBUG else time.strftime("%Y-%m-%d"), "boards_num": self.boards,
                               "tournament_title": CONFIG["tournament_title"], "totals": totals, "movement": movement}
         html_string = Template(open("templates/rankings_template.html").read()).render(**self.rankings_dict)
-        return print_to_pdf(html_string, "Ranks.pdf")
+        return html_string
 
-    def pdf_travellers(self, boards_only=False):
+    def html_travellers(self, boards_only=False):
         boards = []
         if not boards_only:
             real_pairs = list(sorted(t[0] % 100 for t in self.totals))
             first_pair = real_pairs[0]
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X").replace("Swiss ", "")
-        for board_number in range(1, min(len(self.deals), self.boards) + 1):
-            deal = Deal(no_data=True) if CONFIG.get("no_hands") else self.deals[board_number - 1]
+        # TODO: add barometer
+        number_of_boards = len(self.deals) if 'Swiss' in CONFIG.get('scoring') else self.boards
+        for board_number in range(1, number_of_boards + 1):
+            found_deals = [d for d in self.deals if d.data.get('b', 0) % 100 == board_number]
+            if not found_deals or CONFIG.get('no_hands'):
+                deal = Deal(no_data=True)
+            else:
+                deal = found_deals[0]
             if not boards_only and len(self.travellers) > board_number - 1:
                 res = self.travellers[board_number - 1]
                 if not res:
@@ -472,7 +494,7 @@ class ResultGetter:
             else:
                 repl_dict['denomination'] = repl_dict['denomination'].upper()
             level = deal.data['level']
-            den = deal.data['denomination']
+            den = self._suits(deal.data['denomination'])
             decl = deal.data['declarer']
             result = self._replace(str(deal.data['result']) or '')
             score = deal.data['score']
@@ -490,8 +512,16 @@ class ResultGetter:
                 continue
             boards[-1].tables = []
             for r in res:
+                suspicious_result, suspicious_lead = self.suspicious_result(deal, r)
                 repl_dict = {k: str(v).upper() for k, v in zip(
                     ("ns", "ew", "contract", "declarer", "lead"), r)}
+                if suspicious_lead or suspicious_result:
+                    self.suspicious_result_list.append([board_number, repl_dict["ns"], repl_dict["ew"],
+                                                         repl_dict["contract"], repl_dict["lead"],
+                                                         suspicious_result, suspicious_lead])
+
+                repl_dict["contract_raw"] = deepcopy(repl_dict["contract"])
+                repl_dict["contract"] = self._suits(repl_dict["contract"])
                 repl_dict["nsplus"] = r[5]
                 repl_dict["nsminus"] = r[6]
                 repl_dict["mp_ns"] = round(r[7], 2)
@@ -509,39 +539,39 @@ class ResultGetter:
 
         self.travellers_dict = {"scoring_short": scoring_short, "boards": boards}
         html_string = Template(open("templates/travellers_template.html").read()).render(**self.travellers_dict)
-
-        return print_to_pdf(html_string, "Travellers.pdf")
+        return html_string
 
     @staticmethod
     def _suits(string):
+        string = string.replace("n", "NT")
         old_string = string
         for s in ["spade", "heart", "diamond", "club"]:
-            string = re.sub('([1-7])' + s[0], f'\g<1><img src="https://bridgemoscow.ru/images/{s}.gif"/>', string, flags=re.IGNORECASE)
+            suit_char = '&diams;' if s=='diamond' else f'&{s}s;'
+            string = re.sub('([1-7])' + s[0], f'\g<1><span class="{s}s">{suit_char}</span>', string, flags=re.IGNORECASE)
             if old_string != string:
                 break
-            string = re.sub(s[0]+'([1-9akqjt]0?)', f'<img src="https://bridgemoscow.ru/images/{s}.gif"/>\g<1>', string, flags=re.IGNORECASE)
+            string = re.sub(s[0]+'([1-9akqjt]0?)', f'<span class="{s}s">{suit_char}</span>\g<1>', string, flags=re.IGNORECASE)
             if old_string != string:
                 break
-        else:
-            string = string.replace("n", "NT")
+
         return string
 
     @staticmethod
     def suspicious_result(deal, board_data):
-        if not CONFIG.get("no_hands") and board_data[3].lower() not in ("pass", "not played")\
-                and '/' not in board_data[3]:
-            level = board_data[3][0]
-            denomination = board_data[3][1].lower()
-            declarer = board_data[4].lower()
+        if not CONFIG.get("no_hands") and board_data[2].lower() not in ("pass", "not played")\
+                and '/' not in board_data[2]:
+            level = board_data[2][0]
+            denomination = board_data[2][1].lower()
+            declarer = board_data[3].lower()
             dummy = hands[(hands.index(declarer) + 2) % 4]
-            result = board_data[3].lower()[-2:].lstrip("sdhcnx")
+            result = board_data[2].lower()[-2:].lstrip("sdhcnx")
             tricks = int(level) + 6 if result == "=" else eval(f'{level}{result}') + 6
             par = deal.data[f"{declarer}_par_{denomination}"]
             on_lead = hands[(hands.index(declarer) + 1) % 4]
             not_on_lead = hands[(hands.index(declarer) + 3) % 4]
             hand = itertools.chain(
                 *([f'{s}{c}' for c in deal.data[f'{on_lead}{s}'].replace('10', 't')] for s in SUITS))
-            lead_as_written = board_data[5].lower().replace('10', 't')
+            lead_as_written = board_data[4].lower().replace('10', 't')
             if lead_as_written:
                 lead_suit = lead_as_written[0]
                 on_lead_cards = deal.data[f"{on_lead}{lead_suit}"].lower().replace('10', 't')
@@ -587,7 +617,7 @@ class ResultGetter:
             return False, suspicious_lead
         return False, False
 
-    def pdf_scorecards(self):
+    def html_scorecards(self):
         first_pair = self.current_session * 100 + 1 + (self.pairs % 2 and CONFIG.get('no_first_pair', False))
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X").replace("Swiss ", "")
         boards_per_round_candidates = []
@@ -602,6 +632,7 @@ class ResultGetter:
         movements = cursor.fetchall()
         tables = (self.pairs + 1) // 2
         is_mitchell = CONFIG.get('is_mitchell')
+        is_barometer = CONFIG.get('is_barometer')
         if not self.debug and self.pairs % 2 == 0 and "Swiss" not in CONFIG.get('scoring') and \
                 all(movement[0] != tables or is_mitchell != movement[2] for movement in movements) and tables > 1:
             movement = []
@@ -611,7 +642,7 @@ class ResultGetter:
             movement = ";".join(movement)
             is_mitchell = str(is_mitchell).lower()
             statement = f"""
-            insert into movements ("tables", movement, is_mitchell) values({tables}, '{movement}', {is_mitchell})
+            insert into movements ("tables", movement, is_mitchell, is_barometer) values({tables}, '{movement}', {is_mitchell}, {is_barometer})
 """
             cursor.execute(statement)
             self.conn.commit()
@@ -641,12 +672,17 @@ class ResultGetter:
                     if r * boards_per_round + i + 1 not in played_boards:
                         continue
                     board_data = results[r * boards_per_round + i]
-                    deal = Deal(no_data=True) if CONFIG.get("no_hands") else self.deals[r * boards_per_round + i]
-                    suspicious_result, suspicious_lead = self.suspicious_result(deal, board_data)
+             #       deal = Deal(no_data=True) if CONFIG.get("no_hands") else self.deals[r * boards_per_round + i]
+                    # suspicious_result, suspicious_lead = self.suspicious_result(deal, board_data)
                     if board_data[3] == "NOT PLAYED":
                         opp_names = ""
                     else:
                         opp_names = self.player_names[board_data[-1] - first_pair]
+                    if suspicious := [s for s in self.suspicious_result_list
+                                  if s[0] == board_data[0] and pair_number in s[1:3]]:
+                        suspicious_result, suspicious_lead = suspicious[-2:]
+                    else:
+                        suspicious_result, suspicious_lead = False, False
                     dikt = {"number": board_data[0], "vul": board_data[1],
                             "dir": board_data[2], "contract": self._suits(board_data[3]),
                             "declarer": board_data[4].upper(), "lead": self._suits(board_data[5]),
@@ -654,16 +690,35 @@ class ResultGetter:
                             "percent": round(board_data[8], 2),
                             "mp_per_round": round(mp_for_round, 2),
                             "vp_per_round": round(vp(mp_for_round, boards_per_round), 2) if opp_names else 12,
-                            "opp_names": opp_names, "suspicious_result": "suspicious" * suspicious_result,
-                            "suspicious_lead": "suspicious" * suspicious_lead}
+                            "opp_names": opp_names,
+                            "suspicious_result": "suspicious" * suspicious_result,
+                            "suspicious_lead": "suspicious" * suspicious_lead
+                    }
+
                     self.scorecards_dict["pairs"][-1].imp_total += round(board_data[7], 2)
                     self.scorecards_dict["pairs"][-1].boards.append(Dict2Class(
                        {k: self._replace(v) for k, v in dikt.items()}))
         html_template = Template(open("templates/scorecards_template.html").read()).render(**self.scorecards_dict)
-        try:
-            return print_to_pdf(html_template, "Scorecards.pdf")
-        except:
-            pass
+        return html_template
+
+    def single_html(self):
+        self.html_rankings()
+        self.html_travellers()
+        return Template(open("templates/single_html_template.html").read())\
+            .render(**self.travellers_dict, **self.rankings_dict)
+
+    def suspicious_results_text(self):
+        table = " Board | NS | EW | Contract | Lead "
+
+        for board, ns, ew, contract, lead, is_suspicious_contract, is_suspicious_lead in self.suspicious_result_list:
+            row = f"\n{board: ^7}|{ns: ^4}|{ew: ^4}| {contract: <9}| {lead: ^6}"
+            if is_suspicious_contract:
+                row.replace(contract, f'<ins>{contract}</ins>')
+            if is_suspicious_lead:
+                row.replace(lead, f'<ins>{lead}</ins>')
+            table += row
+        return f"Suspicious results\n<pre>{table}</pre>"
+
 
     def save(self, tourney_exists=False, correction=False):
         conn = Players.connect()
@@ -676,17 +731,21 @@ class ResultGetter:
             cursor.execute(f'select max(tournament_id) from tournaments')
             self.tournament_id = cursor.fetchone()[0] + 1 - int(correction)
         if correction:
+            cursor.execute(f'select "date" from tournaments where tournament_id={self.tournament_id}')
+            original_date = cursor.fetchone()[0]
             cursor.execute(f'delete from tournaments where tournament_id={self.tournament_id}')
             cursor.execute(f'delete from names where tournament_id={self.tournament_id}')
             cursor.execute(f'delete from boards where tournament_id={self.tournament_id}')
             cursor.execute(f'delete from protocols where tournament_id={self.tournament_id}')
             conn.commit()
+        else:
+            original_date = None
 
         num_of_rounds = self.boards // boards_per_round
         if not tourney_exists:
             t_date = date if DEBUG else time.strftime("%Y-%m-%d")
             insert = f"""INSERT INTO tournaments (date, boards, players, max, scoring, tournament_id, title, rounds) VALUES 
-    ('{t_date}', {self.boards}, {self.pairs}, {max_mp}, '{scoring}', {self.tournament_id}, '{title}', {num_of_rounds});"""
+    ('{original_date or t_date}', {self.boards}, {self.pairs}, {max_mp}, '{scoring}', {self.tournament_id}, '{title}', {num_of_rounds});"""
             cursor.execute(insert)
         for pair in self.rankings_dict["totals"]:
             rows = f"({self.tournament_id}, {pair.number}, '{pair.names}', '{self._replace(pair.rank)}', {pair.mp}, {pair.percent}," \
@@ -706,7 +765,7 @@ VALUES {rows};"""
 {", ".join(par_columns)}, minimax_contract, minimax_outcome, minimax_url) VALUES {rows};"""
             cursor.execute(insert)
             for t in b.tables:
-                rows = f"({self.tournament_id}, {b.b}, {t.ns}, {t.ew}, '{self._suits(t.contract)}', '{t.declarer}', " \
+                rows = f"({self.tournament_id}, {b.b}, {t.ns}, {t.ew}, '{t.contract}', '{t.declarer}', " \
                        f"'{self._suits(t.lead)}', {self._replace(t.nsplus or -int(t.nsminus or 0))}, {self._replace(t.mp_ns)}," \
                        f"{self._replace(t.mp_ew)}, '{t.bbo_url}')"
                 insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead,
@@ -714,10 +773,14 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
                 cursor.execute(insert)
         conn.commit()
         conn.close()
+        return self.tournament_id
 
     def boards_only(self):
         self.get_hands()
-        return self.pdf_travellers(boards_only=True)
+        html = self.html_travellers(boards_only=True)
+        if CONFIG.get('output_format', 'pdf') == 'pdf':
+            return print_to_file(html, True, 'Boards')
+        return html
 
     def process(self):
         paths = []
@@ -735,11 +798,18 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
             if not self.debug:
                 raise IncompleteTournamentData('\n'.join(message))
         self.get_standings()
-        paths.append(self.pdf_rankings())
-        if not CONFIG.get("no_hands"):
-            paths.append(self.pdf_travellers())
-        paths.append(self.pdf_scorecards())
-        self._conn = self.conn.close()
+        use_pdf = not self.debug and CONFIG.get('output_format', 'pdf') == 'pdf'
+        if CONFIG.get('single_file'):
+            paths.append(print_to_file(self.single_html(), use_pdf, 'Results'))
+        else:
+            html_rankings = self.html_rankings()
+            paths.append(print_to_file(html_rankings, use_pdf, 'Ranks'))
+            if not CONFIG.get("no_hands"):
+                html_travellers = self.html_travellers()
+                paths.append(print_to_file(html_travellers, use_pdf, 'Travellers'))
+            html_scorecards = self.html_scorecards()
+            paths.append(print_to_file(html_scorecards, use_pdf, 'Scorecards'))
+            self._conn = self.conn.close()
         return paths
 
     def process_multisession(self):
@@ -762,7 +832,7 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
             self.get_hands()
             self.get_standings()
             self.played_boards += max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
-            self.get_masterpoints()
+            self.get_masterpoints(session=True)
             for total in self.totals:
                 try:
                     current_sum = [s for s in self.sessions if s[0][0] == self.names[total[0] % 100 - 1][0]][0]
@@ -782,11 +852,12 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
             self.final_standings.append(new_list)
         self.final_standings.sort(key=lambda x: -x[2])
         self.get_masterpoints(self.played_boards, self.final_standings, replace=True)
-        paths.append(self.pdf_sessions())
-        paths.append(self.pdf_rankings())
+        use_pdf = not self.debug and CONFIG.get('output_format', 'pdf') == 'pdf'
+        paths.append(print_to_file(self.html_sessions(), use_pdf, 'Sessions'))
+        paths.append(print_to_file(self.html_rankings(), use_pdf, 'Ranks'))
         if not CONFIG.get("no_hands"):
-            paths.append(self.pdf_travellers())
-        paths.append(self.pdf_scorecards())
+            paths.append(print_to_file(self.html_travellers(), use_pdf, 'Travellers'))
+        paths.append(print_to_file(self.html_scorecards(), use_pdf, 'Scorecards'))
         self._conn = self.conn.close()
         return paths
 
@@ -815,16 +886,21 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    g = ResultGetter(21, 8, tournament_id=194)
+    g = ResultGetter(21, 8)
     #g = ResultGetter(28, 8)
     g.debug = True
     from config import init_config
     init_config()
-    # CONFIG["scoring"] = "MPs"
+    CONFIG["scoring"] = "MPs"
+    CONFIG["no_hands"] = False
+    CONFIG["output_format"] = 'html'
+
+    print(g.process())
+    print(g.suspicious_results_text())
     # CONFIG["rounds"] = 8
-    CONFIG["tourney_coeff"] = 0.5
-    CONFIG["tournament_title"] = "Микстовый парный чемпионат Армении"
+    # CONFIG["tourney_coeff"] = 0.5
+    # CONFIG["tournament_title"] = "Микстовый парный чемпионат Армении"
     # g.process()
     # g.save(correction=True)
-    g.process_multisession()
-    g.save(correction=False)
+    # g.get_masterpoints(played_boards=24, names=[('', 14, 1.6), ('', 2.5, 2), ('', 10,1.8), ('', 19, -3.25)])
+

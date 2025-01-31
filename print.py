@@ -21,22 +21,29 @@ if not PDFKIT_PRESENT:
             CHROME_PATH = ""
 
 
-def print_to_pdf(arg, pdf_path=None, landscape=False):
-    remove = True
+def print_to_file(arg, pdf, name=None):
     if type(arg) == str and os.path.exists(arg):
         htm_path = arg
-        pdf_path = pdf_path or os.path.abspath(htm_path.replace('_processed.htm', '.pdf'))
         htm_path = os.path.abspath(htm_path)
     elif type(arg) == str:
         with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".htm") as f:
             f.write(arg)
         htm_path = os.path.abspath(f.name)
-        pdf_path = os.path.abspath(pdf_path or (arg.h1.string + ".pdf"))
     elif type(arg) == BeautifulSoup:
         with tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".htm") as f:
             f.write(arg.prettify(encoding='UTF-8'))
         htm_path = os.path.abspath(f.name)
-        pdf_path = os.path.abspath(pdf_path or (arg.h1.string + ".pdf"))
+    if pdf:
+        return print_to_pdf(htm_path, f'{name}.pdf')
+    if name:
+        new_path = os.path.join(os.path.dirname(htm_path), f'{name}.htm')
+        os.rename(htm_path, new_path)
+        return new_path
+    return htm_path
+
+
+def print_to_pdf(htm_path, pdf_path, landscape=False):
+    remove = True
     if PDFKIT_PRESENT:
         with Display():
             pdfkit.from_file(htm_path, pdf_path, options={

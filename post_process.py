@@ -167,4 +167,4 @@ if __name__ == "__main__":
                 #     print(out_string)
                 out.write(out_string)
 
-                print_to_pdf(out_path)
+                print_to_file(out_path)

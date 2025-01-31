@@ -82,6 +82,7 @@ class TourneyDB:
                                         "tables"	{int_type},
                                         "movement"	TEXT,
                                         "is_mitchell"  {int_type if flavor != 'postgres' else 'bool'}  NOT NULL DEFAULT 0,
+                                        "is_barometer"  {int_type if flavor != 'postgres' else 'bool'}  NOT NULL DEFAULT 0,
                                         "initial_board_sets"  TEXT
                                     );"""
         cursor.execute(statement)
@@ -143,10 +144,10 @@ VALUES {rows};"""
             rows = f"('{key}', '{value}')"
             insert = f"INSERT INTO config (key, value) VALUES {rows} ON CONFLICT (key) DO UPDATE set value=excluded.value;"
             cursor.execute(insert)
-        cur2.execute("select tables, movement, is_mitchell, initial_board_sets from movements")
-        for tables, movement, is_mitchell, board_sets in cur2.fetchall():
-            rows = f"({tables}, '{movement}', {is_mitchell}, '{board_sets}')"
-            insert = f"INSERT INTO movements (tables, movement, is_mitchell, initial_board_sets) VALUES {rows};"
+        cur2.execute("select tables, movement, is_mitchell, is_barometer, initial_board_sets from movements")
+        for tables, movement, is_mitchell, is_barometer, board_sets in cur2.fetchall():
+            rows = f"({tables}, '{movement}', {is_mitchell}, {is_barometer}, '{board_sets}')"
+            insert = f"INSERT INTO movements (tables, movement, is_mitchell, is_barometer, initial_board_sets) VALUES {rows};"
             cursor.execute(insert)
         conn.commit()
         conn.close()

@@ -13,15 +13,17 @@ class Movement:
     This doesn't generate movements, only processed ones stored in movements db table.
     Actual movements can be taken from https://tedmuller.us/Bridge/Director/Movements.htm
     """
-    def __init__(self, boards, pairs, session_index=0):
+    def __init__(self, boards, pairs, session_index=0, rounds=0):
         self.pairs = pairs
         self.bye = (1 if CONFIG.get("no_first_pair") else pairs + 1) if pairs % 2 else None
         self.tables = (pairs + 1) // 2
         self.boards = boards
         self.session_index = session_index
         # "3/4" howell
-        self.rounds = CONFIG.get('rounds', boards // (boards // (2 * self.tables - 1) + 1) \
-            if boards % (2 * self.tables - 1) else 2 * self.tables - 1)
+        self.rounds = rounds
+        # TODO: investigate
+        # CONFIG.get('rounds', boards // (boards // (2 * self.tables - 1) + 1) \
+        #     if boards % (2 * self.tables - 1) else 2 * self.tables - 1)
         self.movement, self.initial_board_sets = self.get_movement()
         self._names = {}
 
@@ -34,14 +36,15 @@ class Movement:
         self._names = self.get_names()
         rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
         data = [None] * rounds
-        boards_per_round = self.boards // rounds
+        boards_per_round = self.boards / rounds
         if len(self.initial_board_sets) == self.tables:
             for i, r in enumerate(self.movement):
                 if r[0] == pair or r[1] == pair:
                     table = i % self.tables
                     position = "NS" if r[0] == pair else "EW"
                     first_board = int((r[2] - 1) * boards_per_round + 1)
-                    boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
+                    last_board = round(r[2] * boards_per_round)
+                    boards = f"{first_board}-{last_board}"
                     opps_no = str(r[0] + r[1] - pair)
                     data[(r[2] - self.initial_board_sets[table]) % rounds] = [str(table + 1), position,
                                                                               self.names(opps_no), boards]
@@ -56,7 +59,8 @@ class Movement:
                     if pair in t[0:2]:
                         position = "NS" if t[0] == pair else "EW"
                         first_board = int((t[2] - 1) * boards_per_round + 1)
-                        boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
+                        last_board = round(t[2] * boards_per_round)
+                        boards = f"{first_board}-{last_board}"
                         opps_no = str(t[0] + t[1] - pair)
                         data[i] = [str(j + 1), position, self.names(opps_no), boards]
         return "Round\tTable\tPosition\tOpp\tBoards\n" + '\n'.join('\t'.join([str(i + 1)] + (d or []))
@@ -110,22 +114,41 @@ class Movement:
         conn = TourneyDB.connect()
         cursor = conn.cursor()
         is_mitchell = CONFIG.get("is_mitchell")
-        statement = f"select movement, initial_board_sets from movements where tables={self.tables} " \
-                    f"and is_mitchell={is_mitchell} and  mod(least(" \
-                    f"array_length(string_to_array(movement, ';'), 1), "\
-                    f"array_length(string_to_array(movement, '-'), 1) / tables), {self.rounds})=0"
-        cursor.execute(statement)
-        movement = cursor.fetchone()
+        is_barometer = CONFIG.get("is_barometer", False) or (CONFIG.get("force_barometer", False) and self.pairs < 6)
+        possible_rounds = [self.rounds] if self.rounds else [r for r in range(2, self.boards + 1) if self.boards % r == 0]
+        possible_movements = set()
+        rounds_with_movements = set()
+        for r in possible_rounds:
+            statement = f"select movement, initial_board_sets, rounds from (select movement, initial_board_sets, least(" \
+                        f"array_length(string_to_array(movement, ';'), 1), "\
+                        f"array_length(string_to_array(movement, '-'), 1) / tables) as rounds" \
+                        f" from movements where tables={self.tables} " \
+                        f"and is_mitchell={is_mitchell} and is_barometer={is_barometer}) as results where least(rounds, {self.tables} * 2 - 1) ={r}"
+            cursor.execute(statement)
+            movement = cursor.fetchall()
+            if movement:
+                # https://www.jeff-goldsmith.com/moves/howell3.html double round robin for 3 tables
+                rounds_adjusted = [m[2] for m in movement]
+                rounds_with_movements.update(rounds_adjusted)
+                possible_movements.update(movement)
+                self.rounds = rounds_adjusted[0]
+
         conn.close()
-        if movement:
+        if len(possible_movements) == 1:
+            movement = possible_movements.pop()
             raw_data = [[[int(r.split('-')[0]), int(r.split('-')[1]), round_num + 1] for r in rawnd.split(',')]
                         for round_num, rawnd in enumerate(movement[0].split(';'))]
-            initial_sets = list(map(int, movement[1].split(','))) if movement[1] else list(range(1, self.tables + 1))
+            if is_barometer:
+                initial_sets = list(n // self.rounds + 1 for n in range(1, self.tables + 1))
+            else:
+                initial_sets = list(map(int, movement[1].split(','))) if movement[1] else list(range(1, self.tables + 1))
             # list of [ns, ew, board_set (1...n_rounds)]
             return list(itertools.chain(*raw_data)), initial_sets
-
+        elif not possible_movements:
+            raise MovementError('No suitable movement')
         else:
-            return ""
+            rounds = ",".join(map(str, sorted(rounds_with_movements)))
+            raise MovementError(f'Found multiple movements. Set the number of rounds first: {rounds}')
 
     def get_names(self):
         first = 100 * self.session_index
@@ -206,7 +229,7 @@ class Movement:
                     'ew': p.names if pair_round_data.position == 'EW' else pair_round_data.opps,
                     'boards': pair_round_data.boards}
         html_string = Template(open("templates/movement_template.html").read()).render(**movement_dict)
-        return print_to_pdf(html_string, "Movement.pdf")
+        return print_to_file(html_string, CONFIG.get('output_format', 'pdf') == 'pdf', "Movement")
 
     def table_cards(self):
         rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
@@ -259,14 +282,14 @@ class Movement:
         # TODO: remove
         # movement_dict['tablecards'] = movement_dict['tablecards']
         html_string = Template(open("templates/table_cards.html").read()).render(**movement_dict)
-        return print_to_pdf(html_string, "Table_cards.pdf")
+        return print_to_file(html_string, CONFIG.get('output_format', 'pdf') == 'pdf', "Table_cards")
 
 
 if __name__ == "__main__":
-    CONFIG["is_mitchell"] = False
-    CONFIG["rounds"] = 9
-    _ = '1-5,2-8,3-6,4-7;1-7,2-6,3-8,4-5;1-8,2-5,3-7,4-6;1-6,2-7,3-5,4-8'
-    m = Movement(20, 20)
+    CONFIG["is_barometer"] = True
+    #CONFIG["no_first_pair"] = True
+    m = Movement(21, 4, rounds=6)
+    print(m.move_card(1))
     print(m.move_card(2))
     print(m.pdf())
     # print(m.table_cards())

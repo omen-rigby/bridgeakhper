@@ -4,3 +4,7 @@ class RepeatingCardsException(Exception):
 
 class IncompleteTournamentData(Exception):
     pass
+
+
+class MovementError(Exception):
+    pass

@@ -22,36 +22,8 @@ RUN cd /tmp/unrar && \
    # sed -i 's|LDFLAGS=-pthread|LDFLAGS=-pthread -static|' makefile && \
     make && \
     make install
-
-# install wget
-RUN apt-get -y update
-RUN apt-get -y install wget apt-utils gnupg
-RUN apt-get update && \
-    ## Download wkhtmltopdf
-    curl -L https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.stretch_amd64.deb \
-        -o wkhtmltox_0.12.6-1.stretch_amd64.deb && \
-    ## Install wkhtmltopdf dependency
-    wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.0g-2ubuntu4_amd64.deb && \
-    dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends     \
-        xorg \
-        xvfb \
-        build-essential     \
-        libfontconfig1-dev   \
-        libfreetype6-dev     \
-        libjpeg-dev    \
-        libpng-dev     \
-        libssl-dev     \
-        libx11-dev     \
-        libxext-dev    \
-         libxrender-dev \
-         zlib1g-dev \
-         fontconfig \
-         xfonts-75dpi \
-         xfonts-base
-RUN rm -rf /var/lib/apt/lists/* && \
-    dpkg -i wkhtmltox_0.12.6-1.stretch_amd64.deb && \
-    rm -f wkhtmltox_0.12.6-1.stretch_amd64.deb
+# Install 7zip
+RUN apt-get install -y --no-install-recommends p7zip-full && 7z -h
 
 # Cleanup
 RUN apt-get remove -y g++ make curl && \

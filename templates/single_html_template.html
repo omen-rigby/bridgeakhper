@@ -1,14 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta http-equiv="Content-type" content="Content-type: text/html; charset=utf-8"/>
-    <title>Travellers</title>
-    <style type="Text/css">
+    <meta charset="UTF-8">
+    <title>Results</title>
+</head>
+<style>
 @media print {
     @page { margin: 5mm 0mm 0mm 0mm; }
         @top-left-corner { ... / empty footer / }
 
 }
+* {
+FONT-FAMILY: Arial
+}
+
 H1 {
 FONT-SIZE: 20pt; FONT-FAMILY: Arial; FONT-WEIGHT: bold; COLOR: #000000; TEXT-ALIGN: center
 }
@@ -103,26 +108,59 @@ text-align: center
   background-color: palegreen;
 }
 .spades{
-  color:black;
+  color:black
 }
 .hearts{
-  color:red;
+  color:red
 }
 .diamonds {
-  color:#ff6600;
+  color:#ff6600
 }
 .clubs {
-  color:green;
+  color:green
 }
 </style>
-</head>
 <body>
+<table style="FONT-SIZE: 11pt;">
+  <tbody>
+  <tr bgcolor="#cfcfcf">
+    <th align="center">Rank</th>
+    <th align="center">Pair</th>
+    <th align="left">Names</th>
+    <th align="center">Total</th>
+    {% if scoring == "MPs" %}
+    <th align="center">%Score</th>
+    {% endif %}
+    <th align="center">Master Points</th>
+    {% if AM %}
+    <th align="center">Master Points (RU)</th>
+    {% endif %}
+  </tr>
+  {% for pair in totals %}
+  <tr bgcolor="#efefef">
+    <td align="center">{{pair.rank}}</td>
+    <td align="center">{{pair.number}}</td>
+    <td align="left">{{pair.names}}</td>
+    <td align="center">{{pair.mp}}</td>
+    {% if scoring == "MPs" %}
+    <td align="center">{{pair.percent}}</td>
+    {% endif %}
+    {% if AM %}
+    <td align="center">{{pair.masterpoints}}</td>
+    {% endif %}
+    <td align="center">{{pair.masterpoints_ru}}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<br>
 <table style="page-break-inside: avoid;BORDER-TOP: 0px; BORDER-RIGHT: 0px; WIDTH: 100%; BORDER-BOTTOM: 0px; BORDER-LEFT: 0px; BACKGROUND-COLOR: #ffffff"
        cellpadding="4">
     <tbody>
     {% for board in boards %}
-    {% if board.tables %}
-    <tr style="page-break-inside: avoid;padding-bottom:15px;">
+    {% if (board.ns or board.nh or board.nd or board.nc) and board.tables %}
+    <tr><td colspan="2" align="center"><b>BOARD: {{board.b}}</b></td></tr>
+    <tr style="page-break-inside: avoid;">
         <td valign="top" width="33%" class="brd">
             <table class="grid">
                 <tbody>
@@ -142,7 +180,7 @@ text-align: center
                         <td>&nbsp; </td>
                     </tr>
                     <tr>
-                        <td><span class="spades">&spades;</span>{{board.ws}}<br/>
+                        <td><span class="spades">&spades;{{board.ws}}</span><br/>
                     <span class="hearts">&hearts;</span>{{board.wh}}<br/>
                     <span class="diamonds">&diams;</span>{{board.wd}}<br/>
                     <span class="clubs">&clubs;</span>{{board.wc}}
@@ -151,21 +189,21 @@ text-align: center
                             <table class="number">
                         <tbody><tr>
                             <td>  </td>
-                            <td class="n {{board.ns_vul}} {{board.n_dealer}}" style="font-size:+1">N</td>
+                            <td class="n {{board.ns_vul}} {{board.n_dealer}}"><font size="+1">N</font></td>
                             <td>  </td></tr>
                         <tr>
                            {% if board.b < 10 %}
-                            <td class="w {{board.ew_vul}} {{board.w_dealer}}" style="font-size:+1">W</td>
-                            <td class="digits" style="padding-left: 2px;color:#0000bb;font-size:+1"><b>{{board.b}}</b></td>
-                            <td class="e {{board.ew_vul}} {{board.e_dealer}}" style="font-size:+1">E</td></tr>
+                            <td class="w {{board.ew_vul}} {{board.w_dealer}}"><font size="+1">W</font></td>
+                            <td class="digits" style="padding-left: 2px"><font color="#0000bb" size="+1"><b>{{board.b}}</b></font></td>
+                            <td class="e {{board.ew_vul}} {{board.e_dealer}}"><font size="+1">E</font></td></tr>
                             {% else %}
-                            <td class="w {{board.ew_vul}} {{board.w_dealer}}" style="padding-left: 5px;font-size:+1">W</td>
-                            <td class="digits" style="font-size:+1"><b>{{board.b}}</b></td>
-                            <td class="e {{board.ew_vul}} {{board.e_dealer}}" style="padding-right: 5px;font-size:+1">E</td>
-                        </tr>
+                            <td class="w {{board.ew_vul}} {{board.w_dealer}}" style="padding-left: 5px;"><font size="+1">W</font></td>
+                            <td class="digits"  style="padding-left: -2px"><font color="#0000bb" size="+1"><b>{{board.b}}</b></font></td>
+                            <td class="e {{board.ew_vul}} {{board.e_dealer}}" style="padding-right: 5px;"><font size="+1">E</font></td></tr>
+
                         {% endif %}
                        <tr><td></td>
-                           <td class="s {{board.ns_vul}} {{board.s_dealer}}" style="font-size:+1">S</td><td></td></tr></tbody>
+                           <td class="s {{board.ns_vul}} {{board.s_dealer}}"><font size="+1">S</font></td><td></td></tr></tbody>
                     </table>
                         </td>
                         <td>
@@ -247,9 +285,16 @@ text-align: center
             </div>
         </td>
     </tr>
+    {% else %}
+    {% if scoring_short == "IMP" %}
+        <tr><td colspan="2" align="center"><b>BOARD: {{board.b}} DATUM: {{board.datum}}</b></td></tr>
+    {% else %}
+        <tr><td colspan="2" align="center"><b>BOARD: {{board.b}}</b></td></tr>
+    {% endif %}
+    {% endif %}
     <tr>
         <td valign="top" width="75%" colspan="2">
-            <table style="FONT-SIZE: 10pt; FONT-FAMILY: Arial; FONT-WEIGHT: normal"
+            <table style="FONT-SIZE: 10pt; FONT-FAMILY: Arial; FONT-WEIGHT: normal;padding-bottom:10px;"
                    cellpadding="1" width="100%">
                 <tbody>
                 <tr bgcolor="#cfcfcf">
@@ -259,17 +304,21 @@ text-align: center
                     <th align="center">By</th>
                     <th align="center">Lead</th>
                     <th align="center">NS+</th>
-                    <th align="center">NS-</th>
+                    <th align="center">NS−</th>
                     <th align="center">{{scoring_short}}</th>
                     <th align="center">{{scoring_short}}</th>
-                    <th align="center">NS</th>
-                    <th align="center">EW</th>
+                    <th align="center" width="25%">NS</th>
+                    <th align="center" width="25%">EW</th>
                 </tr>
                 {% for table in board.tables %}
                 <tr bgcolor="#efefef">
                     <td align="center">{{table.ns}}</td>
                     <td align="center">{{table.ew}}</td>
+                    {% if table.bbo_url %}
                     <td align="center"><a target="_blank" href="{{table.bbo_url}}">{{table.contract}}</a></td>
+                    {% else %}
+                    <td align="center">{{table.contract}}</td>
+                    {% endif %}
                     <td align="center">{{table.declarer}}</td>
                     <td align="center">{{table.lead}}</td>
                     <td align="center">{{table.nsplus}}</td>
@@ -284,10 +333,9 @@ text-align: center
             </table>
         </td>
     </tr>
-    {% endif %}
+
     {% endfor %}
     </tbody>
 </table>
-
 </body>
 </html>

@@ -1,12 +1,13 @@
 {
-  "tournament_title": "Клубный турнир - Ереван",
+  "tournament_title": "\u041a\u043b\u0443\u0431\u043d\u044b\u0439 \u0442\u0443\u0440\u043d\u0438\u0440 - \u041d\u043e\u0432\u043e\u043a\u0443\u0437\u043d\u0435\u0446\u043a",
   "directors": [
     "omen_rigby",
     "elizaveta2810"
   ],
   "token": "TOKEN",
   "is_mitchell": false,
-  "full": true,
+  "is_barometer": false,
+  "submit_lead": true,
   "scoring": "MPs",
   "imp": {
     "outliers_percentile": 20,
@@ -17,5 +18,5 @@
   },
   "validate_lead": false,
   "tourney_coeff": 0.25,
-  "city": "\u0415\u0440\u0435\u0432\u0430\u043d"
+  "city": "\u041d\u043e\u0432\u043e\u043a\u0443\u0437\u043d\u0435\u0446\u043a"
 }
