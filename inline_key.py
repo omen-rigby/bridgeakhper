@@ -208,7 +208,7 @@ def inline_key(update: Update, context: CallbackContext):
                                                                       parse_mode=ParseMode.HTML)
 
         elif CARD_RE.match(key):
-            if key and CONFIG.get("submit_lead", True) and CONFIG.get("validate_lead"):
+            if key and not CONFIG.get("no_hands", False) and CONFIG.get("submit_lead", True) and CONFIG.get("validate_lead"):
                 conn = TourneyDB.connect()
                 cursor = conn.cursor()
                 declarer = result_data.text.split(CARET)[0].split('\n')[-2][-1].lower()

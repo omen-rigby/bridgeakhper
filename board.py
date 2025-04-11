@@ -47,6 +47,8 @@ class Board:
             for seat in "nes":
                 for c in self.__getattribute__(f"{seat}{suit}"):
                     cards = cards.replace(c, "")
+                else:
+                    # this fires even if all 13 cards are in one hand
                     self.__setattr__(f"w{suit}", cards)
             cards_in_w += len(cards)
             w.append(SUITS_UNICODE[i] + (cards or "-"))
@@ -166,3 +168,12 @@ ON CONFLICT (number) DO UPDATE
         cursor.execute(statement)
         conn.commit()
         conn.close()
+
+
+if __name__ == '__main__':
+    board = Board(5)
+    board.set_hand("AKQJ1098765\n234\n\n")
+    board.set_hand("\nAKQJ1098765\n234\n")
+    board.set_hand("\n\nAKQJ1098765\n234")
+    board.get_w_hand()
+    print(board.__dict__)

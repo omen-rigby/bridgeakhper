@@ -515,10 +515,13 @@ class ResultGetter:
                 suspicious_result, suspicious_lead = self.suspicious_result(deal, r)
                 repl_dict = {k: str(v).upper() for k, v in zip(
                     ("ns", "ew", "contract", "declarer", "lead"), r)}
+                repl_dict["ns_name"] = self.player_names[r[0] - first_pair]
+                repl_dict["ew_name"] = self.player_names[r[1] - first_pair]
                 if suspicious_lead or suspicious_result:
-                    self.suspicious_result_list.append([board_number, repl_dict["ns"], repl_dict["ew"],
-                                                         repl_dict["contract"], repl_dict["lead"],
-                                                         suspicious_result, suspicious_lead])
+                    self.suspicious_result_list.append([board_number, repl_dict["ns_name"], repl_dict["ew_name"],
+                                                        repl_dict["contract"] + '*' * suspicious_result,
+                                                        repl_dict["lead"] + '*' * suspicious_lead,
+                                                        suspicious_result, suspicious_lead])
 
                 repl_dict["contract_raw"] = deepcopy(repl_dict["contract"])
                 repl_dict["contract"] = self._suits(repl_dict["contract"])
@@ -529,8 +532,6 @@ class ResultGetter:
                 # 2...8 is correct
                 if r[0] not in real_pairs or r[1] not in real_pairs:
                     raise Exception(f"Incorrect result for board #{board_number}:\n{r[0]} vs {r[1]} {r[2]}{r[3]}")
-                repl_dict["ns_name"] = self.player_names[r[0] - first_pair]
-                repl_dict["ew_name"] = self.player_names[r[1] - first_pair]
                 if not CONFIG.get("no_hands"):
                     repl_dict["bbo_url"] = deal.url_with_contract(r[2][0],
                                                                   r[2].split("=")[0].split("+")[0].split("-")[0][1:],

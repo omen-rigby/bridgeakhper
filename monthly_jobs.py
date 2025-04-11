@@ -18,6 +18,8 @@ class MonthlyJobs:
     def update_ranks(context: CallbackContext):
         Players.find_ru_ids()
         synched = Players.synch()
+        global ALL_PLAYERS
+        ALL_PLAYERS = Players.get_players()
         send(BITKIN_ID, f"Updated ranks:\n{synched}" if synched else "Monthly ranks: No ranks updated",
              reply_buttons=[], context=context)
 

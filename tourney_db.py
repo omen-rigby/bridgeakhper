@@ -122,7 +122,7 @@ class TourneyDB:
         cur2.execute("select number, partnership, penalty, rank, rank_ru from names")
         names = cur2.fetchall()
         for d in names:
-            rows = f"({d[0]}, '{d[1]}', {d[2]}, {d[3]}, {d[4]})"
+            rows = f"({d[0]}, '{d[1]}', {d[2] or 0}, {d[3]}, {d[4]})"
             insert = f"""INSERT INTO names (number, partnership, penalty, rank, rank_ru) VALUES {rows};"""
             cursor.execute(insert)
         cur2.execute("select * from boards")

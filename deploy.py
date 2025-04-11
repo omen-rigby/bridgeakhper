@@ -4,16 +4,18 @@ import json
 from copy import deepcopy
 
 APPS = {
-    #"Ереван": "bridgeakhper",
-    #"Воронеж": "bridgeakhper-voronezh",
-    #"Курск": "bridgeakhper-kursk",
-    #"Ижевск": "bridgeakhper-izhevsk",
-  #  "Ессентуки": "bridgeakhper-yessentuki",
-    "Новокузнецк": "bridgeakhper-novokuznetsk",
+    "Ереван": "bridgeakhper",
+    "Воронеж": "bridgeakhper-voronezh",
+    "Курск": "bridgeakhper-kursk",
+    "Ижевск": "bridgeakhper-izhevsk",
+    "Ессентуки": "bridgeakhper-yessentuki",
+    # "Новокузнецк": "bridgeakhper-novokuznetsk",
     "Иркутск": "bridgeakhper-irkutsk",
-    #"Новосибирск": "bridgeakhper-novosibirsk",
+    "Новосибирск": "bridgeakhper-novosibirsk",
     #"at Sea": "bridgeakhper-at-sea",
+    "Астана": "bridgeakhper-astana"
     # "null": "bridgeakhper-mdb-aggregator",
+
 }
 
 config_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")
@@ -34,7 +36,9 @@ with open(config_path) as f:
         new_json["tournament_title"] = f"Клубный турнир - {city}"
         with open(config_path, 'w') as g:
             g.write(json.dumps(new_json, indent=2))
-        cmd = f'flyctl deploy -a {fly_app} --force-machines --local-only'
+        # TODO: --local-only can't find docker
+        # Remote docker may have flaky issue finding ddstable
+        cmd = f'flyctl deploy -a {fly_app} --force-machines'
         if city == "null":
             cmd += " --dockerfile Dockerfile.bws"
         try:

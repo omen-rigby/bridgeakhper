@@ -1,12 +1,13 @@
 import itertools
 import json
 
+from exceptions import MovementError
 from constants import CONFIG
 from tourney_db import TourneyDB
 from jinja2 import Template
 from print import *
 from util import Dict2Class
-
+from decimal import Decimal, ROUND_HALF_UP
 
 class Movement:
     """
@@ -30,78 +31,6 @@ class Movement:
     def __iter__(self):
         return self.movement.__iter__()
 
-    def move_card(self, pair):
-        if not self.initial_board_sets:
-            return
-        self._names = self.get_names()
-        rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
-        data = [None] * rounds
-        boards_per_round = self.boards / rounds
-        if len(self.initial_board_sets) == self.tables:
-            for i, r in enumerate(self.movement):
-                if r[0] == pair or r[1] == pair:
-                    table = i % self.tables
-                    position = "NS" if r[0] == pair else "EW"
-                    first_board = int((r[2] - 1) * boards_per_round + 1)
-                    last_board = round(r[2] * boards_per_round)
-                    boards = f"{first_board}-{last_board}"
-                    opps_no = str(r[0] + r[1] - pair)
-                    data[(r[2] - self.initial_board_sets[table]) % rounds] = [str(table + 1), position,
-                                                                              self.names(opps_no), boards]
-        else:
-            sets = self.initial_board_sets
-            tables_data = []
-            sets_reordered = list(itertools.chain(*[sets[i::self.tables] for i in range(self.tables)]))
-            for i, sett in enumerate(sets_reordered):
-                tables_data.append([m for m in self.movement if m[2] == sett][sets_reordered[:i].count(sett)])
-            for i in range(rounds):
-                for j, t in enumerate(tables_data[i::rounds]):
-                    if pair in t[0:2]:
-                        position = "NS" if t[0] == pair else "EW"
-                        first_board = int((t[2] - 1) * boards_per_round + 1)
-                        last_board = round(t[2] * boards_per_round)
-                        boards = f"{first_board}-{last_board}"
-                        opps_no = str(t[0] + t[1] - pair)
-                        data[i] = [str(j + 1), position, self.names(opps_no), boards]
-        return "Round\tTable\tPosition\tOpp\tBoards\n" + '\n'.join('\t'.join([str(i + 1)] + (d or []))
-                                                                   for i, d in enumerate(data))
-
-    def names(self, number, short=False):
-        if str(number) in self._names.keys():
-            if short:
-                return " & ".join(o[0].strip().split(' ')[-1] for o in self._names[str(number)].split(' & '))
-            return self._names[str(number)]
-        return str(number)
-
-    def table_card(self, table):
-        if not self.initial_board_sets:
-            return
-        self._names = self.get_names()
-        boards_per_round = self.boards // CONFIG.get('rounds', len(self.movement) / self.tables)
-        data = []
-        if len(self.initial_board_sets) == self.tables:
-            for i, m in enumerate(self.movement[table - 1::self.tables]):
-                current_set = m[2]
-                first_board = (current_set - 1) * boards_per_round + 1
-                boards = f"{int(first_board)}-{int(first_board + boards_per_round - 1)}"
-                data.append(list(map(self.names, m[:-1])) + [boards])
-            first_set = self.initial_board_sets[table - 1] - 1
-            data = data[first_set:] + data[:first_set]
-        else:
-            # this is bullshit, but otherwise it's hard to combine move cards & remembering tournaments from input
-            rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
-            sets = self.initial_board_sets
-            tables_data = []
-            sets_reordered = list(itertools.chain(*[sets[i::self.tables] for i in range(self.tables)]))
-            for i, sett in enumerate(sets_reordered):
-                tables_data.append([m for m in self.movement if m[2] == sett][sets_reordered[:i].count(sett)])
-            for t in tables_data[rounds * (table - 1) : rounds * table]:
-                first_board = (t[2] - 1) * boards_per_round + 1
-                boards = f"{int(first_board)}-{int(first_board + boards_per_round - 1)}"
-                data.append(list(map(lambda x: self.names(x), t[:-1])) + [boards])
-        return "Round\tNS\tEW\tBoards\n" + '\n'.join('\t'.join([str(r + 1)] + d) for
-                                                     r, d in enumerate(data))
-
     def get_movement(self):
         """Movement is stored as following:
         movement field:
@@ -114,16 +43,20 @@ class Movement:
         conn = TourneyDB.connect()
         cursor = conn.cursor()
         is_mitchell = CONFIG.get("is_mitchell")
-        is_barometer = CONFIG.get("is_barometer", False) or (CONFIG.get("force_barometer", False) and self.pairs < 6)
+        is_barometer = CONFIG.get("is_barometer", False) or ((CONFIG.get("force_barometer", False) and self.pairs < 6))
         possible_rounds = [self.rounds] if self.rounds else [r for r in range(2, self.boards + 1) if self.boards % r == 0]
+        if self.tables == 2:
+            possible_rounds.append(6)
         possible_movements = set()
         rounds_with_movements = set()
         for r in possible_rounds:
+            maxrounds = self.tables * 2 - 1 if self.tables > 2 else self.tables * 4 - 2
             statement = f"select movement, initial_board_sets, rounds from (select movement, initial_board_sets, least(" \
                         f"array_length(string_to_array(movement, ';'), 1), "\
                         f"array_length(string_to_array(movement, '-'), 1) / tables) as rounds" \
                         f" from movements where tables={self.tables} " \
-                        f"and is_mitchell={is_mitchell} and is_barometer={is_barometer}) as results where least(rounds, {self.tables} * 2 - 1) ={r}"
+                        f"and is_mitchell={is_mitchell} and is_barometer={is_barometer}) as results where "\
+                        f"least(rounds, {maxrounds}) = {r}"
             cursor.execute(statement)
             movement = cursor.fetchall()
             if movement:
@@ -150,6 +83,80 @@ class Movement:
             rounds = ",".join(map(str, sorted(rounds_with_movements)))
             raise MovementError(f'Found multiple movements. Set the number of rounds first: {rounds}')
 
+    def move_card(self, pair):
+        if not self.initial_board_sets:
+            return
+        self._names = self.get_names()
+        rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
+        data = [None] * rounds
+        boards_per_round = self.boards / rounds
+        if len(self.initial_board_sets) == self.tables:
+            for i, r in enumerate(self.movement):
+                if r[0] == pair or r[1] == pair:
+                    table = i % self.tables
+                    position = "NS" if r[0] == pair else "EW"
+                    first_board = Decimal((r[2] - 1) * boards_per_round + 1).to_integral_value(rounding=ROUND_HALF_UP)
+                    last_board = Decimal(r[2] * boards_per_round).to_integral_value(rounding=ROUND_HALF_UP)
+                    boards = f"{first_board}-{last_board}"
+                    opps_no = str(r[0] + r[1] - pair)
+                    data[(r[2] - self.initial_board_sets[table]) % rounds] = [str(table + 1), position,
+                                                                              self.names(opps_no), boards]
+        else:
+            sets = self.initial_board_sets
+            tables_data = []
+            sets_reordered = list(itertools.chain(*[sets[i::self.tables] for i in range(self.tables)]))
+            for i, sett in enumerate(sets_reordered):
+                tables_data.append([m for m in self.movement if m[2] == sett][sets_reordered[:i].count(sett)])
+            for i in range(rounds):
+                for j, t in enumerate(tables_data[i::rounds]):
+                    if pair in t[0:2]:
+                        position = "NS" if t[0] == pair else "EW"
+                        first_board = Decimal((t[2] - 1) * boards_per_round + 1).to_integral_value(rounding=ROUND_HALF_UP)
+                        last_board = Decimal(t[2] * boards_per_round).to_integral_value(rounding=ROUND_HALF_UP)
+                        boards = f"{first_board}-{last_board}"
+                        opps_no = str(t[0] + t[1] - pair)
+                        data[i] = [str(j + 1), position, self.names(opps_no), boards]
+        return "Round\tTable\tPosition\tOpp\tBoards\n" + '\n'.join('\t'.join([str(i + 1)] + (d or []))
+                                                                   for i, d in enumerate(data))
+
+    def names(self, number, short=False):
+        if str(number) in self._names.keys():
+            if short:
+                return " & ".join(o[0].strip().split(' ')[-1] for o in self._names[str(number)].split(' & '))
+            return self._names[str(number)]
+        return str(number)
+
+    def table_card(self, table):
+        if not self.initial_board_sets:
+            return
+        self._names = self.get_names()
+        boards_per_round = self.boards // CONFIG.get('rounds', len(self.movement) / self.tables)
+        data = []
+        if len(self.initial_board_sets) == self.tables:
+            for i, m in enumerate(self.movement[table - 1::self.tables]):
+                current_set = m[2]
+                first_board = Decimal((current_set - 1) * boards_per_round + 1).to_integral_value(rounding=ROUND_HALF_UP)
+                last_board = Decimal(current_set * boards_per_round).to_integral_value(rounding=ROUND_HALF_UP)
+                boards = f"{first_board}-{last_board}"
+                data.append(list(map(self.names, m[:-1])) + [boards])
+            first_set = self.initial_board_sets[table - 1] - 1
+            data = data[first_set:] + data[:first_set]
+        else:
+            # this is bullshit, but otherwise it's hard to combine move cards & remembering tournaments from input
+            rounds = CONFIG.get('rounds', len(self.movement) // self.tables)
+            sets = self.initial_board_sets
+            tables_data = []
+            sets_reordered = list(itertools.chain(*[sets[i::self.tables] for i in range(self.tables)]))
+            for i, sett in enumerate(sets_reordered):
+                tables_data.append([m for m in self.movement if m[2] == sett][sets_reordered[:i].count(sett)])
+            for t in tables_data[rounds * (table - 1) : rounds * table]:
+                first_board = Decimal((t[2] - 1) * boards_per_round + 1).to_integral_value(rounding=ROUND_HALF_UP)
+                last_board = Decimal(t[2] * boards_per_round).to_integral_value(rounding=ROUND_HALF_UP)
+                boards = f"{first_board}-{last_board}"
+                data.append(list(map(lambda x: self.names(x), t[:-1])) + [boards])
+        return "Round\tNS\tEW\tBoards\n" + '\n'.join('\t'.join([str(r + 1)] + d) for
+                                                     r, d in enumerate(data))
+
     def get_names(self):
         first = 100 * self.session_index
         conn = TourneyDB.connect()
@@ -175,7 +182,7 @@ class Movement:
                          'roundcards': [Dict2Class({'number': i + 1, 'tables': [None] * self.tables})
                                    for i in range(rounds)]
                          }
-        boards_per_round = self.boards // rounds
+        boards_per_round = self.boards / rounds
         if len(self.initial_board_sets) == self.tables:
             # assumes that board sets change +1, otherwise whole movement is written in initial_board_sets column
             for i, r in enumerate(self.movement):
@@ -184,8 +191,9 @@ class Movement:
                     table_data = [t for t in movement_dict['tablecards'] if t.number == table + 1][0].rounds
                     pair_data = [p for p in movement_dict['pairs'] if p.number == pair][0].rounds
                     position = "NS" if r[0] == pair else "EW"
-                    first_board = int((r[2] - 1) * boards_per_round + 1)
-                    boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
+                    first_board = Decimal((r[2] - 1) * boards_per_round + 1).to_integral_value(rounding=ROUND_HALF_UP)
+                    last_board = Decimal(r[2] * boards_per_round).to_integral_value(rounding=ROUND_HALF_UP)
+                    boards = f"{first_board}-{last_board}"
                     opps_no = str(r[0] + r[1] - pair)
                     round_index = (r[2] - self.initial_board_sets[table]) % rounds
                     if table_data[round_index] is None:
@@ -213,8 +221,9 @@ class Movement:
                     for pair in t[0:2]:
                         data = [p for p in movement_dict['pairs'] if p.number == pair][0].rounds
                         position = "NS" if t[0] == pair else "EW"
-                        first_board = int((t[2] - 1) * boards_per_round + 1)
-                        boards = f"{first_board}-{int(first_board + boards_per_round - 1)}"
+                        first_board = Decimal((t[2] - 1) * boards_per_round + 1).to_integral_value(rounding=ROUND_HALF_UP)
+                        last_board = Decimal(t[2] * boards_per_round).to_integral_value(rounding=ROUND_HALF_UP)
+                        boards = f"{first_board}-{last_board}"
                         opps_no = str(t[0] + t[1] - pair)
 
                         data[i] = Dict2Class(
@@ -241,7 +250,7 @@ class Movement:
                          'tablecards': [Dict2Class({'number': i, 'instruction_ns': None,
                                                     'instruction_ew': None,
                                                     'rounds': [None] * rounds}) for i in range(1, self.tables + 1)]}
-        boards_per_round = self.boards // rounds
+        boards_per_round = self.boards / rounds
         if len(self.initial_board_sets) == self.tables:
             # assumes that board sets change +1, otherwise whole movement is written in initial_board_sets column
             for i, r in enumerate(self.movement):
@@ -275,8 +284,9 @@ class Movement:
                 rounds = [t for t in movement_dict['tablecards'] if t.number == table_number][0].rounds
                 for round_index, round_data in enumerate(
                         tables_data[self.rounds * (table_number - 1) : self.rounds * table_number]):
-                    first_board = (round_data[2] - 1) * boards_per_round + 1
-                    boards = f"{int(first_board)}-{int(first_board + boards_per_round - 1)}"
+                    first_board = Decimal((round_data[2] - 1) * boards_per_round + 1).to_integral_value(rounding=ROUND_HALF_UP)
+                    last_board = Decimal(round_data[2] * boards_per_round ).to_integral_value(rounding=ROUND_HALF_UP)
+                    boards = f"{first_board}-{last_board}"
                     rounds[round_index] = Dict2Class({'number': round_index + 1, 'ns': round_data[0],
                                                       'ew': round_data[1], 'boards': boards})
         # TODO: remove
@@ -286,9 +296,13 @@ class Movement:
 
 
 if __name__ == "__main__":
-    CONFIG["is_barometer"] = True
+    from config import init_config
+    init_config()
+    CONFIG["force_barometer"] = False
     #CONFIG["no_first_pair"] = True
-    m = Movement(21, 4, rounds=6)
+
+    m = Movement(20, 5)
+    print(m.table_card(1))
     print(m.move_card(1))
     print(m.move_card(2))
     print(m.pdf())

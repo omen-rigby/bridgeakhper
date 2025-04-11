@@ -37,7 +37,7 @@ RUN rm -rf \
 ENV PYTHONUNBUFFERED True
 WORKDIR /app
 COPY *.txt .
-RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
+RUN pip3 install --no-cache-dir --upgrade pip -r requirements.txt
 COPY . ./
 
 CMD ["python3", "tg_input.py"]
