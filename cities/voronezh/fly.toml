@@ -3,8 +3,7 @@
 app = "bridgeakhper-voronezh"
 kill_signal = "SIGINT"
 kill_timeout = 5
-primary_region = "arn"
-processes = []
+primary_region = "ams"
 
 [env]
   PORT = "8080"
@@ -13,11 +12,10 @@ processes = []
   auto_rollback = true
 
 [[services]]
-  http_checks = []
   internal_port = 8080
   processes = ["app"]
   protocol = "tcp"
-  script_checks = []
+
   [services.concurrency]
     hard_limit = 25
     soft_limit = 20

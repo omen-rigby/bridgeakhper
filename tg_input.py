@@ -4,10 +4,9 @@ import pytz
 from inline_key import *
 from command_handlers import CommandHandlers
 from file_handlers import FileHandlers
-from sim_handlers import SimHandlers
 from monthly_jobs import MonthlyJobs
 from match_handlers import MatchHandlers
-
+from error_handler import error_handler
 
 PORT = int(os.environ.get('PORT', 8080))
 if 'BOT_TOKEN' in os.environ:
@@ -22,15 +21,19 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 if __name__ == '__main__':
     updater = Updater(token=TOKEN)
-    # RU masterpoints
-    if CONFIG["city"]:
+    # One city is enough for Russia
+    if CONFIG.get('city') == "Пермь":
         updater.job_queue.run_monthly(MonthlyJobs.update_ranks, day=2, when=datetime.time(hour=18, minute=24,
                                                                                           tzinfo=pytz.UTC),
                                       job_kwargs={'misfire_grace_time': None})  # ensures job is run whenever it can be
+    if AM:
+        # RU masterpoints
+        updater.job_queue.run_monthly(MonthlyJobs.update_ranks, day=2, when=datetime.time(hour=18, minute=24,
+                                                                                          tzinfo=pytz.UTC),
+                                      job_kwargs={'misfire_grace_time': None})
         updater.job_queue.run_daily(MonthlyJobs.masterpoints_report, time=datetime.time(hour=18, minute=24,
                                                                                     tzinfo=pytz.UTC),
                                     job_kwargs={'misfire_grace_time': None})
-    if AM:
         # AM masterpoints
         updater.job_queue.run_daily(MonthlyJobs.update_ratings_am, time=datetime.time(hour=0, minute=0,
                                                                                       tzinfo=pytz.UTC),
@@ -41,6 +44,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('help', CommandHandlers.help_command))
     updater.dispatcher.add_handler(CommandHandler('manual', CommandHandlers.manual))
     updater.dispatcher.add_handler(CommandHandler('session', CommandHandlers.start_session))
+    updater.dispatcher.add_handler(CommandHandler('clear', CommandHandlers.clear_all))
     updater.dispatcher.add_handler(CommandHandler('multisession', CommandHandlers.start_multi_session))
     updater.dispatcher.add_handler(CommandHandler('switchsession', CommandHandlers.switch_session))
     updater.dispatcher.add_handler(CommandHandler('endmultisession', CommandHandlers.end_multi_session))
@@ -53,7 +57,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('tablecard', CommandHandlers.table_card))
     updater.dispatcher.add_handler(CommandHandler('tdlist', CommandHandlers.td_list))
     updater.dispatcher.add_handler(CommandHandler('loaddb', CommandHandlers.load_db))
-    updater.dispatcher.add_handler(CommandHandler('rmboard', CommandHandlers.remove_board))
+    updater.dispatcher.add_handler(CommandHandler('rmhands', CommandHandlers.remove_board))
+    updater.dispatcher.add_handler(CommandHandler('rmpair', CommandHandlers.remove_pair))
     updater.dispatcher.add_handler(CommandHandler('title', CommandHandlers.title))
     updater.dispatcher.add_handler(CommandHandler('tourneycoeff', CommandHandlers.tourney_coeff))
     updater.dispatcher.add_handler(CommandHandler('custommovement', CommandHandlers.custom_movement))
@@ -72,7 +77,8 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('config_update', CommandHandlers.config_update))
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Clear"), CommandHandlers.clear_db))
-    updater.dispatcher.add_handler(MessageHandler(Filters.text("Reuse"), CommandHandlers.init))
+    updater.dispatcher.add_handler(MessageHandler(Filters.text("Reuse names"), CommandHandlers.reuse_names))
+    updater.dispatcher.add_handler(MessageHandler(Filters.text("Reuse$"), CommandHandlers.init))
 
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^-?\d+$"), CommandHandlers.number))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("OK"), CommandHandlers.ok))
@@ -105,16 +111,14 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('rar'), FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('7z'), FileHandlers.upload_boards))
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('pbn'), FileHandlers.upload_boards))
-    updater.dispatcher.add_handler(CommandHandler('excel', CommandHandlers.excel))
-    # Integrator for synch
-    updater.dispatcher.add_handler(CommandHandler('sputnik', SimHandlers.sputnik))
-    updater.dispatcher.add_handler(CommandHandler('um', SimHandlers.um))
-    updater.dispatcher.add_handler(CommandHandler('simstart', SimHandlers.start_sim_tourney))
-    updater.dispatcher.add_handler(CommandHandler('venuelist', SimHandlers.list_venues))
-    updater.dispatcher.add_handler(CommandHandler('aggregate', SimHandlers.aggregate))
+    # Debug
     updater.dispatcher.add_handler(MessageHandler(Filters.document.file_extension('db'), FileHandlers.load_db))
+    # Excel
+    updater.dispatcher.add_handler(CommandHandler('excel', CommandHandlers.excel))
     # Should go last
     updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), CommandHandlers.freeform))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex(".*"), CommandHandlers.freeform))
+    updater.dispatcher.add_error_handler(error_handler)
 
     if 'BOT_TOKEN' in os.environ:
         updater.start_webhook(listen="0.0.0.0",
@@ -124,5 +128,5 @@ if __name__ == '__main__':
                               )
     else:
         updater.start_polling()
-
+    # Jobs won't run unless this is fired
     updater.idle()

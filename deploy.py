@@ -9,13 +9,19 @@ APPS = {
     "Курск": "bridgeakhper-kursk",
     "Ижевск": "bridgeakhper-izhevsk",
     "Ессентуки": "bridgeakhper-yessentuki",
-    # "Новокузнецк": "bridgeakhper-novokuznetsk",
+    "Новокузнецк": "bridgeakhper-novokuznetsk",
     "Иркутск": "bridgeakhper-irkutsk",
     "Новосибирск": "bridgeakhper-novosibirsk",
-    #"at Sea": "bridgeakhper-at-sea",
-    "Астана": "bridgeakhper-astana"
-    # "null": "bridgeakhper-mdb-aggregator",
+    "Астана": "bridgeakhper-astana",
+    "Пермь": "bridgeakhper-perm",
+    "Ростов-на-Дону": "bridgeakhper-rostov",
+    "Омск": "bridgeakhper-omsk",
+    "Бережной": "whist-and-bridge",
 
+}
+QUARANTINED_APPS = {
+    "at Sea": "bridgeakhper-at-sea",
+    "null": "bridgeakhper-mdb-aggregator",
 }
 
 config_path = os.path.abspath(__file__).replace(os.path.basename(__file__), "config.json")

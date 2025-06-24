@@ -3,6 +3,8 @@ import urllib.parse as up
 import sqlite3
 import os
 from constants import db_path
+from players import Players
+
 up.uses_netloc.append("postgres")
 
 
@@ -67,7 +69,9 @@ class TourneyDB:
                                         "partnership"	TEXT,
                                         "penalty"   {float_type} DEFAULT 0,
                                         "rank"  {float_type},
-                                        "rank_ru"  {float_type}
+                                        "rank_ru"  {float_type},
+                                        "id_ru1" {int_type} DEFAULT 0,
+                                        "id_ru2" {int_type} DEFAULT 0
                                     );"""
         cursor.execute(statement)
 
@@ -101,10 +105,10 @@ class TourneyDB:
         conn.close()
 
     @staticmethod
-    def clear_tables():
+    def clear_tables(tables=('names', 'protocols', 'boards')):
         conn = TourneyDB.connect()
         cursor = conn.cursor()
-        for table in ('names', 'protocols', 'boards'):
+        for table in tables:
             cursor.execute(f"delete from {table}")
         conn.commit()
         conn.close()
@@ -117,13 +121,20 @@ class TourneyDB:
         conn = TourneyDB.connect(local=dump_path)
         cursor = conn.cursor()
         TourneyDB._create_tables(conn)
+        all_players = Players.get_players('full_name,id_ru')
         conn2 = TourneyDB.connect()
         cur2 = conn2.cursor()
         cur2.execute("select number, partnership, penalty, rank, rank_ru from names")
         names = cur2.fetchall()
         for d in names:
-            rows = f"({d[0]}, '{d[1]}', {d[2] or 0}, {d[3]}, {d[4]})"
-            insert = f"""INSERT INTO names (number, partnership, penalty, rank, rank_ru) VALUES {rows};"""
+            pair_names = d[1].split(' & ')
+            ids = [0] * len(pair_names)
+            for p in all_players:
+                if p[0] in pair_names:
+                    index = pair_names.index(p[0])
+                    ids[index] = p[1]
+            rows = f"({d[0]}, '{d[1]}', {d[2] or 0}, {d[3]}, {d[4]},{ids[0]}, {ids[1]})"
+            insert = f"""INSERT INTO names (number, partnership, penalty, rank, rank_ru, id_ru1, id_ru2) VALUES {rows};"""
             cursor.execute(insert)
         cur2.execute("select * from boards")
         boards = cur2.fetchall()
@@ -163,7 +174,7 @@ VALUES {rows};"""
         cur2.execute("select number, partnership, penalty, rank, rank_ru from names")
         names = cur2.fetchall()
         for d in names:
-            rows = f"({d[0]}, '{d[1]}', {d[2]}, {d[3]}, {d[4]})"
+            rows = f"({d[0]}, '{d[1]}', {d[2] or 0}, {d[3]}, {d[4]})"
             insert = f"""INSERT INTO names (number, partnership, penalty, rank, rank_ru) VALUES {rows};"""
             cursor.execute(insert)
         cur2.execute("select * from boards")
@@ -186,6 +197,6 @@ VALUES {rows};"""
 
 if __name__ == "__main__":
     pass
-    # TourneyDB.create_tables('postgres')
+#    TourneyDB.create_tables('postgres')
 
 

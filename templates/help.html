@@ -1,0 +1,66 @@
+General commands:
+{% if is_director %}
+/session: starts new session, will ask for db cleanup
+{% else %}
+/session: shows session info{% endif %}
+/board: starts deal entry flow
+/names: starts names entry flow
+/tablecard: prints movement card for specified table
+/movecard: prints personal movement
+/movecards: generates PDF with all movement data
+/players: prints list of participants of current tournament with numbers
+/viewboard: prints all hands and results for a played board
+
+TD only commands:
+General
+/missing: shows session info
+/end: gets tourney results, sends you raw db file & resulting htms
+/clear: Removes all names, boards, and results
+/rmhands: removes all hands for the specified board, results stay still
+/rmpair: remove selected pair and move other pairs accordingly
+/boards: gets boards without results as htm
+/restart: when submitting hands, reset all hands and starts again from N
+/penalty: penalizes a player by a certain number of (I)MPs
+/excel: converts results to human-readable .xlsx format
+/manual: link to manual for TDs
+/title: customizes tourney title
+/result: starts board result entry flow
+/togglehands: turns on/off saving the played hands
+{% if swiss %}
+Swiss tournament
+/startround: starts round (swiss movement)
+/endround: prints result for current round (swiss)
+/correctswiss: corrects results for this or previous round (swiss)
+/restartswiss: starts 'italian' round (swiss movement)
+{% endif %}
+Movement
+/custommovement: turns off movement
+/howell: turns off mitchell movements
+/mitchell: turns on mitchell movements
+/barometer: toggles barometer movement
+
+Players
+/addplayer: adds a new player to players DB
+/updateplayer: updates existing player record in players DB
+/removeplayer: removes player from club
+/playerslist: prints list of all players associated with the club
+{% if AM %}/tourneycoeff: updates tournament coefficient
+/store: saves tourney results to yerevanbridge site db
+/correct: resaves last tourney results to yerevanbridge site db
+
+Matches
+/addmatch: submit match results
+/teamB: change team for submit math results flow
+/matchscore: submit match result in IMPs{% endif %}
+
+Multi-session tournaments
+/multisession: starts a tournament with 2+ sessions
+/switchsession: used to correct previous sessions of a multi-session tourney
+/endmultisession: return to single session mode
+
+Other
+/config: lists current global parameters
+/config_update: updates global parameter
+/tdlist: prints all TDs for the session
+/addtd: adds director to current tourney. To add a permanent TD, edit config (see above)
+{% if AM %}/monthlyreport: generates table with monthly MPs for RU players{% endif %}

@@ -1,13 +1,14 @@
 from tourney_db import TourneyDB
 from constants import *
 from copy import deepcopy
-from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
+try:
+    from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
+except ImportError:
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from exceptions import *
 
 
 class Board:
-    _initial_layout = []
-
     def __init__(self, number=0):
         self.number = number
         self.n = self.w = self.s = self.e = ""
@@ -35,7 +36,7 @@ class Board:
     def set_hand(self, cards):
         seat = self.current_hand
         self.__setattr__(seat.lower(), cards)
-        cards = self.remove_suits(cards.lower()).replace("\n", " ").replace("10", "t").split(" ")
+        cards = self.remove_suits(cards.lower()).replace(' ', '').replace("\n", " ").replace("10", "t").split(" ")
         for suit, holding in zip("shdc", cards):
             self.__setattr__(seat.lower() + suit, holding.replace("-", ""))
 
@@ -56,33 +57,36 @@ class Board:
             raise Exception(f"Wrong number of hands in W hand: {w}")
         return " ".join(w).upper()
 
-    @property
-    def initial_layout(self):
-        if not self._initial_layout:
-            for i, s in enumerate(SUITS_UNICODE):
-                self._initial_layout.append([InlineKeyboardButton(text, callback_data="shdc"[i] + text)
-                            for text in [SUITS_UNICODE[i]] + CARDS_WITH_DIGIT_TEN])
-        return self._initial_layout
 
-    def get_remaining_cards(self, lead=False):
-        cards = deepcopy(self.initial_layout)
+    def get_remaining_cards(self, suit=SUITS_UNICODE[0]):
+        if suit in SUITS:
+            index = SUITS.index(suit)
+            suit_string = suit
+            suit = SUITS_UNICODE[index]
+        else:
+            index = SUITS_UNICODE.index(suit)
+            suit_string = SUITS[index]
+        cards = [
+                [InlineKeyboardButton(suit+text, callback_data=SUITS[index] + text) for text in CARDS_WITH_DIGIT_TEN],
+                [InlineKeyboardButton(s, callback_data=s) for s in SUITS_UNICODE]
+            ]
         for seat in "ne":
-            if seat == self.current_hand or lead:
+            if seat == self.current_hand:
                 break
-            for i, suit in enumerate("shdc"):
-                try:
-                    holding = self.__getattribute__(f"{seat}{suit}").upper().replace("T", "10")
-                except AttributeError:
-                    holding = ""
-                for card in CARDS_WITH_DIGIT_TEN:
-                    if card in holding:
-                        cards[i].pop([c.text for c in cards[i]].index(card))
+            try:
+                holding = self.__getattribute__(f"{seat}{suit_string}").upper().replace("T", "10")
+            except AttributeError:
+                holding = ""
+            for card in CARDS_WITH_DIGIT_TEN:
+                if card in holding:
+                    cards[0].pop([c.text[1:] for c in cards[0]].index(card))
         rows = []
         for suit_cards in cards:
             if len(suit_cards) < 8:
                 rows.append(suit_cards)
             else:
-                half = (len(suit_cards) + 1) // 2
+                # 6/7 or 6/6 etc., otherwise 10 is not shown properly
+                half = (len(suit_cards) + 1) // 2 - (len(suit_cards) == 13)
                 rows.extend([suit_cards[:half], suit_cards[half:]])
         return InlineKeyboardMarkup(rows)
 

@@ -1,7 +1,7 @@
 import pytz
 from command_handlers import *
 
-RANK_EDGE_VALUES = {0: 0, 100: 0.7, 300: 2.5, 150: '2.5*', 300: '4*', 600: 4, 1000: 6, 2000: 10, 3000: 14}
+# RANK_EDGE_VALUES = {0: 0, 100: 0.7, 300: 2.5, 150: '2.5*', 300: '4*', 600: 4, 1000: 6, 2000: 10, 3000: 14}
 FAST_RANK_EDGE_VALUES = {40: 0.7, 100: 1.5, 150: 2.5, 300: 4}
 
 
@@ -24,29 +24,37 @@ class MonthlyJobs:
              reply_buttons=[], context=context)
 
     @staticmethod
-    def update_ratings_am(context: CallbackContext):
+    def update_ratings_am(context: CallbackContext=None):
         if not AM:
             return
         conn = Players.connect()
         cursor = conn.cursor()
         cursor.execute('select TRIM(full_name), rating, last_year, rank, is_rank_temporary, is_rank_reduced from players')
-        players = list(map(list, cursor.fetchall()))
+        players = cursor.fetchall()
         cursor.execute("""select partnership, masterpoints from names left join tournaments 
                           on names.tournament_id = tournaments.tournament_id
-                          where "date" = current_date - INTEGER '1' and masterpoints > 0""")
+                          where "date" = current_date - 1 and masterpoints > 0""")
         recent_tournaments = cursor.fetchall()
+        dict_update = {}
         for (pair, masterpoints) in recent_tournaments:
             for player in pair.split(' & '):
-                try:
-                    player_record = [p for p in players if p[0].strip() == player.strip()][0]
-                except IndexError:
+                if player in dict_update:
+                    dict_update[player] += masterpoints
+                else:
+                    dict_update[player] = masterpoints
+        for player, masterpoints_to_add in dict_update.items():
+            try:
+                player_record = [p for p in players if p[0].strip() == player.strip()][0]
+            except IndexError:
+                if context:
                     context.bot.send_message(BITKIN_ID, f"No player found in DB for {player}")
-                    continue
-                player_record[1] += masterpoints
-                player_record[2] += masterpoints
-                cursor.execute(
-f"update players set rating={player_record[1]}, last_year={player_record[2]} where TRIM(full_name)='{player}'")
-
+                continue
+            rating = player_record[1] + masterpoints_to_add
+            year = player_record[2] + masterpoints_to_add
+            cursor.execute(f"update players set rating={rating}, last_year={year} where TRIM(full_name)='{player}'")
+            if context:
+                context.bot.send_message(BITKIN_ID, f"{player} total {player_record[1]} + {masterpoints_to_add}, "
+                                                f"year {player_record[2]} + {masterpoints_to_add}")
         # Update ranks
         # TODO: implement
         # for player in players:
@@ -63,6 +71,5 @@ f"update players set rating={player_record[1]}, last_year={player_record[2]} whe
         conn.close()
 
 
-
 if __name__ == "__main__":
-    print(Players.synch())
+    print(MonthlyJobs.update_ratings_am())

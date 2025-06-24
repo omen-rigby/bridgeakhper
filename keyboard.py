@@ -1,12 +1,17 @@
 from tourney_db import TourneyDB
 from copy import deepcopy
-from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
+try:
+    from telegram.inline.inlinekeyboardmarkup import InlineKeyboardMarkup, InlineKeyboardButton
+except ImportError:
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from constants import *
 from util import is_director
 from itertools import chain
 
 NAVIGATION_KEYBOARD = [InlineKeyboardButton("back",  callback_data="bm:back"),
-                       InlineKeyboardButton("restart",  callback_data="bm:restart")]
+                       # TODO: should we keep it?
+                       #InlineKeyboardButton("restart",  callback_data="bm:restart")
+                       ]
 CONTRACTS_KEYBOARD = [[InlineKeyboardButton(text=str(i), callback_data=f"bm:{i}") for i in range(1, 8)],
     [InlineKeyboardButton(s, callback_data=f"bm:{s}") for s in list(reversed(SUITS_UNICODE)) + ["NT"]],
     [InlineKeyboardButton(text=x, callback_data=f"bm:{x}") for x in ["x", "xx", "pass"]],
@@ -53,6 +58,19 @@ def lead_keyboard(update):
     return InlineKeyboardMarkup(rows)
 
 
+def get_valid_pairs(context):
+    pairs = list(range(1, context.bot_data["maxpair"] + 1))
+    if context.bot_data["maxpair"] % 2:
+        pairs.append(context.bot_data["maxpair"] + 1)
+        if movement := context.bot_data.get('movement'):
+            pairs.remove(movement.bye)
+        elif CONFIG.get('no_first_pair'):
+            pairs.remove(1)
+        else:
+            pairs.pop()
+    return pairs
+
+
 def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False):
     pairs = context.bot_data["maxpair"]
     movement = context.bot_data.get('movement') if use_movement else ''
@@ -66,8 +84,7 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
     cursor.execute(f"Select ns,ew from protocols where number={board + first}")
     denied = list(set(chain(*[c for c in cursor.fetchall()])))
     conn.close()
-    first_pair = first + 1 + (pairs % 2 and CONFIG.get('no_first_pair', False))
-    allowed = [b % 100 for b in range(first_pair, pairs + first_pair) if b not in denied and b != int(exclude) + first]
+    allowed = [b for b in get_valid_pairs(context)  if b + first not in denied and b != int(exclude) + first]
     rows = []
     if movement:
         allowed_tuples = [f"{ew if reverted else ns} vs {ns if reverted else ew}"
@@ -96,9 +113,9 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
     return InlineKeyboardMarkup(rows)
 
 
-def results_keyboard(context):
-    result = context.user_data["result"]
-    level = int(result.text.split("Contract: ")[1][0])
+def results_keyboard(update):
+    text = update.callback_query.message.text
+    level = int(text.split("Contract: ")[1][0])
 
     rows = [[InlineKeyboardButton(text="=", callback_data=f"bm:=")] +
             [InlineKeyboardButton(text=f"+{i}", callback_data=f"bm:+{i}") for i in range(1, 8 - level)],

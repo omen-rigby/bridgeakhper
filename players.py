@@ -5,7 +5,7 @@ import re
 import time
 import requests
 from util import levenshtein
-from constants import PLAYERS_DB, CONFIG, AM
+from constants import PLAYERS_DB, CONFIG, AM, RANKS_AM, RANKS_RU
 from lxml import etree
 
 up.uses_netloc.append("postgres")
@@ -75,6 +75,14 @@ class Players:
 
     @staticmethod
     def add_new_player(first, last, gender, rank, rank_ru):
+        if rank is not None:
+            rank = float(rank)
+            if rank not in RANKS_AM:
+                return f'Player not added. Invalid rank {rank}, allowed ranks are {",".join(str(r) for r in RANKS_AM)}'
+        if rank_ru is not None:
+            rank_ru = float(rank_ru)
+            if rank_ru not in RANKS_RU:
+                return f'Player not added. Invalid rank {rank_ru}, allowed ranks are {",".join(str(r) for r in RANKS_RU)}'
         gender = "M" if gender.lower() in ("м", "муж", "m", "male") else "F"
         conn = Players.connect()
         cursor = conn.cursor()
@@ -255,7 +263,8 @@ class Players:
     def synch_city(city):
         res = requests.get(RU_DB)
         players = etree.fromstring(res.content)
-        city_players = [p for p in players.findall(f'.//player') if p.find('.city').text.split(',')[-1].strip() == city]
+        city_players = [p for p in players.findall(f'.//player')
+                        if p.find('.city').text.split(',')[-1].strip().lower() == city.lower()]
         conn = Players.connect()
         cursor = conn.cursor()
         for c in city_players:
@@ -326,4 +335,5 @@ ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 if __name__ == "__main__":
     # print(Players.find_ru_ids())
     # Players.synch_city("Воронеж")
-    Players.synch_city("Астана")
+    # Players.synch_city("Ростов-на-Дону")
+    Players.synch()

@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for bridgeakhper-irkutsk on 2025-01-30T21:24:32+02:00
+# fly.toml app configuration file generated for bridgeakhper-omsk on 2025-04-19T08:25:21+03:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'bridgeakhper-irkutsk'
+app = 'bridgeakhper-omsk'
 primary_region = 'ams'
 kill_signal = 'SIGINT'
 kill_timeout = '5s'
@@ -12,18 +12,10 @@ kill_timeout = '5s'
   auto_rollback = true
 
 [build]
-  dockerfile = '../../Dockerfile'
+  dockerfile = ',,/../Dockerfile'
 
 [env]
   PORT = '8080'
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
 
 [[services]]
   protocol = 'tcp'

@@ -1,4 +1,3 @@
-import jaydebeapi
 from difflib import ndiff
 try:
     from constants import *
@@ -10,15 +9,6 @@ DIRPATH = os.path.dirname(os.path.abspath(__file__))
 UCANACCESS_JARS = [f'{DIRPATH}/access_driver/{path}' for path in
                    ['ucanaccess-5.0.1.jar', 'lib/commons-lang3-3.8.1.jar', 'lib/commons-logging-1.2.jar',
                     'lib/hsqldb-2.5.0.jar', 'lib/jackcess-3.0.1.jar']]
-
-
-def connect_mdb(mdb_path):
-    return jaydebeapi.connect(
-        "net.ucanaccess.jdbc.UcanaccessDriver",
-        f"jdbc:ucanaccess://{mdb_path};newDatabaseVersion=V2010",
-        ["", ""],
-        ":".join(UCANACCESS_JARS)
-    )
 
 
 class Dict2Class(object):
