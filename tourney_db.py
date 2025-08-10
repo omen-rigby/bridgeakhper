@@ -58,7 +58,9 @@ class TourneyDB:
                                         "result"  TEXT,
                                         "score"	{int_type},
                                         "mp_ns" {float_type},
-                                        "mp_ew" {float_type}
+                                        "mp_ew" {float_type},
+                                        "round_number" {int_type},
+                                        "table_number" {int_type}
                                     );"""
         cursor.execute(statement)
         if flavor == 'postgres':
@@ -114,7 +116,7 @@ class TourneyDB:
         conn.close()
 
     @staticmethod
-    def dump(name=None):
+    def dump(name=None, movement=None):
         dump_path = f'{name or "boards"}.db'
         if os.path.exists(dump_path):
             os.remove(dump_path)
@@ -146,9 +148,12 @@ VALUES {rows};"""
         cur2.execute("select number, ns, ew, contract, declarer, lead, result, score from protocols")
         boards = cur2.fetchall()
         for d in boards:
-            rows = f"({d[0]}, {d[1]}, {d[2]}, '{d[3]}', '{d[4]}', '{d[5]}', '{d[6]}', {d[7]})"
+            # TODO: Add data from movement
+            round_n = table_n = 0
+            rows = f"({d[0]}, {d[1]}, {d[2]}, '{d[3]}', '{d[4]}', '{d[5]}', '{d[6]}', {d[7]}, {round_n or 0}, {table_n or 0})"
 
-            insert = f"INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score) VALUES {rows};"
+            insert = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score, 
+            round_number, table_number) VALUES {rows};"""
             cursor.execute(insert)
         cur2.execute("select key, value from config")
         for key, value in cur2.fetchall():
@@ -196,7 +201,15 @@ VALUES {rows};"""
 
 
 if __name__ == "__main__":
-    pass
+    from constants import CONFIG
+    from players import ALL_PLAYERS
+    conn = TourneyDB.connect()
+    cur = conn.cursor()
+    CONFIG["tourney_coeff"] = 1
+    cur.execute("select number, partnership from names where number < 100 order by number desc")
+    for (n, names) in cur.fetchall():
+        print(names)
+        print(Players.lookup(names, ALL_PLAYERS))
 #    TourneyDB.create_tables('postgres')
 
 
