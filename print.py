@@ -3,7 +3,7 @@ import tempfile
 from bs4 import BeautifulSoup
 
 
-def print_to_file(arg, pdf, name=None):
+def print_to_file(arg, name=None):
     if type(arg) == str and os.path.exists(arg):
         htm_path = arg
         htm_path = os.path.abspath(htm_path)

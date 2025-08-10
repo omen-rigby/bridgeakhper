@@ -30,7 +30,7 @@ class Deal:
                     self.data[h] += s + raw_hands[4 * i + j + 1]
             self.data["b"] = raw_hands[0]
             self.data["d"] = "wnes"[raw_hands[0] % 4]
-            self.data["v"] = VULNERABILITY[raw_hands[0] % 16]
+            self.data["v"] = VULNERABILITY[raw_hands[0] % 100 % 16]
             self.url = bbo_url_template.format(n=self.data["n"], s=self.data["s"], e=self.data["e"], w=self.data["w"],
                                                v=self.data["v"], d=self.data["d"], b=self.data["b"])
         elif no_data:

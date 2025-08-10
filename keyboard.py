@@ -74,7 +74,7 @@ def get_valid_pairs(context):
 def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False):
     pairs = context.bot_data["maxpair"]
     movement = context.bot_data.get('movement') if use_movement else ''
-    board = context.user_data["board"].number
+    board = context.user_data["board"].number % 100
     n_rounds = CONFIG.get('rounds', max(m[2] for m in movement) if movement else pairs - 1 + (pairs % 2))
     boards_per_round = int(context.bot_data["maxboard"]) // n_rounds or 2
     board_set = (int(board) - 1) // boards_per_round + 1
@@ -82,9 +82,9 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
     cursor = conn.cursor()
     first = 100 * current_session(context)
     cursor.execute(f"Select ns,ew from protocols where number={board + first}")
-    denied = list(set(chain(*[c for c in cursor.fetchall()])))
+    denied = list(set(chain(*cursor.fetchall())))
     conn.close()
-    allowed = [b for b in get_valid_pairs(context)  if b + first not in denied and b != int(exclude) + first]
+    allowed = [b for b in get_valid_pairs(context) if b + first not in denied and b != int(exclude)]
     rows = []
     if movement:
         allowed_tuples = [f"{ew if reverted else ns} vs {ns if reverted else ew}"
@@ -96,9 +96,9 @@ def pairs_keyboard(update, context, exclude=0, use_movement=True, reverted=False
             rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}")
                          for p in allowed_tuples[len(allowed_tuples) // 3 * 3:]])
 
-        if not is_director(update):
-            rows.append(NAVIGATION_KEYBOARD)
-            return InlineKeyboardMarkup(rows)
+        # if not is_director(update):
+        #     rows.append(NAVIGATION_KEYBOARD)
+        #     return InlineKeyboardMarkup(rows)
     else:
         for i in range(len(allowed) // 7):
             rows.append([InlineKeyboardButton(text=str(p), callback_data=f"bm:{p}") for p in allowed[7 * i:7 + 7 * i]])

@@ -19,14 +19,14 @@ class ResultGetter:
     _conn = None
     _deals = None
 
-    def __init__(self, boards, pairs, tournament_id=None, movement=None):
+    def __init__(self, boards, pairs, tournament_id=None, movement=None, session_index=0):
         self.debug = False
+        self.session_index = session_index
         self.boards = boards
+        self.modulo = 32
         self.pairs = pairs
         self.tournament_id = tournament_id
         self.movement = movement
-        self.bye = self.movement.bye if self.movement else (1 if CONFIG.get('no_first_pair') else self.pairs + 1)
-        self.pair_numbers = [n for n in range(1, ((self.pairs + 1) // 2) * 2 + 1) if n != self.bye]
         self.travellers = []
         self.totals = []
         self.personals = []
@@ -37,6 +37,9 @@ class ResultGetter:
         self.current_session = 0
         self._session_count = 0
         self.hands = []
+        self._bye = None
+        self._boards_per_round = 0
+        self._first_board = 0
 
     @property
     def conn(self):
@@ -47,6 +50,64 @@ class ResultGetter:
     @property
     def cursor(self):
         return self.conn.cursor()
+
+    @property
+    def bye(self):
+        if self.movement:
+            return self.movement.bye
+        if self._bye is None:
+            cursor = self.cursor
+            cursor.execute("select ns,ew from protocols")
+            pairs_with_results = set(itertools.chain(*cursor.fetchall()))
+            if pairs_with_results:
+                candidates = set(range(1, ((self.pairs + 1) // 2) * 2 + 1)).difference(pairs_with_results)
+            else:
+                cursor.execute("select number, partnership from names")
+                pairs_with_names = set(itertools.chain(*cursor.fetchall()))
+                candidates = set(range(1, ((self.pairs + 1) // 2) * 2 + 1)).difference(pairs_with_names)
+            if candidates:
+                self._bye = candidates.pop()
+            else:
+                self._bye = 0
+        return self._bye
+        # (1 if CONFIG.get('no_first_pair') else self.pairs + 1)
+
+    @property
+    def first_board(self):
+        if not self._first_board:
+            cursor = self.cursor
+            first = 100 * self.current_session
+            cursor.execute(f'''select distinct number from boards where {first} < number and number < {first + 100} order by number''')
+            numbers = cursor.fetchall()
+            numbers = [n[0] % 100 for n in numbers]
+            if len(numbers) > self.modulo:
+                self._first_board = 1
+            else:
+                candidate = [n for n in numbers if n-1 not in numbers]
+                if len(candidate) == 1:
+                    self._first_board = 1
+                else:
+                    candidate = candidate[-1]
+                    reordered = [n + self.modulo * (n < candidate) for n in numbers]
+                    reordered.sort()
+                    if reordered == list(range(candidate, candidate + len(numbers))):
+                        self._first_board = candidate
+                    else:
+                        self._first_board = 1
+        return self._first_board
+
+    @property
+    def board_numbers(self):
+        """This is what players see on the boards"""
+        if 'Swiss' in CONFIG.get('scoring'):
+            return list(range(1, len(self.deals) + 1))
+        if not self.modulo or self.first_board == 1:
+            return list(range(1, self.boards + 1))
+        return [c % self.modulo + 1 for c in range(self.first_board - 1, self.first_board + self.boards - 1)]
+
+    @property
+    def pair_numbers(self):
+        return [n for n in range(1, ((self.pairs + 1) // 2) * 2 + 1) if n != self.bye]
 
     @property
     def max_mp(self):
@@ -69,10 +130,22 @@ class ResultGetter:
     def session_count(self):
         if not self._session_count:
             cur = self.cursor
-            cur.execute("select max(number) from names")
+            cur.execute("select session_index from session")
             raw = cur.fetchone()
-            self._session_count = (raw[0] if raw else 1) // 100 + 1
+            self._session_count = (raw[0] if raw else 0) + 1
         return self._session_count
+
+    @property
+    def boards_per_round(self):
+        if not self.personals:
+            raise Exception("Can't determine boards_per_round before results are in")
+        if not self._boards_per_round:
+            boards_per_round_candidates = []
+            for res in self.personals:
+                opps = [r[-1] for r in res]
+                boards_per_round_candidates.extend(sum(1 for _ in group) for _, group in itertools.groupby(opps))
+            self._boards_per_round = max(set(boards_per_round_candidates), key=boards_per_round_candidates.count)
+        return self._boards_per_round
 
     def get_names(self):
         """Returns pair numbers with missing names"""
@@ -86,7 +159,7 @@ class ResultGetter:
             missing = []
         elif len(raw) != self.pairs:
             existing_pairs = [r[-1] for r in raw]
-            missing = [i for i in self.pair_numbers if i not in existing_pairs]
+            missing = [i for i in self.pair_numbers if i + first not in existing_pairs]
         else:
             missing = []
         self._conn = self.conn.close()
@@ -101,13 +174,13 @@ class ResultGetter:
         first = self.current_session * 100
         cur.execute(f"select distinct * from boards where {first} < number and number < {first + 100} order by number")
         # board #0 can be erroneously submitted
-        self.hands = [h for h in cur.fetchall() if h[0]]
+        self.hands = [h for h in cur.fetchall() if h[0] % 100]
         if "Swiss" in CONFIG["scoring"]:
             return []
-        if len(self.hands) == self.boards:
-            return []
+        #if len(self.hands) == self.boards:
+        #    return []
         existing_boards = [h[0] % 100 for h in self.hands]
-        return [i for i in range(1, 1 + self.boards) if i not in existing_boards]
+        return [i for i in self.board_numbers if i not in existing_boards]
 
     def set_scores_ximp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
@@ -168,8 +241,12 @@ class ResultGetter:
 
     def set_scores_mp(self, board, scores, adjusted_scores):
         for s in adjusted_scores:
-            mp_ns = round(self.max_mp / 100 * int(s[3].split("/")[0]), 1)
-            mp_ew = round(self.max_mp / 100 * int(s[3].split("/")[1]), 1)
+            try:
+                mp_ns = round(self.max_mp / 100 * int(s[3].split("/")[0]), 1)
+                mp_ew = round(self.max_mp / 100 * int(s[3].split("/")[1]), 1)
+            except ValueError:
+                # Add from db directly
+                continue
             if not mp_ns % 1:
                 mp_ns = int(mp_ns)
             if not mp_ew % 1:
@@ -214,17 +291,17 @@ class ResultGetter:
         self.travellers = [[] for i in range(self.boards)]
         incomplete = []
         first = 100 * self.current_session
-        for board in range(first + 1, first + self.boards + 1):
-            # 100 is for multisession apporoach
-            cur.execute(f"select * from protocols where number={board}")
-            filtered = {}
-            for protocol in cur.fetchall():
-                unique_id = protocol[1] * (self.pairs + 1) + protocol[2]
-                filtered[f"{unique_id}"] = protocol
-            if len(filtered) != self.pairs // 2 and 'Swiss' not in CONFIG['scoring'] and board <= first + self.boards:
+        total_protocols = 0
+        cur.execute(f"select * from protocols where number>{first} and number < {first + 100}")
+        all_results = cur.fetchall()
+        for board_index, board in enumerate(self.board_numbers):
+            board = first + board
+            board_results = [r for r in all_results if r[0] == board]
+            total_protocols += len(board_results)
+            if len(board_results) != self.pairs // 2 and 'Swiss' not in CONFIG['scoring'] and board <= first + self.boards:
                 # TODO: add proper logging
                 incomplete.append(board)
-            sorted_results = [list(f) for f in filtered.values()]
+            sorted_results = [list(f) for f in board_results]
             adjusted_scores = [s for s in sorted_results if s[7] == 1]
             scores = [s for s in sorted_results if s[7] != 1]
             scoring_method = {
@@ -235,15 +312,21 @@ class ResultGetter:
             }[CONFIG["scoring"]]
             scores = scoring_method(board, scores, adjusted_scores)
             # TODO: change 60/40 to session average
-            all_scores = sorted(scores + adjusted_scores, key=lambda x: x[-2])
+            all_scores = sorted(scores + adjusted_scores, key=lambda x: x[8])
+            malformed_scores = [s for s in all_scores if len(s) < 8]
+            assert not malformed_scores
             if all_scores:
-                self.travellers[board - 1] = [[s[1] % 100, s[2] % 100, escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]),
-                                         s[7] if s[7] >= 0 and s[7] != 1 else "",
-                                        -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in all_scores]
+                self.travellers[board_index] = [
+                    [s[1] % 100, s[2] % 100, escape_suits(s[3] + s[6]), s[4], escape_suits(s[5]),
+                     s[7] if s[7] >= 0 and s[7] != 1 else "",
+                     -s[7] if s[7] <= 0 else "", round(s[8], 2), round(s[9], 2)] for s in all_scores
+                ]
         self.conn.commit()
-        return list(sorted(list(set(incomplete))))
+        if CONFIG.get('rounds') and total_protocols < CONFIG.get('rounds') * (self.pairs // 2) * self._boards_per_round:
+            return list(sorted(list(set(incomplete))))
+        return []
 
-    def get_standings(self):
+    def get_standings(self, played_boards=None):
         max_mp = self.pairs - 2 - self.pairs % 2
         cur = self.cursor
         first = 100 * self.current_session
@@ -252,9 +335,8 @@ class ResultGetter:
         for pair_index, pair in enumerate(self.pair_numbers):
             pair = first + pair
             # records are duplicated sometimes
-            history = [r for r in all_protocols if (r[1] - pair) % self.pairs == 0 or (r[2] - pair) % self.pairs == 0]
+            history = [r for r in all_protocols if r[1] == pair or r[2] == pair]
             # modulo operations handle 2...n+1 enumeration for odd number of players
-            real_number = 0
             results = []
             if CONFIG['scoring'] == "Swiss IMPs":
                 boards_per_round = self.boards // CONFIG.get('rounds')
@@ -267,30 +349,21 @@ class ResultGetter:
                             # Round is played
                             results.append(12)
                         continue
-                    if round_boards[0][1] % 100 == pair:
-                        real_number = round_boards[0][1]
-                    elif round_boards[0][2] % 100 == pair:
-                        real_number = round_boards[0][2]
                     round_imps = sum(b[-2 + ((pair - b[2]) % self.pairs == 0)] for b in round_boards)
                     results.append(vp(round_imps, boards_per_round))
             else:
                 for record in history:
-                    if not real_number:
-                        if record[1] % 100 == pair % 100:
-                            real_number = record[1]
-                        elif record[2] % 100 == pair % 100:
-                            real_number = record[2]
                     results.append(record[-2] if pair % 100 == record[1] % 100 else record[-1])
             cur.execute(f"select penalty from names where number={pair}")
             penalty = cur.fetchone()
             self.penalties[pair] = penalty[0] or 0 if penalty else 0
             result_in_mp = sum(r or 0 for r in results) - self.penalties[pair]
             mp_per_board = result_in_mp/(len(results) or 1)
-            self.totals.append([real_number or pair, result_in_mp, mp_per_board])
+            self.totals.append([pair, result_in_mp, mp_per_board])
 
             vul = {'-': "-", "n": "NS", "e": "EW", "b": "ALL"}
             self.personals.append([])
-            for i in range(1, self.boards + 1):
+            for i in self.board_numbers:
                 try:
                     board = [b for b in history if b[0] % 100 == i][0]
                 except IndexError:
@@ -301,19 +374,37 @@ class ResultGetter:
                                                0, 0, 0])
                     continue
 
-                if pair % self.pairs == board[1] % self.pairs:
+                if pair % 100 == board[1] % 100:
                     position = "NS"
-                elif pair % self.pairs == board[2] % self.pairs:
+                elif pair % 100 == board[2] % 100:
                     position = "EW"
+                else:
+                    continue
                 self.personals[-1].append([board[0] % 100, vul[VULNERABILITY[board[0] % 100 % 16]], position,
                                           escape_suits(board[3] + board[6]), board[4], escape_suits(board[5]),
                                           board[7] * (-1) ** (pair != board[1] and board[7] != 1),
                                           board[8 + (pair != board[1])],
                                           round(board[8 + (pair != board[1])] * 100 / (max_mp or 1), 2),
                                           board[1 + (pair == board[1])]])
+
+        if CONFIG["scoring"] == "IMPs" and  CONFIG['imp'].get('avg_vs_bye') and len(set(played_boards)) > 1:
+            if not played_boards:
+                played_boards = [len([b for b in p if b[3] != "NOT PLAYED"]) for p in self.personals]
+            max_boards = max(played_boards)
+            for boards, total, personal in zip(played_boards, self.totals, self.personals):
+                played_with_bye = max_boards - boards
+                if played_with_bye:
+                    fixed_total = total[1] * max_boards/boards
+                    counter = played_with_bye
+                    for board in personal:
+                        if board[3] == "NOT PLAYED" and counter:
+                            counter -= 1
+                            board[-3] = (fixed_total - total[1]) / played_with_bye
+                    total[1] = fixed_total
+            # Need adjustment
         self.totals.sort(key=lambda x: -x[2])
         try:
-            self.get_masterpoints()
+            self.get_masterpoints(played_boards=played_boards)
         except Exception:
             for i in range(self.pairs):
                 self.totals[i].extend([0, 0])
@@ -336,12 +427,17 @@ class ResultGetter:
             for i in range(2, n):
                 mps.append(b0 / (1 + i/(n - i)) ** (i - 1))
             mps.append(0)
+            reached_zero = False
             cluster_index = 0
             half = self.max_mp / 2 if CONFIG["scoring"] == "MPs" else 0
             for i in range(n):
+                if reached_zero:
+                    totals[i].append(0)
+                    continue
                 cluster_first = i - cluster_index
                 if cluster_first + 1 > round(0.4 * n) or (len(totals) > i and len(totals[i]) > 2 and totals[i][2] < half):
                     if not replace:
+                        reached_zero = True
                         totals[i].append(0)
                     continue
                 cluster_length = len([a for a in totals if a[2] == totals[i][2]]) or 1
@@ -359,6 +455,8 @@ class ResultGetter:
                     rounding_method = lambda x: Decimal(x).to_integral_value(rounding=ROUND_HALF_UP)
 
                 final_value = rounding_method(cluster_total)
+                if final_value == 0:
+                    reached_zero = True
                 if replace and totals[i][-2] < final_value:
                     totals[i][-2] = final_value
                 else:
@@ -381,7 +479,7 @@ class ResultGetter:
         typ = 2 - team
         q1 = list(sorted((0.2 - 0.12 * r if r < 0 else 0.2 / (1.6 ** r) for r in ranks_ru), key=lambda x: -x))
         q2 = [q * kp ** i for i, q in enumerate(q1)]
-        if q2:
+        if q2 and played_boards > 0:
             last = 16 if typ == 2 else 32
 
             kq = sum(q2[:last]) / 2 ** (typ - 1)
@@ -435,7 +533,8 @@ class ResultGetter:
                 # TODO: use percent for MPs and IMPs for IMPs
                 "sessions":  [round(s[1], 2) for s in sessions],  # (i)mps only
                 "masterpoints": rank[3] or "",
-                "masterpoints_ru": rank[4] or ""
+                "masterpoints_ru": rank[4] or "",
+                "penalties": self.penalties.get(sessions[-1][0] % 100, '')
             }
             totals.append(Dict2Class({k: v if type(v) == list else self._replace(v) for k, v in repl_dict.items()}))
         self.sessions_dict = {"AM": AM, "scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
@@ -451,11 +550,12 @@ class ResultGetter:
         for i, rank in enumerate(self.totals):
             cluster = [j for j, r in enumerate(self.totals) if abs(r[2] - rank[2]) < 0.0001]
             repl_dict = {
-                "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0],
+                "rank": i + 1 if len(cluster) == 1 else f"{cluster[0] + 1}-{cluster[-1] + 1}", "number": rank[0] % 100,
                 "names": self.player_names[self.pair_numbers.index(rank[0] % 100)], "mp": round(rank[1], 2),
                 "percent": round(100 * rank[2]/(self.max_mp or 1), 2),
                 "masterpoints": rank[3] or "",
-                "masterpoints_ru": rank[4] or ""
+                "masterpoints_ru": rank[4] or "",
+                "penalties": self.penalties.get(rank[0], '')
             }
             totals.append(Dict2Class({k: self._replace(v) for k, v in repl_dict.items()}))
         self.rankings_dict = {"AM": AM, "scoring": CONFIG['scoring'], "max": self.max_mp, "tables": self.pairs // 2,
@@ -468,15 +568,14 @@ class ResultGetter:
         boards = []
         scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X").replace("Swiss ", "")
         # TODO: add barometer
-        number_of_boards = len(self.deals) if 'Swiss' in CONFIG.get('scoring') else self.boards
-        for board_number in range(1, number_of_boards + 1):
+        for board_index, board_number in enumerate(self.board_numbers):
             found_deals = [d for d in self.deals if d.data.get('b', 0) % 100 == board_number]
             if not found_deals or CONFIG.get('no_hands'):
                 deal = Deal(no_data=True)
             else:
                 deal = found_deals[0]
             if not boards_only and len(self.travellers) > board_number - 1:
-                res = self.travellers[board_number - 1]
+                res = self.travellers[board_index]
                 if not res:
                     continue
             # Dealer and vul improvements
@@ -617,15 +716,7 @@ class ResultGetter:
             return False, suspicious_lead
         return False, False
 
-    def html_scorecards(self):
-        scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X").replace("Swiss ", "")
-        boards_per_round_candidates = []
-        played_boards = set()
-        for res in self.personals:
-            opps = [r[-1] for r in res]
-            boards_per_round_candidates.extend(sum(1 for _ in group) for _, group in itertools.groupby(opps))
-            played_boards.update(b[0] for b in res if b[3] != "NOT PLAYED")
-        boards_per_round = max(set(boards_per_round_candidates), key=boards_per_round_candidates.count)
+    def save_movement(self):
         cursor = self.cursor
         cursor.execute("select tables, movement, is_mitchell from movements")
         movements = cursor.fetchall()
@@ -635,36 +726,43 @@ class ResultGetter:
         if not self.debug and self.pairs % 2 == 0 and "Swiss" not in CONFIG.get('scoring') and \
                 all(movement[0] != tables or is_mitchell != movement[2] for movement in movements) and tables > 1:
             movement = []
-            for b in range(1, self.boards + 1, boards_per_round):
-                board_results = self.travellers[b - 1]
-                movement.append(",".join(f"{r[0]}-{r[1]}" for r in board_results))
+            for t in self.travellers:
+                candidate = ",".join(f"{r[0]}-{r[1]}" for r in t)
+                if not movement or movement[-1] != candidate:
+                    movement.append(candidate)
             movement = ";".join(movement)
             is_mitchell = str(is_mitchell).lower()
-            statement = f"""
-            insert into movements ("tables", movement, is_mitchell, is_barometer) values({tables}, '{movement}', {is_mitchell}, {is_barometer})
-"""
+            statement = f"""insert into movements ("tables", movement, is_mitchell, is_barometer) 
+            values({tables}, '{movement}', {is_mitchell}, {is_barometer}) """
             cursor.execute(statement)
             self.conn.commit()
+
+    def html_scorecards(self):
+        scoring_short = CONFIG["scoring"].rstrip("s").replace("Cross-", "X").replace("Swiss ", "")
+        # TODO: group by rounds on the fly
+        boards_per_round = self.boards_per_round
         num_of_rounds = self.boards // boards_per_round
         totals = self.totals
         self.scorecards_dict = {
             "scoring_short": scoring_short, "colspan": 9 + (CONFIG["scoring"] in ("MPs", "Swiss IMPs")),
             "boards_per_round": boards_per_round, "pairs": [], "scoring": CONFIG["scoring"]
         }
-        max_mp = self.max_mp * len([p for p in self.personals[0] if p[3] != "NOT PLAYED"])
-        real_pairs = sorted(t[0] for t in self.totals)
-        for pair_index, pair_number in enumerate(real_pairs):
-            results = self.personals[self.pair_numbers.index(pair_number)]
-            pair_rank = [t for t in totals if t[0] == pair_number][0]
+
+        for pair_index, pair_number in enumerate(self.pair_numbers):
+
+            results = self.personals[pair_index]
+            max_mp = self.max_mp * len([p for p in results if p[3] != "NOT PLAYED"])
+            pair_rank = [t for t in totals if t[0] % 100 == pair_number][0]
             self.scorecards_dict["pairs"].append(
-                Dict2Class({"name": self._replace(self.player_names[self.pair_numbers.index(pair_number)]),
+                Dict2Class({"name": self._replace(self.player_names[pair_index]),
                             "number": pair_number % 100,
                             "mp_total": round(pair_rank[1], 2), "max_mp": max_mp,
                             "imp_total": 0,  # only used for swiss, regular IMPs are stored as mp_total
                             "percent_total": round(100 * pair_rank[1] / (max_mp or 1), 2),
-                            "penalties": self.penalties[pair_number],
+                            "penalties": self.penalties.get(pair_number, ""),
                             "rank": totals.index(pair_rank) + 1, "boards": []
                             }))
+            played_boards = set(itertools.chain(*[[b[0] for b in res if b[3] != "NOT PLAYED"] for res in self.personals]))
             for r in range(num_of_rounds):
                 mp_for_round = sum(results[r * boards_per_round + b][7] for b in range(boards_per_round))
                 for i in range(boards_per_round):
@@ -674,7 +772,7 @@ class ResultGetter:
                     if board_data[3] == "NOT PLAYED":
                         opp_names = ""
                     else:
-                        opp_names = self.player_names[self.pair_numbers.index(board_data[-1])]
+                        opp_names = self.player_names[self.pair_numbers.index(board_data[-1] % 100)]
                     if suspicious := [s for s in self.suspicious_result_list
                                   if s[0] == board_data[0] and opp_names in s[1:3]]:
                         suspicious_result, suspicious_lead = suspicious[0][-2:]
@@ -716,14 +814,13 @@ class ResultGetter:
             table += row
         return f"Suspicious results\n<pre>{table}</pre>"
 
-
     def save(self, tourney_exists=False, correction=False):
         conn = Players.connect()
         cursor = conn.cursor()
         title = self.rankings_dict['tournament_title']
         scoring = self.rankings_dict['scoring']
         max_mp = self.scorecards_dict["pairs"][0].max_mp
-        boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
+        boards_per_round = self.boards_per_round
         if not self.tournament_id:
             cursor.execute(f'select max(tournament_id) from tournaments')
             self.tournament_id = cursor.fetchone()[0] + 1 - int(correction)
@@ -756,7 +853,7 @@ VALUES {rows};"""
         for b in self.travellers_dict["boards"]:
             hand_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in hands_columns) + "'"
             par_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in par_columns) + "'"
-            rows = f"({self.tournament_id}, {b.b}, {hand_values}, {par_values}, '{self._suits(b.minimax_contract)}', " \
+            rows = f"({self.tournament_id}, {b.b + 100 * self.session_index}, {hand_values}, {par_values}, '{self._suits(b.minimax_contract)}', " \
                    f"'{self._replace(b.minimax_outcome)}', '{b.minimax_url}')"
             insert = f"""INSERT INTO boards (tournament_id, number, {", ".join(hands_columns)},
 {", ".join(par_columns)}, minimax_contract, minimax_outcome, minimax_url) VALUES {rows};"""
@@ -772,11 +869,52 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
         conn.close()
         return self.tournament_id
 
+    def save_session(self, session_index: int):
+        """Saves one sesison of multi-session tournament"""
+        self.current_session = session_index
+        conn = Players.connect()
+        cursor = conn.cursor()
+        title = CONFIG['title']
+        scoring = CONFIG['scoring']
+        max_mp = self.boards * self.max_mp
+        boards_per_round = [p[-1] for p in self.personals[0]].count(self.personals[0][0][-1])
+        if not self.tournament_id:
+            cursor.execute(f'select max(tournament_id) from tournaments')
+            self.tournament_id = cursor.fetchone()[0] + 1
+
+        num_of_rounds = self.boards // boards_per_round
+        incr = g.current_session * 100
+        if self.current_session == 0:
+            t_date = date if DEBUG else time.strftime("%Y-%m-%d")
+            insert = f"""INSERT INTO tournaments (date, boards, players, max, scoring, tournament_id, title, rounds) VALUES 
+            ('{t_date}', {self.boards}, {self.pairs}, {max_mp}, '{scoring}', {self.tournament_id}, '{title}', {num_of_rounds});"""
+            cursor.execute(insert)
+        hands_columns = ["".join(p) for p in itertools.product(hands, SUITS)]
+        par_columns = ["_par_".join(p) for p in itertools.product(hands, reversed(DENOMINATIONS))]
+        for b in self.travellers_dict["boards"]:
+            hand_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in hands_columns) + "'"
+            par_values = "'" + "', '".join(str(b.__getattribute__(h)) for h in par_columns) + "'"
+            rows = f"({self.tournament_id}, {b.b + incr}, {hand_values}, {par_values}, '{self._suits(b.minimax_contract)}', " \
+                   f"'{self._replace(b.minimax_outcome)}', '{b.minimax_url}')"
+            insert = f"""INSERT INTO boards (tournament_id, number, {", ".join(hands_columns)},
+        {", ".join(par_columns)}, minimax_contract, minimax_outcome, minimax_url) VALUES {rows};"""
+            cursor.execute(insert)
+            for t in b.tables:
+                rows = f"({self.tournament_id}, {b.b + 100}, {t.ns}, {t.ew}, '{t.contract}', '{t.declarer}', " \
+                       f"'{self._suits(t.lead)}', {self._replace(t.nsplus or -int(t.nsminus or 0))}, {self._replace(t.mp_ns)}," \
+                       f"{self._replace(t.mp_ew)}, '{t.bbo_url}')"
+                insert = f"""INSERT INTO protocols (tournament_id, number, ns, ew, contract, declarer, lead,
+        score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
+                cursor.execute(insert)
+        conn.commit()
+        conn.close()
+        return self.tournament_id
+
     def boards_only(self):
         self.get_hands()
         html = self.html_travellers(boards_only=True)
         if CONFIG.get('output_format', 'pdf') == 'pdf':
-            return print_to_file(html, True, 'Boards')
+            return print_to_file(html, 'Boards')
         return html
 
     def process(self):
@@ -795,19 +933,57 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
             if not self.debug:
                 raise IncompleteTournamentData('\n'.join(message))
         self.get_standings()
-        use_pdf = not self.debug and CONFIG.get('output_format', 'pdf') == 'pdf'
         if CONFIG.get('single_file'):
-            paths.append(print_to_file(self.single_html(), use_pdf, 'Results'))
+            paths.append(print_to_file(self.single_html(), 'Results'))
         else:
             html_rankings = self.html_rankings()
-            paths.append(print_to_file(html_rankings, use_pdf, 'Ranks'))
+            paths.append(print_to_file(html_rankings, 'Ranks'))
             if not CONFIG.get("no_hands"):
                 html_travellers = self.html_travellers()
-                paths.append(print_to_file(html_travellers, use_pdf, 'Travellers'))
+                paths.append(print_to_file(html_travellers, 'Travellers'))
             html_scorecards = self.html_scorecards()
-            paths.append(print_to_file(html_scorecards, use_pdf, 'Scorecards'))
+            paths.append(print_to_file(html_scorecards, 'Scorecards'))
             self._conn = self.conn.close()
         return paths
+
+    def process_ranks(self) -> int:
+        """
+        Simulated tournaments that has only results
+        """
+        missing_names = self.get_names()
+        if missing_names:
+            message = []
+            if missing_names:
+                message.append('Missing names for pairs {}'.format(', '.join(map(str, missing_names))))
+            if not self.debug:
+                raise IncompleteTournamentData('\n'.join(message))
+        boards = self.boards
+        if self.pairs % 2:
+            boards = self.boards // self.pairs * (self.pairs - 1)
+        self.get_standings(played_boards=boards)
+        self.totals.sort(key=lambda x: -x[2])
+        self.html_rankings()
+        conn = Players.connect()
+        cursor = conn.cursor()
+        title = self.rankings_dict['tournament_title']
+        scoring = self.rankings_dict['scoring']
+        cursor.execute(f'select max(tournament_id) from tournaments')
+        self.tournament_id = cursor.fetchone()[0] + 1
+        t_date = date if DEBUG else time.strftime("%Y-%m-%d")
+        insert = f"""INSERT INTO tournaments (date, boards, players, max, scoring, tournament_id, title, rounds) VALUES 
+        ('{t_date}', {self.boards}, {self.pairs}, 0, '{scoring}', {self.tournament_id}, '{title}', 0);"""
+        cursor.execute(insert)
+        for pair in self.rankings_dict["totals"]:
+            rows = f"({self.tournament_id}, {pair.number}, '{pair.names}', '{self._replace(pair.rank)}', {pair.mp}, {pair.percent}," \
+                   f"{pair.masterpoints or 0}, {pair.masterpoints_ru or 0})"
+            insert = f"""
+        INSERT INTO names (tournament_id, number, partnership, rank, mps, percent, masterpoints, masterpoints_ru) 
+        VALUES {rows};"""
+            cursor.execute(insert)
+        conn.commit()
+        conn.close()
+        self._conn = self.conn.close()
+        return self.tournament_id
 
     def process_multisession(self):
         paths = []
@@ -822,14 +998,18 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
             self.names = []
             self.datums = []
             self.penalties = {}
+            self.hands = []
+            self._deals = []
+            self._first_board = 0
+            self._boards_per_round = 0
             self.get_results()
             self.boards = len(self.travellers)
             self.boards_total += self.boards
             self.get_names()
             self.get_hands()
             self.get_standings()
-            self.played_boards += max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
-            self.get_masterpoints(session=True)
+            played_boards_current = max(len([p for p in personal if p[3] != "NOT PLAYED"]) for personal in self.personals)
+            self.played_boards += played_boards_current
             for total in self.totals:
                 try:
                     current_sum = [s for s in self.sessions if s[0][0] == self.names[total[0] % 100 - 1][0]][0]
@@ -837,9 +1017,13 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
                     current_sum = [self.names[total[0] % 100 - 1], []]
                     self.sessions.append(current_sum)
                 current_sum[1].append(total)
+        paths.append(print_to_file(self.html_rankings(), name='Ranks'))
+        if not CONFIG.get("no_hands"):
+            paths.append(print_to_file(self.html_travellers(), name='Travellers'))
+        paths.append(print_to_file(self.html_scorecards(), name='Scorecards'))
         self.final_standings = []
         for i, s in enumerate(self.sessions):
-            boards = sum(round(ss[1] / ss[2]) for ss in s[1])
+            boards = sum(round(ss[1] / ss[2]) for ss in s[1] if ss[2])
             # pair numbers from the last session are used
             new_list = [s[0], sum(ss[1] for ss in s[1])]
             new_list.append(new_list[-1] / boards)
@@ -848,13 +1032,9 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
             new_list.extend([mps, mps_ru])
             self.final_standings.append(new_list)
         self.final_standings.sort(key=lambda x: -x[2])
-        self.get_masterpoints(self.played_boards, self.final_standings, replace=True)
-        use_pdf = not self.debug and CONFIG.get('output_format', 'pdf') == 'pdf'
-        paths.append(print_to_file(self.html_sessions(), use_pdf, 'Sessions'))
-        paths.append(print_to_file(self.html_rankings(), use_pdf, 'Ranks'))
-        if not CONFIG.get("no_hands"):
-            paths.append(print_to_file(self.html_travellers(), use_pdf, 'Travellers'))
-        paths.append(print_to_file(self.html_scorecards(), use_pdf, 'Scorecards'))
+        if session_count > 1:
+            self.get_masterpoints(self.played_boards, self.final_standings, replace=True)
+            paths.append(print_to_file(self.html_sessions(), 'Sessions'))
         self._conn = self.conn.close()
         return paths
 
@@ -884,27 +1064,28 @@ score, mp_ns, mp_ew, handviewer_link) VALUES {rows};"""
 
 if __name__ == "__main__":
     from movement import Movement
-    g = ResultGetter(21, 7, movement=Movement(21, 7))
-    #g = ResultGetter(28, 8)
+    g = ResultGetter(25, 17, session_index=1)
     g.debug = True
     from config import init_config
     init_config()
     CONFIG["scoring"] = "MPs"
     CONFIG["no_hands"] = False
     CONFIG["output_format"] = 'html'
+    g.process_multisession()
 
-    print(g.process())
+    #g.process_multisession(save=True)
     # print(g.suspicious_results_text())
     # CONFIG["rounds"] = 8
     # CONFIG["tourney_coeff"] = 0.5
     # CONFIG["tournament_title"] = "Микстовый парный чемпионат Армении"
     # g.process()
     # g.save(correction=True)
-    # names = [('', 14, 1),
-    #     ('', 15, -1.7),
-    #     ('', 14,-1),
-    #     ('', 14, 1.6),
-    #     ('', 14, 0.05)
-    # ]
-    # print(g.get_raw_masterpoints(played_boards=g.boards,total_rating=sum(n[1] for n in names), ranks_ru=[n[2] for n in names]))
+    # print(CONFIG)
+    #names = [('', 9, 1,6),
+    #    ('', 8, 1.6),
+    #    ('', 14,-1),
+    #    ('', 14, 1),
+    #]
+
+    #print(g.get_raw_masterpoints(played_boards=24,total_rating=2*sum(n[1] for n in names), ranks_ru=[n[2] for n in names]))
 

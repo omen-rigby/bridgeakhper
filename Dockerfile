@@ -27,7 +27,7 @@ RUN cd /tmp/unrar && \
 RUN apt-get install -y --no-install-recommends p7zip-full && 7z -h
 WORKDIR /app
 ENV PYTHONUNBUFFERED True
-COPY . ./
+COPY requirements.txt ./requirements.txt
 RUN pip3 install --no-cache-dir --upgrade pip -r requirements.txt
 # Cleanup
 RUN apt-get remove -y g++ gcc make curl && \
@@ -38,5 +38,5 @@ RUN rm -rf \
     /tmp/* \
     /var/lib/apt/lists/* \
     /var/tmp/*
-
+COPY . ./
 CMD ["python3", "tg_input.py"]

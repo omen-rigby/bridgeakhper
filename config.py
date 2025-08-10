@@ -32,5 +32,4 @@ def init_config():
     global AM
     AM = CONFIG["city"] in ("Ереван",)
 
-
 init_config()

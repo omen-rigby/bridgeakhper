@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta content="text/html; charset='UTF-8'">
+    <meta http-equiv="Content-type" content="Content-type: text/html; charset=utf-8"/>
     <title>Rankings</title>
     <style type="Text/css">@media print {
     @page { margin: 0mm 0mm 0mm 0mm; size: landscape; }
@@ -47,12 +47,14 @@ CAPTION {
     <th align="center">Pair</th>
     <th align="left">Names</th>
     <th align="center">Total</th>
+    <th align="center">%</th>
     {% for i in range(1, sessions + 1) %}
     <th align="center">Session {{i}}</th>
     {% endfor %}
     <th align="center">Master Points</th>
     {% if AM %}
     <th align="center">Master Points (RU)</th>
+    <th align="center">Penalties</th>
     {% endif %}
   </tr>
   {% for pair in totals %}
@@ -61,6 +63,7 @@ CAPTION {
     <td align="center">{{pair.number}}</td>
     <td align="left">{{pair.names}}</td>
     <td align="center">{{pair.mp}}</td>
+    <td align="center">{{pair.percent}}</td>
     {% for i in range(sessions) %}
     <td align="center">{{pair.sessions[i]}}</td>
     {% endfor %}
@@ -68,6 +71,7 @@ CAPTION {
     <td align="center">{{pair.masterpoints}}</td>
     {% endif %}
     <td align="center">{{pair.masterpoints_ru}}</td>
+    <td align="center">{{pair.penalties}}</td>
   </tr>
   {% endfor %}
   </tbody>

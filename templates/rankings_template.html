@@ -53,6 +53,7 @@ CAPTION {
     <th align="center">Master Points</th>
     {% if AM %}
     <th align="center">Master Points (RU)</th>
+    <th align="center">Penalties</th>
     {% endif %}
   </tr>
   {% for pair in totals %}
@@ -68,6 +69,7 @@ CAPTION {
     <td align="center">{{pair.masterpoints}}</td>
     {% endif %}
     <td align="center">{{pair.masterpoints_ru}}</td>
+    <td align="center">{{pair.penalties}}</td>
   </tr>
   {% endfor %}
   </tbody>

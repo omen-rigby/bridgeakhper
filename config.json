@@ -16,6 +16,9 @@
   "mp": {
     "neuberg": true
   },
+  "sessions": {
+    "modulo": null
+  },
   "validate_lead": false,
   "tourney_coeff": 0.25,
   "city": "\u041d\u043e\u0432\u043e\u043a\u0443\u0437\u043d\u0435\u0446\u043a"

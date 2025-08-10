@@ -195,7 +195,7 @@ class Players:
         default_ru = 1.6 if AM else 5
         if CONFIG['tourney_coeff'] == 1:
             for i, c in enumerate(candidates):
-                if type(c) == list and c[5] and c[5] % 0.5 != 0:
+                if type(c) == list and c[5] and c[5] == 1.6:
                     candidates[i] = tuple(c[0:5] + [(c[5] - 0.8) * 3/2])
             default_ru = 1.2
         return [(c[2], c[4] or 0, c[5] if c[5] is not None else default_ru) if type(c) != str else (c, 0, default_ru, True)
@@ -329,11 +329,21 @@ class Players:
 
 
 global ALL_PLAYERS
+# with Players.connect() as tourney_db:
+#     players_cursor = tourney_db.cursor()
 ALL_PLAYERS = Players.get_players() if PLAYERS_DB else []
 
 
 if __name__ == "__main__":
     # print(Players.find_ru_ids())
-    # Players.synch_city("Воронеж")
-    # Players.synch_city("Ростов-на-Дону")
-    Players.synch()
+    Players.synch_city("Сочи")
+    Players.synch_city("Екатеринбург")
+    #Players.synch()
+    #conn = Players.connect()
+    #cur = conn.cursor()
+    #CONFIG["tourney_coeff"] = 1
+    #cur.execute("select number, partnership from names where tournament_id = 258 and number < 100 order by number desc")
+    #for (n, names) in cur.fetchall():
+
+    #    print(Players.lookup(names, ALL_PLAYERS))
+    # conn.close()

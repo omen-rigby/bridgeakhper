@@ -26,12 +26,17 @@ def send(chat_id, text, reply_buttons=None, context=None):
 
 
 def board_numbers(update: Update, context: CallbackContext):
+    board_modulo = CONFIG.get('board_modulo', 32)
     if 'Swiss' in CONFIG['scoring']:
         boards_per_round = context.bot_data['maxboard'] // CONFIG['rounds']
         round_number = context.bot_data['movement'].round
         all_boards = list(range(1 + boards_per_round * (round_number - 1), boards_per_round * round_number + 1))
     else:
-        all_boards = list(range(1, context.bot_data["maxboard"] + 1))
+        if CONFIG.get('sessions', {}).get('modulo'):
+            first = context.bot_data.get('first_board', 1)
+            all_boards = [b % 32 + 1 for b in range(first - 1, first + context.bot_data["maxboard"] - 1)]
+        else:
+            all_boards = list(range(1, context.bot_data["maxboard"] + 1))
     conn = TourneyDB.connect()
     cursor = conn.cursor()
     first = 100 * current_session(context)
@@ -39,10 +44,11 @@ def board_numbers(update: Update, context: CallbackContext):
     protocols = cursor.fetchall()
     conn.close()
     unfinished = []
+
     for i in all_boards:
         played = set([p[1:3] for p in protocols if p[0] == i])
         if len(list(chain(*played))) < context.bot_data["maxpair"] - 1:
-            unfinished.append(f'{i} ({i % 32 or 32})' if i > 32 else i)
+            unfinished.append(f'{i} ({i % board_modulo or board_modulo})' if i > board_modulo else i)
     context.user_data["board"] = Board()
     send(chat_id=update.effective_chat.id,
          text="Enter board number",
@@ -106,9 +112,11 @@ def save_board(first: int, update: Update, context: CallbackContext):
         tricks = key
 
     conn = TourneyDB.connect()
+    if board_number < first:
+        board_number += first
     cursor = conn.cursor()
     statement = f"""INSERT INTO protocols (number, ns, ew, contract, declarer, lead, result, score)
-                    VALUES({board_number + first}, '{int(ns) + first}', '{int(ew) + first}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
+                    VALUES({board_number}, '{int(ns) + first}', '{int(ew) + first}', '{contract}', '{declarer}', '{lead}', '{tricks}', '{score}')
     """.replace('_', '')
     # This is a workaround
     # Telegram fails sometimes, and things like n_ or worse are submitted
@@ -124,7 +132,7 @@ def save_board(first: int, update: Update, context: CallbackContext):
     else:
         context.bot_data["allowed_boards"][user_id] = [board_number]
 
-    new_text = new_text.replace("Score:", f"Score: {score}\nResult for board #{board_number} is saved")
+    new_text = new_text.replace("Score:", f"Score: {score}\nResult for board #{board_number % 100} is saved")
     lst = NAVIGATION_KEYBOARD + [InlineKeyboardButton('board', callback_data='board'),
                                  InlineKeyboardButton('result', callback_data='result'),
                                  InlineKeyboardButton('hands', callback_data='hands')]
@@ -462,7 +470,7 @@ def inline_key(update: Update, context: CallbackContext):
         conn = TourneyDB.connect()
         cursor = conn.cursor()
         try:
-            number = int(context.user_data["board"].number) + first
+            number = int(context.user_data["board"].number) % 100 + first
             if number not in context.bot_data.get("allowed_boards", {}).get(update.effective_chat.id, []):
                 send(chat_id=update.effective_chat.id,
                      text=f"Player not allowed to view board #{number}",

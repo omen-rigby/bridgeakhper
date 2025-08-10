@@ -7,7 +7,7 @@ import py7zr
 import rarfile
 from telegram.ext import CallbackContext
 from telegram.update import Update
-from inline_key import send
+from inline_key import send, current_session
 from tourney_db import TourneyDB
 from constants import AM, CONFIG, hands
 from board import Board
@@ -70,9 +70,10 @@ class FileHandlers:
             number = 0
             uploaded = 0
             board = None
+            first = 100 * current_session(context)
             for line in contents.split('\n'):
                 if board_line := FileHandlers.board_re.search(line):
-                    number = board_line.group(1)
+                    number = int(board_line.group(1)) + first
                     board = Board(number=number)
                 elif number and board.number:
                     if deal := FileHandlers.deal_re.search(line):

@@ -110,7 +110,11 @@ background-color: #aa7777;
     {% if pair.penalties %}
     <tr>
       <th colspan="7" align="center" bgcolor="#ffb0b0">Penalties</th>
+      {% if pair.penalties > 0 %}
       <td bgcolor="#ffb0b0">−{{pair.penalties}}</td>
+      {% else %}
+      <td bgcolor="#ffb0b0">+{{pair.penalties}}</td>
+    {% endif %}
     </tr>
     {% endif %}
   </tbody></table>

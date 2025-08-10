@@ -96,6 +96,8 @@ class CommandHandlers:
     def end_multi_session(update: Update, context: CallbackContext):
         context.bot_data["current_session"] = None
         context.user_data["current_session"] = None
+        del context.bot_data["current_session"]
+        del context.user_data["current_session"]
         send(chat_id=update.effective_chat.id,
              text="Exited multi-session mode",
              context=context)
@@ -165,6 +167,22 @@ class CommandHandlers:
 
     @staticmethod
     def init(update: Update, context: CallbackContext):
+        try:
+            conn = TourneyDB.connect()
+        except Exception:
+            send(chat_id=update.effective_chat.id,
+                 text="Couldn't connect to tournament database.",
+                 context=context)
+            raise
+        try:
+            cursor = conn.cursor()
+        except:
+            send(chat_id=update.effective_chat.id,
+                 text="Couldn't connect to tournament database.",
+                 context=context)
+            conn.close()
+            raise
+
         if 'Swiss' not in CONFIG['scoring'] and context.bot_data.get('current_session') is not None:
             context.bot_data['current_session'] += 1
             context.user_data['current_session'] = context.bot_data['current_session']
@@ -183,32 +201,40 @@ class CommandHandlers:
             CONFIG["tourney_coeff"] = 0.25
         init_config()
         if (context.bot_data.get('current_session') or 0) > 0:
+            session_index = context.bot_data.get('current_session')
+            cursor.execute('select number,partnership,rank,rank_ru from names')
+            all_names = cursor.fetchall()
+            current_session_names = [n for n in all_names if 100 * session_index < n[0] < 100 * session_index + 99]
+            previous_session_names = [n for n in all_names if -100 + 100 * session_index < n[0] < 100 * session_index]
+            if not current_session_names:
+                for n in previous_session_names:
+                    cursor.execute(f"""insert into names ("number", partnership, "rank", rank_ru) 
+                        VALUES({n[0] + 100 * session_index}, '{n[1]}', {n[2]}, {n[3]})""")
+            cursor.execute(f'select distinct "number" from protocols where 100 * {session_index - 1} < "number" and "number" < 100 * {session_index} order by number')
+            boards_previous = [b[0] for b in cursor.fetchall()]
+            last_board = [b for b in boards_previous if b + 1 not in boards_previous][0] % 100
+            if modulo := CONFIG.get('sessions', {}).get('modulo'):
+                context.bot_data["first_board"] = last_board % modulo + 1
             send(chat_id=update.effective_chat.id,
-                 text=f"Started session {context.bot_data['current_session'] + 1}. Enter the number of boards",
+                 text=f"Started session {context.bot_data['current_session'] + 1}.\nEnter the number of boards",
                  reply_buttons=[],
                  context=context)
+            cursor.execute(f"update session set session_index={context.bot_data['current_session']}")
         else:
             send(chat_id=update.effective_chat.id,
                  text="Started session. Enter scoring",
                  reply_buttons=["MPs", "IMPs", "Cross-IMPs", "Swiss IMPs"],
                  context=context)
-        initiator = update.message.from_user.username or update.message.from_user.id
-        try:
-            conn = TourneyDB.connect()
-        except Exception:
-            conn = None
-        try:
-            cursor = conn.cursor()
-            cursor.select('select COUNT(*) from session')
+            initiator = update.message.from_user.username or update.message.from_user.id
+            session_index = context.bot_data["current_session"]
+            cursor.execute('select COUNT(*) from session')
             session_found = cursor.fetchone()
-            if session_found:
-                cursor.execute(f"update session set initiator={initiator},boards=NULL,pairs=NULL,scoring=NULL")
+            if session_found[0]:
+                cursor.execute(f"update session set initiator='{initiator}',boards=NULL,pairs=NULL,scoring=NULL,session_index={session_index}")
             else:
                 cursor.execute(
-                    f"insert into session (pairs, boards, scoring, initiator) VALUES (NULL,NULL,NULL,{initiator})")
-            conn.commit()
-        finally:
-            conn.close()
+                    f"""insert into session (pairs, boards, scoring, initiator,session_index) VALUES (NULL,NULL,NULL,'{initiator}',{session_index})""")
+        conn.commit()
 
         if update.effective_chat.id != BITKIN_ID:
             send(chat_id=BITKIN_ID,
@@ -219,11 +245,19 @@ class CommandHandlers:
     @staticmethod
     def reuse_names(update: Update, context: CallbackContext):
         TourneyDB.clear_tables(("boards", "protocols"))
+        send(chat_id=update.effective_chat.id,
+             text=f"""Restarting session saving names""",
+             reply_buttons=[],
+             context=context)
         CommandHandlers.init(update, context)
 
     @staticmethod
     def clear_db(update: Update, context: CallbackContext):
         TourneyDB.clear_tables()
+        send(chat_id=update.effective_chat.id,
+             text=f"""Starting new session""",
+             reply_buttons=[],
+             context=context)
         CommandHandlers.init(update, context)
 
     @staticmethod
@@ -236,7 +270,7 @@ class CommandHandlers:
                 if context.bot_data.get('current_session', -1) == -1:
                     for table in ('boards', 'protocols', 'names'):
                         cursor.execute(f'select * from {table} where {first} < number and number < {first + 100} LIMIT 1')
-                        if cursor.fetchall():
+                        if cursor.fetchone():
                             break
                     else:
                         conn.close()
@@ -546,7 +580,7 @@ Submitted {names} names""",
                          reply_buttons=[], context=context)
                     return
                 # The line below is required!
-                context.user_data["board"] = Board(number=int(pure_number))
+                context.user_data["board"] = Board(number=int(pure_number) + first)
                 conn.close()
                 return result(update, context)
             context.user_data["board"] = Board()
@@ -592,6 +626,21 @@ Submitted {names} names""",
                          context=context)
         else:
             context.bot_data["maxboard"] = int(update.message.text)
+            session_index = context.bot_data.get('session_index', 0)
+            if session_index:
+                conn = TourneyDB.connect()
+                cursor = conn.cursor()
+                fields = ','.join(f'{h}{s}' for h in hands for s in SUITS)
+                first = context.bot_data['first_board']
+                cursor.execute(f'select "number",{fields} from boards where and {first} <= "number" and "number" < 100 order by "number"')
+
+                leftover_boards = cursor.fetchall()
+                if len(leftover_boards) >= context.bot_data["maxboard"]:
+                    modulo = CONFIG.get("sessions", {}).get("modulo")
+                    for i, n in enumerate(leftover_boards):
+                        new_number = (n[0] - first) % modulo + 1 if modulo else i + 1
+                        cursor.execute(f"""insert into boards ("number", {fields}) 
+                                                        VALUES({new_number + 100 * session_index}, '{"','".join(n[1:])}')""")
             send(chat_id=update.effective_chat.id,
                  text="Enter the number of pairs",
                  reply_buttons=[],
@@ -802,6 +851,23 @@ Submitted {names} names""",
             raise
 
     @staticmethod
+    def add_raw_result(update: Update, context: CallbackContext):
+        chat_id = update.message.chat_id
+        if not is_director(update):
+            send(chat_id=chat_id, text="You don't have enough permissions to see tourney results", context=context)
+            return
+        if not AM:
+            send(chat_id=chat_id, text="This command is not applicable to your club", context=context)
+            return
+        if not CONFIG.get('site_db_autoadd'):
+            send(chat_id=chat_id, text="Enable site_db_autoadd in config first", context=context)
+        context.bot_data['result_getter'] = ResultGetter(boards=context.bot_data["maxboard"],
+                                                         pairs=context.bot_data["maxpair"])
+        tournament_id = context.bot_data['result_getter'].process_ranks()
+        url = CONFIG.get('tournament_url').format(tournament_id)
+        context.bot.send_message(text=f"Tournament results: {url}", chat_id=chat_id)
+
+    @staticmethod
     def end(update: Update, context: CallbackContext):
         chat_id = update.message.chat_id
         if not is_director(update):
@@ -814,7 +880,7 @@ Submitted {names} names""",
         header = send(chat_id, "Calculating results...", None, context)
         if 'BOT_TOKEN' in os.environ:
             city_en = CITIES_LATIN.get(CONFIG["city"], transliterate.translit(CONFIG["city"], 'ru'))
-            path = TourneyDB.dump(city_en) if 'CURRENT_TOURNEY' in os.environ else db_path
+            path = TourneyDB.dump(city_en, movement=context.bot_data.get('movement')) if 'CURRENT_TOURNEY' in os.environ else db_path
             context.bot.send_document(update.message.from_user.id, open(path, 'rb'))
             if 'CURRENT_TOURNEY' in os.environ:
                 os.remove(path)
@@ -822,7 +888,7 @@ Submitted {names} names""",
             context.bot_data['result_getter'] = ResultGetter(boards=context.bot_data["maxboard"],
                                                              pairs=context.bot_data["maxpair"],
                                                              movement=context.bot_data.get('movement'))
-            if context.bot_data.get('current_session'):
+            if context.bot_data.get('current_session') is not None:
                 context.bot_data['result_getter'].current_session = context.bot_data.get('current_session')
                 paths = context.bot_data['result_getter'].process_multisession()
             else:
@@ -845,7 +911,8 @@ Submitted {names} names""",
                     tourney_cursor.execute("select ns,es,ws,ss from boards order by number")
                     new_boards = [".".join(map(lambda s: s.upper().replace('T', '10'), b))
                                   for b in tourney_cursor.fetchall()]
-                    correction = len(set(old_boards).difference(new_boards)) < last[1] // 2
+                    correction = len([b for b in old_boards if b in new_boards]) > last[1] * 5 // 6
+                    tourney_conn.close()
                 else:
                     correction = False
                 conn.close()

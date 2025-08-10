@@ -77,7 +77,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler('config_update', CommandHandlers.config_update))
     # User input
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Clear"), CommandHandlers.clear_db))
-    updater.dispatcher.add_handler(MessageHandler(Filters.text("Reuse names"), CommandHandlers.reuse_names))
+    updater.dispatcher.add_handler(MessageHandler(Filters.regex("Reuse\\snames"), CommandHandlers.reuse_names))
     updater.dispatcher.add_handler(MessageHandler(Filters.text("Reuse$"), CommandHandlers.init))
 
     updater.dispatcher.add_handler(MessageHandler(Filters.regex("^-?\d+$"), CommandHandlers.number))
@@ -102,6 +102,7 @@ if __name__ == '__main__':
     updater.dispatcher.add_handler(CommandHandler("playerslist", CommandHandlers.list_players))
     updater.dispatcher.add_handler(CommandHandler("boards", CommandHandlers.get_boards_only))
     updater.dispatcher.add_handler(CommandHandler("end", CommandHandlers.end))
+    updater.dispatcher.add_handler(CommandHandler("addrawresult", CommandHandlers.add_raw_result))
     updater.dispatcher.add_handler(CommandHandler("testend", CommandHandlers.testend))
     updater.dispatcher.add_handler(CommandHandler("store", CommandHandlers.store))
     updater.dispatcher.add_handler(CommandHandler("correct", CommandHandlers.correct))
